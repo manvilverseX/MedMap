@@ -14,7 +14,7 @@ if db_url and db_url.startswith("postgres"):
 elif medmap_url and medmap_url.startswith("postgres"):
     raw_url = medmap_url
 else:
-    raw_url = db_url or "postgresql://postgres:PASSWORD_PLACEHOLDER@localhost:5432/medmap"
+    raw_url = "postgresql://postgres:PASSWORD_PLACEHOLDER@localhost:5432/medmap"
 
 if raw_url.startswith("postgresql://"):
     DATABASE_URL = raw_url.replace("postgresql://", "postgresql+pg8000://", 1)
