@@ -29,6 +29,9 @@ else:
     DATABASE_URL = raw_url
 
 DATABASE_URL = DATABASE_URL.replace("sslmode=require", "ssl_context=true")
+DATABASE_URL = DATABASE_URL.replace("?channel_binding=require&", "?")
+DATABASE_URL = DATABASE_URL.replace("&channel_binding=require", "")
+DATABASE_URL = DATABASE_URL.replace("?channel_binding=require", "")
 
 engine = create_engine(DATABASE_URL, poolclass=NullPool)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

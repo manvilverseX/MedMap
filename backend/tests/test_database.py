@@ -67,3 +67,22 @@ print(DATABASE_URL)
     
     result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
     assert "postgresql+pg8000://preview:pass@host/db" in result.stdout
+
+def test_database_url_parameter_normalization():
+    import subprocess
+    import sys
+    import os
+    
+    code = """
+import os
+import sys
+sys.path.insert(0, '.')
+from app.core.database import DATABASE_URL
+print(DATABASE_URL)
+"""
+    env = os.environ.copy()
+    env["PYTHONPATH"] = "."
+    env["DATABASE_URL"] = "postgresql://user:pass@host/db?sslmode=require&channel_binding=require"
+    
+    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
+    assert "postgresql+pg8000://user:pass@host/db?ssl_context=true" in result.stdout
