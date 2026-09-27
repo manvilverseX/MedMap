@@ -69,6 +69,7 @@ export const updateCase = async (caseId: string, data: Partial<ClinicalCase>): P
 export const uploadDocument = async (caseId: string, file: File): Promise<any> => {
   const formData = new FormData();
   formData.append('file', file);
+  formData.append('caseId', caseId);
   
   // Attempt JS Vercel Blob Upload
   let blobMetadata = null;

@@ -1,4 +1,5 @@
 import { put } from '@vercel/blob';
+import * as jose from 'jose';
 
 export const config = {
   runtime: 'edge',
@@ -25,8 +26,50 @@ export default async function handler(request) {
       });
     }
 
+    const token = authHeader.split(' ')[1];
+    const secret = process.env.SECRET_KEY;
+    
+    if (!secret) {
+      console.error("SECRET_KEY environment variable missing");
+      return new Response(JSON.stringify({ detail: 'Internal server error' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const formData = await request.formData();
     const file = formData.get('file');
+    const caseId = formData.get('caseId');
+
+    if (!caseId) {
+      return new Response(JSON.stringify({ detail: 'caseId missing' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    try {
+      const secretKey = new TextEncoder().encode(secret);
+      const { payload } = await jose.jwtVerify(token, secretKey);
+      
+      const role = payload.role;
+      if (role !== 'patient' && role !== 'doctor') {
+        throw new Error("Invalid role");
+      }
+      
+      if (role === 'patient' && payload.case_id !== caseId) {
+        return new Response(JSON.stringify({ detail: 'Not authorized for this case' }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+    } catch (err) {
+      console.error("JWT verification failed:", err);
+      return new Response(JSON.stringify({ detail: 'Invalid token' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     if (!file) {
       return new Response(JSON.stringify({ detail: 'Filename missing' }), {
