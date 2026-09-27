@@ -28,12 +28,19 @@ elif raw_url.startswith("postgres://"):
 else:
     DATABASE_URL = raw_url
 
-DATABASE_URL = DATABASE_URL.replace("sslmode=require", "ssl_context=true")
 DATABASE_URL = DATABASE_URL.replace("?channel_binding=require&", "?")
 DATABASE_URL = DATABASE_URL.replace("&channel_binding=require", "")
 DATABASE_URL = DATABASE_URL.replace("?channel_binding=require", "")
 
-engine = create_engine(DATABASE_URL, poolclass=NullPool)
+connect_args = {}
+if "sslmode=require" in DATABASE_URL:
+    import ssl
+    DATABASE_URL = DATABASE_URL.replace("?sslmode=require&", "?")
+    DATABASE_URL = DATABASE_URL.replace("&sslmode=require", "")
+    DATABASE_URL = DATABASE_URL.replace("?sslmode=require", "")
+    connect_args["ssl_context"] = ssl.create_default_context()
+
+engine = create_engine(DATABASE_URL, poolclass=NullPool, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_db():

@@ -77,7 +77,7 @@ def test_database_url_parameter_normalization():
 import os
 import sys
 sys.path.insert(0, '.')
-from app.core.database import DATABASE_URL
+from app.core.database import DATABASE_URL, engine
 print(DATABASE_URL)
 """
     env = os.environ.copy()
@@ -85,4 +85,36 @@ print(DATABASE_URL)
     env["DATABASE_URL"] = "postgresql://user:pass@host/db?sslmode=require&channel_binding=require"
     
     result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
-    assert "postgresql+pg8000://user:pass@host/db?ssl_context=true" in result.stdout
+    assert "postgresql+pg8000://user:pass@host/db" in result.stdout
+    assert "sslmode" not in result.stdout
+    assert "ssl_context" not in result.stdout
+    assert "channel_binding" not in result.stdout
+
+def test_database_engine_ssl_context():
+    import subprocess
+    import sys
+    import os
+    
+    code = """
+import os
+import sys
+import ssl
+from unittest.mock import patch
+
+sys.path.insert(0, '.')
+
+with patch('sqlalchemy.create_engine') as mock_create_engine:
+    import app.core.database
+    
+    # create_engine is called when the module is imported
+    args, kwargs = mock_create_engine.call_args
+    print("URL:", args[0])
+    print("CONNECT_ARGS:", 'ssl_context' in kwargs.get('connect_args', {}))
+"""
+    env = os.environ.copy()
+    env["PYTHONPATH"] = "."
+    env["DATABASE_URL"] = "postgresql://user:pass@host/db?sslmode=require"
+    
+    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
+    assert "URL: postgresql+pg8000://user:pass@host/db" in result.stdout
+    assert "CONNECT_ARGS: True" in result.stdout
