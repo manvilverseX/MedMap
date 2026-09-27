@@ -55,7 +55,7 @@ class DocumentServiceBlobTests(unittest.TestCase):
         self.assertEqual(doc.mimeType, "application/pdf")
         self.assertIn("uploads", doc.storagePath)
 
-    @patch("vercel.blob.put")
+    @patch("app.services.document_service.requests.put")
     @patch("app.services.document_service.os.getenv")
     def test_blob_upload_success(self, mock_getenv, mock_put):
         mock_getenv.return_value = "fake_token"
@@ -64,7 +64,7 @@ class DocumentServiceBlobTests(unittest.TestCase):
         file = UploadFile(filename="test.png", file=io.BytesIO(file_content), headers={"content-type": "image/png"})
         
         mock_resp = MagicMock()
-        mock_resp.url = "https://blob.vercel-storage.com/private/test.png"
+        mock_resp.json.return_value = {"url": "https://blob.vercel-storage.com/private/test.png"}
         mock_put.return_value = mock_resp
         
         doc_response = upload_document(self.db, "CASE-test-1", file)
@@ -76,9 +76,14 @@ class DocumentServiceBlobTests(unittest.TestCase):
         
         mock_put.assert_called_once()
         args, kwargs = mock_put.call_args
-        self.assertEqual(kwargs["access"], "private")
+        self.assertEqual(args[0], "https://vercel.com/api/blob")
+        self.assertEqual(kwargs["headers"]["x-vercel-blob-access"], "private")
+        self.assertEqual(kwargs["headers"]["authorization"], "Bearer fake_token")
+        self.assertEqual(kwargs["headers"]["x-content-type"], "image/png")
+        self.assertEqual(kwargs["data"], b"fake image content")
+        self.assertIn("pathname", kwargs["params"])
 
-    @patch("vercel.blob.put")
+    @patch("app.services.document_service.requests.put")
     @patch("app.services.document_service.os.getenv")
     def test_blob_upload_failure(self, mock_getenv, mock_put):
         mock_getenv.return_value = "fake_token"

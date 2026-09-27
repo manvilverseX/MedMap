@@ -1,6 +1,7 @@
 import os
 import uuid
 import shutil
+import requests
 
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
@@ -49,16 +50,60 @@ def upload_document(db: Session, case_id: str, file: UploadFile) -> DocumentResp
     is_vercel = os.getenv("VERCEL") == "1"
     
     if os.getenv("BLOB_READ_WRITE_TOKEN") or is_vercel:
-        import vercel.blob
+        import time
+        import logging
+        import urllib.parse
+        import random
+        
+        token = os.getenv("BLOB_READ_WRITE_TOKEN")
+        store_id = os.getenv("BLOB_STORE_ID")
+        
+        headers = {
+            "x-api-version": "7",
+            "x-vercel-blob-access": "private",
+            "x-add-random-suffix": "0"
+        }
+        
+        if file.content_type:
+            headers["x-content-type"] = file.content_type
+            
         try:
-            resp = vercel.blob.put(
-                path=safe_filename,
-                body=file_content,
-                access="private",
-                content_type=file.content_type
+            if token:
+                headers["authorization"] = f"Bearer {token}"
+            elif is_vercel and store_id:
+                # Normalize store_id as per official SDK:
+                # remove "store_" prefix if present
+                if store_id.startswith("store_"):
+                    store_id = store_id[6:]
+                
+                from vercel.oidc import get_vercel_oidc_token_sync
+                oidc_token = get_vercel_oidc_token_sync()
+                headers["authorization"] = f"Bearer {oidc_token}"
+                headers["x-vercel-blob-store-id"] = store_id
+                
+                # Match JS request ID format: storeId:Date.now():Math.random()
+                timestamp = int(time.time() * 1000)
+                random_hex = format(random.getrandbits(48), 'x')
+                request_id = f"{store_id}:{timestamp}:{random_hex}"
+                headers["x-api-blob-request-id"] = request_id
+                headers["x-api-blob-request-attempt"] = "0"
+            else:
+                raise ValueError("Missing both BLOB_READ_WRITE_TOKEN and BLOB_STORE_ID")
+
+            blob_api_url = "https://vercel.com/api/blob"
+            resp = requests.put(
+                blob_api_url,
+                params={"pathname": safe_filename},
+                headers=headers,
+                data=file_content
             )
-            storage_path = resp.url
+            resp.raise_for_status()
+            
+            # The Vercel API returns the uploaded url in the JSON response
+            storage_path = resp.json().get("url")
+            
         except Exception as e:
+            logging.error(f"Blob upload failed: {str(e)}")
             raise HTTPException(status_code=500, detail="Failed to upload document to cloud storage")
     else:
         # Local Fallback
