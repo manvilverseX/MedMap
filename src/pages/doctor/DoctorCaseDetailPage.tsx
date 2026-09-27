@@ -18,6 +18,14 @@ export function DoctorCaseDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [assessment, setAssessment] = useState({
+    diagnosis: '',
+    prescription: '',
+    investigations: '',
+    advice: '',
+    followUp: ''
+  });
+  const [isSaving, setIsSaving] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -34,6 +42,15 @@ export function DoctorCaseDetailPage() {
           getCaseDocuments(caseId).catch(() => []) // Fallback to empty array if docs fail
         ]);
         setCaseDetail(data);
+        if (data.clinicalAssessment) {
+          setAssessment({
+            diagnosis: data.clinicalAssessment.diagnosis || '',
+            prescription: data.clinicalAssessment.prescription || '',
+            investigations: data.clinicalAssessment.investigations || '',
+            advice: data.clinicalAssessment.advice || '',
+            followUp: data.clinicalAssessment.followUp || ''
+          });
+        }
         setDocuments(docs);
       } catch (err: any) {
         if (err.message === 'Unauthorized') {
@@ -49,12 +66,30 @@ export function DoctorCaseDetailPage() {
     fetchCase();
   }, [caseId, navigate]);
 
+  const handleSaveDraft = async () => {
+    if (!caseId) return;
+    setIsSaving(true);
+    setActionError(null);
+    try {
+      const updatedCase = await updateCase(caseId, { clinicalAssessment: assessment });
+      setCaseDetail(updatedCase);
+    } catch (err: any) {
+      if (err.message === 'Unauthorized') {
+        navigate('/doctor/login');
+        return;
+      }
+      setActionError(err.message || 'Failed to save draft.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleCompleteCase = async () => {
     if (!caseId) return;
     setIsCompleting(true);
     setActionError(null);
     try {
-      const updatedCase = await updateCase(caseId, { status: 'completed' });
+      const updatedCase = await updateCase(caseId, { status: 'completed', clinicalAssessment: assessment });
       setCaseDetail(updatedCase);
     } catch (err: any) {
       if (err.message === 'Unauthorized') {
@@ -84,7 +119,7 @@ export function DoctorCaseDetailPage() {
             ← Back to Cases Dashboard
           </Link>
         </nav>
-        
+
         {error && error !== 'Case Record Not Found' && (
           <div style={{ padding: '0 2rem' }}>
             <ErrorMessage message={error} onDismiss={() => setError(null)} />
@@ -189,6 +224,36 @@ export function DoctorCaseDetailPage() {
             </div>
           )}
 
+          {/* Clinical Assessment Form */}
+          <div style={{ marginTop: '2rem' }}>
+            <DoctorSectionCard title="Clinical Assessment" tag="Physician Only">
+              <div className="history-subsection">
+                {['diagnosis', 'prescription', 'investigations', 'advice', 'followUp'].map((field) => (
+                  <div key={field} style={{ marginBottom: '1rem' }}>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'capitalize' }}>
+                      {field.replace(/([A-Z])/g, ' $1').trim()}
+                    </label>
+                    <textarea
+                      value={assessment[field as keyof typeof assessment]}
+                      onChange={(e) => setAssessment(prev => ({ ...prev, [field]: e.target.value }))}
+                      disabled={caseDetail.status === 'completed' || isCompleting || isSaving}
+                      style={{
+                        width: '100%',
+                        minHeight: '80px',
+                        padding: '0.75rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--color-border-subtle)',
+                        fontFamily: 'inherit',
+                        resize: 'vertical'
+                      }}
+                      placeholder={`Enter ${field}...`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </DoctorSectionCard>
+          </div>
+
           <div style={{ marginTop: '2rem' }}>
             <DoctorSectionCard title="Uploaded Documents" tag={`${documents.length} Files`}>
               {documents.length > 0 ? (
@@ -200,8 +265,8 @@ export function DoctorCaseDetailPage() {
                         <h3 className="history-subheading" style={{ margin: 0, fontWeight: 600 }}>{doc.filename}</h3>
                       </div>
                       <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginLeft: '1.7rem' }}>
-                        <span>{(doc.sizeBytes / 1024).toFixed(1)} KB</span> • 
-                        <span style={{ marginLeft: '0.5rem' }}>{doc.mimeType}</span> • 
+                        <span>{(doc.sizeBytes / 1024).toFixed(1)} KB</span> •
+                        <span style={{ marginLeft: '0.5rem' }}>{doc.mimeType}</span> •
                         <span style={{ marginLeft: '0.5rem' }}>Uploaded: {new Date(doc.createdAt).toLocaleString()}</span>
                       </div>
                     </div>
@@ -231,12 +296,21 @@ export function DoctorCaseDetailPage() {
               <h3 style={{ fontFamily: 'var(--font-hand)', fontSize: '1.25rem', margin: '0 0 0.75rem' }}>
                 Actions
               </h3>
-              <Button 
-                variant="primary" 
+              <Button
+                variant="outline"
+                style={{ width: '100%', marginBottom: '0.75rem' }}
+                onClick={handleSaveDraft}
+                isLoading={isSaving}
+                disabled={isSaving || isCompleting}
+              >
+                {isSaving ? 'Saving...' : 'Save Draft'}
+              </Button>
+              <Button
+                variant="primary"
                 style={{ width: '100%', backgroundColor: 'var(--color-verify)', borderColor: 'var(--color-verify)' }}
                 onClick={handleCompleteCase}
                 isLoading={isCompleting}
-                disabled={isCompleting}
+                disabled={isSaving || isCompleting}
               >
                 {isCompleting ? 'Completing...' : '✓ Mark as Completed'}
               </Button>

@@ -9,4 +9,6 @@ export interface ClinicalCase {
   consentGranted?: boolean;
   status: CaseStatus;
   intakeAnswers?: Record<string, string>;
+  clinicalAssessment?: Record<string, any>;
+  reviewerId?: string;
 }

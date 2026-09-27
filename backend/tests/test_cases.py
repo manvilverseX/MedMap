@@ -44,6 +44,20 @@ class CaseSchemaTests(unittest.TestCase):
     def test_null_intake_answers_are_accepted(self):
         self.assertIsNone(CaseUpdate(intakeAnswers=None).intakeAnswers)
 
+    def test_valid_clinical_assessment_is_accepted(self):
+        assessment = {
+            "diagnosis": "Migraine",
+            "followUpNeeded": True,
+            "medications": ["Ibuprofen"],
+            "details": {
+                "severity": "moderate"
+            }
+        }
+        self.assertEqual(CaseUpdate(clinicalAssessment=assessment).clinicalAssessment, assessment)
+
+    def test_reviewer_id_is_accepted(self):
+        self.assertEqual(CaseUpdate(reviewerId="doc-1").reviewerId, "doc-1")
+
     def test_invalid_intake_answer_shapes_are_rejected(self):
         invalid_values = (
             ["Headache"],
@@ -182,6 +196,64 @@ class CaseServiceTests(unittest.TestCase):
 
         with self.Session() as session:
             self.assertIsNone(case_service.get_case(session, case_id).intakeAnswers)
+
+    def test_clinical_assessment_persist_preserve_and_clear(self):
+        assessment = {
+            "diagnosis": "Migraine",
+            "prescription": "Ibuprofen 400mg",
+        }
+
+        with self.Session() as session:
+            created = case_service.create_case(
+                session,
+                CaseCreate(patientId="patient-assessment"),
+            )
+            case_id = created.caseId
+            self.assertIsNone(created.clinicalAssessment)
+
+            updated = case_service.update_case(
+                session,
+                case_id,
+                CaseUpdate(clinicalAssessment=assessment, reviewerId="doc-1"),
+            )
+            self.assertEqual(updated.clinicalAssessment, assessment)
+            self.assertEqual(updated.reviewerId, "doc-1")
+
+            retrieved = case_service.get_case(session, case_id)
+            self.assertEqual(retrieved.clinicalAssessment, assessment)
+            self.assertEqual(retrieved.reviewerId, "doc-1")
+
+        with self.Session() as session:
+            persisted = case_service.get_case(session, case_id)
+            self.assertEqual(persisted.clinicalAssessment, assessment)
+            self.assertEqual(persisted.reviewerId, "doc-1")
+
+            language_updated = case_service.update_case(
+                session,
+                case_id,
+                CaseUpdate(language="Hindi"),
+            )
+            self.assertEqual(language_updated.language, "Hindi")
+            self.assertEqual(language_updated.clinicalAssessment, assessment)
+            self.assertEqual(language_updated.reviewerId, "doc-1")
+
+        with self.Session() as session:
+            preserved = case_service.get_case(session, case_id)
+            self.assertEqual(preserved.clinicalAssessment, assessment)
+            self.assertEqual(preserved.reviewerId, "doc-1")
+
+            cleared = case_service.update_case(
+                session,
+                case_id,
+                CaseUpdate(clinicalAssessment=None, reviewerId=None),
+            )
+            self.assertIsNone(cleared.clinicalAssessment)
+            self.assertIsNone(cleared.reviewerId)
+
+        with self.Session() as session:
+            final = case_service.get_case(session, case_id)
+            self.assertIsNone(final.clinicalAssessment)
+            self.assertIsNone(final.reviewerId)
 
     def test_missing_case_returns_none(self):
         with self.Session() as session:

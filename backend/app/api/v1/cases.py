@@ -42,12 +42,28 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
     if not current_case:
         raise HTTPException(status_code=404, detail="Case not found")
 
+    provided_fields = case_in.model_dump(exclude_unset=True).keys()
+
     if current_user.get("role") == "patient":
         if current_user.get("case_id") != case_id:
             raise HTTPException(status_code=403, detail="Not authorized to update this case")
         if case_in.status == CaseStatus.COMPLETED:
             raise HTTPException(status_code=403, detail="Patients cannot mark case as completed")
-            
+
+        if "clinicalAssessment" in provided_fields or "reviewerId" in provided_fields:
+            raise HTTPException(status_code=403, detail="Patients cannot modify doctor review fields")
+
+    elif current_user.get("role") == "doctor":
+        update_data = case_in.model_dump(exclude_unset=True)
+        # Prevent client from spoofing reviewerId
+        if "reviewerId" in update_data:
+            del update_data["reviewerId"]
+
+        if "clinicalAssessment" in provided_fields:
+            update_data["reviewerId"] = current_user.get("sub")
+
+        case_in = CaseUpdate(**update_data)
+
     if case_in.status and case_in.status != current_case.status:
         valid_transitions = {
             CaseStatus.INTAKE: [CaseStatus.PATIENT_VERIFYING],
@@ -55,11 +71,11 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
             CaseStatus.DOCTOR_REVIEW: [CaseStatus.COMPLETED],
             CaseStatus.COMPLETED: []
         }
-        
+
         allowed_next_states = valid_transitions.get(CaseStatus(current_case.status), [])
         if case_in.status not in allowed_next_states:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"Invalid state transition from {current_case.status} to {case_in.status.value}"
             )
 
@@ -68,15 +84,15 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
 
 @router.post("/{case_id}/documents", response_model=DocumentResponse, status_code=201)
 def upload_case_document(
-    case_id: str, 
+    case_id: str,
     file: Optional[UploadFile] = File(None),
     metadata: Optional[str] = Form(None),
-    db: Session = Depends(get_db), 
+    db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(require_patient_or_doctor)
 ):
     if current_user.get("role") == "patient" and current_user.get("case_id") != case_id:
         raise HTTPException(status_code=403, detail="Not authorized to upload to this case")
-    
+
     if metadata:
         import json
         from pydantic import BaseModel
@@ -86,18 +102,18 @@ def upload_case_document(
             filename: str
             mimeType: str
             sizeBytes: int
-            
+
         try:
             meta_dict = json.loads(metadata)
             meta_obj = BlobMetadata(**meta_dict)
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid metadata format")
-            
+
         return document_service.save_document_metadata(db, case_id, meta_obj)
-        
+
     if file:
         return document_service.upload_document(db, case_id, file)
-        
+
     raise HTTPException(status_code=400, detail="Must provide file or metadata")
 
 @router.get("/{case_id}/documents", response_model=List[DocumentResponse])

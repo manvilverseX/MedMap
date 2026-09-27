@@ -30,7 +30,9 @@ def create_case(db: Session, data: CaseCreate) -> CaseResponse:
         language=db_case.language,
         consentGranted=db_case.consentGranted,
         status=db_case.status,
-        intakeAnswers=db_case.intakeAnswers
+        intakeAnswers=db_case.intakeAnswers,
+        clinicalAssessment=db_case.clinicalAssessment,
+        reviewerId=db_case.reviewerId
     )
 
 def get_case(db: Session, case_id: str) -> Optional[CaseResponse]:
@@ -46,7 +48,9 @@ def get_case(db: Session, case_id: str) -> Optional[CaseResponse]:
         language=db_case.language,
         consentGranted=db_case.consentGranted,
         status=db_case.status,
-        intakeAnswers=db_case.intakeAnswers
+        intakeAnswers=db_case.intakeAnswers,
+        clinicalAssessment=db_case.clinicalAssessment,
+        reviewerId=db_case.reviewerId
     )
 
 def update_case(db: Session, case_id: str, data: CaseUpdate) -> Optional[CaseResponse]:
@@ -74,7 +78,9 @@ def update_case(db: Session, case_id: str, data: CaseUpdate) -> Optional[CaseRes
         language=db_case.language,
         consentGranted=db_case.consentGranted,
         status=db_case.status,
-        intakeAnswers=db_case.intakeAnswers
+        intakeAnswers=db_case.intakeAnswers,
+        clinicalAssessment=db_case.clinicalAssessment,
+        reviewerId=db_case.reviewerId
     )
 
 def get_cases(db: Session, status: Optional[str] = None) -> List[CaseResponse]:
@@ -93,6 +99,8 @@ def get_cases(db: Session, status: Optional[str] = None) -> List[CaseResponse]:
             language=c.language,
             consentGranted=c.consentGranted,
             status=c.status,
-            intakeAnswers=c.intakeAnswers
+            intakeAnswers=c.intakeAnswers,
+            clinicalAssessment=c.clinicalAssessment,
+            reviewerId=c.reviewerId
         ) for c in db_cases
     ]
