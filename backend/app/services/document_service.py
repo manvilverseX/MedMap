@@ -1,7 +1,7 @@
 import os
 import uuid
 import shutil
-import requests
+
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from fastapi import UploadFile, HTTPException
@@ -46,26 +46,21 @@ def upload_document(db: Session, case_id: str, file: UploadFile) -> DocumentResp
     if size_bytes == 0:
         raise HTTPException(status_code=400, detail="Empty file")
 
-    blob_token = os.getenv("BLOB_READ_WRITE_TOKEN")
+    is_vercel = os.getenv("VERCEL") == "1"
     
-    if blob_token:
-        # Vercel Blob Storage (Private)
-        blob_api_url = f"https://blob.vercel-storage.com/{safe_filename}"
-        headers = {
-            "authorization": f"Bearer {blob_token}",
-            "x-api-version": "7",
-            "x-access": "private",
-            "x-content-type": file.content_type
-        }
-        resp = requests.put(blob_api_url, headers=headers, data=file_content)
-        if not resp.ok:
+    if os.getenv("BLOB_READ_WRITE_TOKEN") or is_vercel:
+        import vercel.blob
+        try:
+            resp = vercel.blob.put(
+                path=safe_filename,
+                body=file_content,
+                access="private",
+                content_type=file.content_type
+            )
+            storage_path = resp.url
+        except Exception as e:
             raise HTTPException(status_code=500, detail="Failed to upload document to cloud storage")
-        blob_url = resp.json().get("url")
-        storage_path = blob_url
     else:
-        if os.getenv("VERCEL") == "1":
-            raise HTTPException(status_code=500, detail="Server misconfiguration: Vercel Blob token is missing.")
-            
         # Local Fallback
         os.makedirs(UPLOAD_DIR, exist_ok=True)
         storage_path = os.path.join(UPLOAD_DIR, safe_filename)
@@ -90,7 +85,7 @@ def upload_document(db: Session, case_id: str, file: UploadFile) -> DocumentResp
     except Exception as e:
         db.rollback()
         # Clean up local file if it was a local upload
-        if not blob_token and os.path.exists(storage_path):
+        if not (os.getenv("BLOB_READ_WRITE_TOKEN") or os.getenv("VERCEL") == "1") and os.path.exists(storage_path):
             os.remove(storage_path)
         raise e
 

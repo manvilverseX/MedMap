@@ -125,14 +125,13 @@ class DocumentTests(unittest.TestCase):
         docs_empty = get_documents(self.db, "missing-case")
         self.assertEqual(len(docs_empty), 0)
 
-    @patch("app.services.document_service.requests.put")
+    @patch("vercel.blob.put")
     def test_upload_cloud_storage_success(self, mock_put):
         file_content = b"fake pdf"
         file = self.create_upload_file("test.pdf", file_content, "application/pdf")
         
         mock_resp = unittest.mock.Mock()
-        mock_resp.ok = True
-        mock_resp.json.return_value = {"url": "https://blob.vercel-storage.com/test_doc.pdf"}
+        mock_resp.url = "https://blob.vercel-storage.com/test_doc.pdf"
         mock_put.return_value = mock_resp
         
         with patch.dict(os.environ, {"BLOB_READ_WRITE_TOKEN": "test_token"}):
@@ -143,10 +142,12 @@ class DocumentTests(unittest.TestCase):
         self.assertEqual(doc.storagePath, "https://blob.vercel-storage.com/test_doc.pdf")
         mock_put.assert_called_once()
 
-    @patch("app.services.document_service.requests.put")
-    def test_upload_vercel_missing_token(self, mock_put):
+    @patch("vercel.blob.put")
+    def test_upload_vercel_oidc_failure(self, mock_put):
         file_content = b"fake pdf"
         file = self.create_upload_file("test.pdf", file_content, "application/pdf")
+        
+        mock_put.side_effect = Exception("OIDC missing token")
         
         with patch.dict(os.environ, {"VERCEL": "1"}):
             if "BLOB_READ_WRITE_TOKEN" in os.environ:
@@ -154,5 +155,5 @@ class DocumentTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as context:
                 upload_document(self.db, "test-case", file)
             self.assertEqual(context.exception.status_code, 500)
-            self.assertIn("Vercel Blob token is missing", context.exception.detail)
-        mock_put.assert_not_called()
+            self.assertIn("Failed to upload document to cloud storage", context.exception.detail)
+        mock_put.assert_called_once()

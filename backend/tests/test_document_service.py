@@ -55,7 +55,7 @@ class DocumentServiceBlobTests(unittest.TestCase):
         self.assertEqual(doc.mimeType, "application/pdf")
         self.assertIn("uploads", doc.storagePath)
 
-    @patch("app.services.document_service.requests.put")
+    @patch("vercel.blob.put")
     @patch("app.services.document_service.os.getenv")
     def test_blob_upload_success(self, mock_getenv, mock_put):
         mock_getenv.return_value = "fake_token"
@@ -64,8 +64,7 @@ class DocumentServiceBlobTests(unittest.TestCase):
         file = UploadFile(filename="test.png", file=io.BytesIO(file_content), headers={"content-type": "image/png"})
         
         mock_resp = MagicMock()
-        mock_resp.ok = True
-        mock_resp.json.return_value = {"url": "https://blob.vercel-storage.com/private/test.png"}
+        mock_resp.url = "https://blob.vercel-storage.com/private/test.png"
         mock_put.return_value = mock_resp
         
         doc_response = upload_document(self.db, "CASE-test-1", file)
@@ -77,10 +76,9 @@ class DocumentServiceBlobTests(unittest.TestCase):
         
         mock_put.assert_called_once()
         args, kwargs = mock_put.call_args
-        self.assertEqual(kwargs["headers"]["authorization"], "Bearer fake_token")
-        self.assertEqual(kwargs["headers"]["x-access"], "private")
+        self.assertEqual(kwargs["access"], "private")
 
-    @patch("app.services.document_service.requests.put")
+    @patch("vercel.blob.put")
     @patch("app.services.document_service.os.getenv")
     def test_blob_upload_failure(self, mock_getenv, mock_put):
         mock_getenv.return_value = "fake_token"
@@ -88,9 +86,7 @@ class DocumentServiceBlobTests(unittest.TestCase):
         file_content = b"fake image content"
         file = UploadFile(filename="test.jpg", file=io.BytesIO(file_content), headers={"content-type": "image/jpeg"})
         
-        mock_resp = MagicMock()
-        mock_resp.ok = False
-        mock_put.return_value = mock_resp
+        mock_put.side_effect = Exception("Upload failed")
         
         with self.assertRaises(HTTPException) as context:
             upload_document(self.db, "CASE-test-1", file)
