@@ -45,3 +45,25 @@ print(DATABASE_URL)
     
     result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
     assert "postgresql+pg8000://postgres:PASSWORD_PLACEHOLDER@localhost:5432/medmap" in result.stdout
+
+def test_database_preview_url_precedence():
+    import subprocess
+    import sys
+    import os
+    
+    code = """
+import os
+import sys
+sys.path.insert(0, '.')
+from app.core.database import DATABASE_URL
+print(DATABASE_URL)
+"""
+    # Test valid MEDMAP_PREVIEW_DATABASE_URL taking precedence over DATABASE_URL
+    env = os.environ.copy()
+    env["PYTHONPATH"] = "."
+    env["MEDMAP_PREVIEW_DATABASE_URL"] = "postgres://preview:pass@host/db"
+    env["DATABASE_URL"] = "postgres://user:pass@host/db"
+    env["MEDMAP_DATABASE_URL"] = "postgres://medmap:pass@host/db"
+    
+    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
+    assert "postgresql+pg8000://preview:pass@host/db" in result.stdout

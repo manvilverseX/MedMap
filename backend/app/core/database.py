@@ -6,10 +6,13 @@ from sqlalchemy.pool import NullPool
 load_dotenv()
 from sqlalchemy.orm import sessionmaker
 
+preview_url = os.getenv("MEDMAP_PREVIEW_DATABASE_URL")
 db_url = os.getenv("DATABASE_URL")
 medmap_url = os.getenv("MEDMAP_DATABASE_URL")
 
-if db_url and db_url.startswith("postgres"):
+if preview_url and preview_url.startswith("postgres"):
+    raw_url = preview_url
+elif db_url and db_url.startswith("postgres"):
     raw_url = db_url
 elif medmap_url and medmap_url.startswith("postgres"):
     raw_url = medmap_url
