@@ -70,12 +70,43 @@ export const uploadDocument = async (caseId: string, file: File): Promise<any> =
   const formData = new FormData();
   formData.append('file', file);
   
+  // Attempt JS Vercel Blob Upload
+  let blobMetadata = null;
+  
+  try {
+    const blobRes = await fetch('/api/blob-upload', {
+      method: 'POST',
+      headers: { ...getAuthHeaders() },
+      body: formData
+    });
+    
+    if (blobRes.ok) {
+      blobMetadata = await blobRes.json();
+    } else if (blobRes.status !== 404 && blobRes.status !== 405 && blobRes.status !== 502) {
+      let err;
+      try { err = await blobRes.json(); } catch(e) { err = {}; }
+      throw new Error(err.detail || 'Blob upload failed');
+    }
+  } catch (error: any) {
+    if (error.message !== 'Failed to fetch' && !error.message.includes('Blob upload failed')) {
+      throw error;
+    }
+  }
+  
+  // If blob succeeded, send metadata. Otherwise, fallback to sending file.
+  let finalBody;
+  
+  if (blobMetadata) {
+    finalBody = new FormData();
+    finalBody.append('metadata', JSON.stringify(blobMetadata));
+  } else {
+    finalBody = formData;
+  }
+  
   const response = await fetch(`${API_BASE_URL}/cases/${caseId}/documents`, {
     method: 'POST',
-    headers: {
-      ...getAuthHeaders(),
-    },
-    body: formData,
+    headers: { ...getAuthHeaders() },
+    body: finalBody,
   });
   
   if (!response.ok) {
@@ -84,7 +115,7 @@ export const uploadDocument = async (caseId: string, file: File): Promise<any> =
       const errorData = await response.json();
       if (errorData.detail) errorMessage = errorData.detail;
     } catch {
-      // Ignore JSON parse error on non-JSON response
+      // Ignore
     }
     throw new Error(errorMessage);
   }

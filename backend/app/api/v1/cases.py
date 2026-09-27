@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.schemas.case import CaseCreate, CaseUpdate, CaseResponse, CaseStatus
 from app.services import case_service
 from app.core.database import get_db
-from fastapi import UploadFile, File
+from fastapi import UploadFile, File, Form
 from app.schemas.document import DocumentResponse
 from app.services import document_service
 from app.core.security import require_doctor, require_patient_or_doctor, create_access_token
@@ -67,10 +67,38 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
     return case
 
 @router.post("/{case_id}/documents", response_model=DocumentResponse, status_code=201)
-def upload_case_document(case_id: str, file: UploadFile = File(...), db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(require_patient_or_doctor)):
+def upload_case_document(
+    case_id: str, 
+    file: Optional[UploadFile] = File(None),
+    metadata: Optional[str] = Form(None),
+    db: Session = Depends(get_db), 
+    current_user: Dict[str, Any] = Depends(require_patient_or_doctor)
+):
     if current_user.get("role") == "patient" and current_user.get("case_id") != case_id:
         raise HTTPException(status_code=403, detail="Not authorized to upload to this case")
-    return document_service.upload_document(db, case_id, file)
+    
+    if metadata:
+        import json
+        from pydantic import BaseModel
+        class BlobMetadata(BaseModel):
+            url: str
+            pathname: str
+            filename: str
+            mimeType: str
+            sizeBytes: int
+            
+        try:
+            meta_dict = json.loads(metadata)
+            meta_obj = BlobMetadata(**meta_dict)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid metadata format")
+            
+        return document_service.save_document_metadata(db, case_id, meta_obj)
+        
+    if file:
+        return document_service.upload_document(db, case_id, file)
+        
+    raise HTTPException(status_code=400, detail="Must provide file or metadata")
 
 @router.get("/{case_id}/documents", response_model=List[DocumentResponse])
 def get_case_documents(case_id: str, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(require_patient_or_doctor)):
