@@ -63,6 +63,9 @@ def upload_document(db: Session, case_id: str, file: UploadFile) -> DocumentResp
         blob_url = resp.json().get("url")
         storage_path = blob_url
     else:
+        if os.getenv("VERCEL") == "1":
+            raise HTTPException(status_code=500, detail="Server misconfiguration: Vercel Blob token is missing.")
+            
         # Local Fallback
         os.makedirs(UPLOAD_DIR, exist_ok=True)
         storage_path = os.path.join(UPLOAD_DIR, safe_filename)
