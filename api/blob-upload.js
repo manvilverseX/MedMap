@@ -1,9 +1,6 @@
 import { put } from '@vercel/blob';
 import * as jose from 'jose';
 
-export const config = {
-  runtime: 'edge',
-};
 
 const ALLOWED_MIMES = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
 const ALLOWED_EXTENSIONS = [".pdf", ".png", ".jpg", ".jpeg", ".webp"];
