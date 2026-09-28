@@ -22,6 +22,7 @@ class CaseUpdate(BaseModel):
     language: Optional[str] = None
     consentGranted: Optional[bool] = None
     intakeAnswers: Optional[Dict[str, str]] = None
+    derivedClinicalData: Optional[Dict[str, Any]] = None
     clinicalAssessment: Optional[Dict[str, Any]] = None
     reviewerId: Optional[str] = None
 
@@ -42,5 +43,6 @@ class CaseResponse(BaseModel):
     consentGranted: bool = False
     status: str
     intakeAnswers: Optional[Dict[str, str]] = None
+    derivedClinicalData: Optional[Dict[str, Any]] = None
     clinicalAssessment: Optional[Dict[str, Any]] = None
     reviewerId: Optional[str] = None

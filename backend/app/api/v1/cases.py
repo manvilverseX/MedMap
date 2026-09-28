@@ -44,6 +44,12 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
 
     provided_fields = case_in.model_dump(exclude_unset=True).keys()
 
+    if "derivedClinicalData" in provided_fields:
+        raise HTTPException(
+            status_code=403,
+            detail="Derived clinical data is server-controlled"
+        )
+
     if current_user.get("role") == "patient":
         if current_user.get("case_id") != case_id:
             raise HTTPException(status_code=403, detail="Not authorized to update this case")

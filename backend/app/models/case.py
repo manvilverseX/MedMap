@@ -12,5 +12,6 @@ class ClinicalCase(Base):
     intakeAnswers = Column(JSON, nullable=True)
     consentGranted = Column(Boolean, default=False, nullable=False)
     status = Column(String, nullable=False)
+    derivedClinicalData = Column(JSON, nullable=True)
     clinicalAssessment = Column(JSON, nullable=True)
     reviewerId = Column(String, nullable=True)

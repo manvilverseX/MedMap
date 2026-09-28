@@ -170,3 +170,39 @@ def test_patient_cannot_submit_clinical_assessment():
     res = client.put(f"/api/v1/cases/{case_id}", headers={"Authorization": f"Bearer {pat_token}"}, json={"clinicalAssessment": {"diagnosis": "Healthy"}})
     assert res.status_code == 403
     assert "Patients cannot modify doctor review fields" in res.json()["detail"]
+
+def test_patient_cannot_modify_derived_clinical_data():
+    res = client.post("/api/v1/cases", json={"patientId": "pat-derived", "consentGranted": True})
+    case_id = res.json()["case"]["caseId"]
+    pat_token = res.json()["token"]
+
+    res = client.put(
+        f"/api/v1/cases/{case_id}",
+        headers={"Authorization": f"Bearer {pat_token}"},
+        json={"derivedClinicalData": {"history": {"chiefComplaint": "Headache"}}},
+    )
+    assert res.status_code == 403
+    assert "server-controlled" in res.json()["detail"]
+
+def test_doctor_cannot_modify_derived_clinical_data(doc_token):
+    res = client.post("/api/v1/cases", json={"patientId": "pat-derived-doctor", "consentGranted": True})
+    case_id = res.json()["case"]["caseId"]
+
+    res = client.put(
+        f"/api/v1/cases/{case_id}",
+        headers={"Authorization": f"Bearer {doc_token}"},
+        json={"derivedClinicalData": {"history": {"chiefComplaint": "Headache"}}},
+    )
+    assert res.status_code == 403
+    assert "server-controlled" in res.json()["detail"]
+
+def test_malformed_derived_clinical_data_is_rejected(doc_token):
+    res = client.post("/api/v1/cases", json={"patientId": "pat-derived-invalid", "consentGranted": True})
+    case_id = res.json()["case"]["caseId"]
+
+    res = client.put(
+        f"/api/v1/cases/{case_id}",
+        headers={"Authorization": f"Bearer {doc_token}"},
+        json={"derivedClinicalData": ["not", "an", "object"]},
+    )
+    assert res.status_code == 422

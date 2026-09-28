@@ -44,6 +44,20 @@ class CaseSchemaTests(unittest.TestCase):
     def test_null_intake_answers_are_accepted(self):
         self.assertIsNone(CaseUpdate(intakeAnswers=None).intakeAnswers)
 
+    def test_valid_derived_clinical_data_is_accepted(self):
+        derived_data = {
+            "history": {"chiefComplaint": "Headache"},
+            "highlights": ["Symptoms reported for two days"],
+        }
+        self.assertEqual(
+            CaseUpdate(derivedClinicalData=derived_data).derivedClinicalData,
+            derived_data,
+        )
+
+    def test_invalid_derived_clinical_data_shape_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            CaseUpdate(derivedClinicalData=["not", "an", "object"])
+
     def test_valid_clinical_assessment_is_accepted(self):
         assessment = {
             "diagnosis": "Migraine",
@@ -119,6 +133,7 @@ class CaseServiceTests(unittest.TestCase):
             self.assertEqual(created.status, "intake")
             self.assertFalse(created.consentGranted)
             self.assertIsNone(created.intakeAnswers)
+            self.assertIsNone(created.derivedClinicalData)
 
         with self.Session() as session:
             retrieved = case_service.get_case(session, case_id)
@@ -254,6 +269,87 @@ class CaseServiceTests(unittest.TestCase):
             final = case_service.get_case(session, case_id)
             self.assertIsNone(final.clinicalAssessment)
             self.assertIsNone(final.reviewerId)
+
+    def test_derived_clinical_data_persist_preserve_and_clear(self):
+        answers = {"chiefComplaint": "Headache"}
+        assessment = {"diagnosis": "Migraine"}
+        derived_data = {
+            "history": {"chiefComplaint": "Headache"},
+            "highlights": ["Symptoms reported for two days"],
+        }
+
+        with self.Session() as session:
+            created = case_service.create_case(
+                session,
+                CaseCreate(patientId="patient-derived"),
+            )
+            case_id = created.caseId
+            self.assertIsNone(created.derivedClinicalData)
+
+            existing_data = case_service.update_case(
+                session,
+                case_id,
+                CaseUpdate(
+                    intakeAnswers=answers,
+                    clinicalAssessment=assessment,
+                    reviewerId="doc-1",
+                ),
+            )
+            self.assertIsNone(existing_data.derivedClinicalData)
+
+            updated = case_service.update_derived_clinical_data(
+                session,
+                case_id,
+                derived_data,
+            )
+            self.assertEqual(updated.derivedClinicalData, derived_data)
+            self.assertEqual(updated.intakeAnswers, answers)
+            self.assertEqual(updated.clinicalAssessment, assessment)
+            self.assertEqual(updated.reviewerId, "doc-1")
+
+        with self.Session() as session:
+            persisted = case_service.get_case(session, case_id)
+            self.assertEqual(persisted.derivedClinicalData, derived_data)
+
+            unrelated_update = case_service.update_case(
+                session,
+                case_id,
+                CaseUpdate(language="Hindi"),
+            )
+            self.assertEqual(unrelated_update.derivedClinicalData, derived_data)
+            self.assertEqual(unrelated_update.intakeAnswers, answers)
+            self.assertEqual(unrelated_update.clinicalAssessment, assessment)
+            self.assertEqual(unrelated_update.reviewerId, "doc-1")
+
+            emptied = case_service.update_derived_clinical_data(
+                session,
+                case_id,
+                {},
+            )
+            self.assertEqual(emptied.derivedClinicalData, {})
+
+            cleared = case_service.update_derived_clinical_data(
+                session,
+                case_id,
+                None,
+            )
+            self.assertIsNone(cleared.derivedClinicalData)
+            self.assertEqual(cleared.intakeAnswers, answers)
+            self.assertEqual(cleared.clinicalAssessment, assessment)
+            self.assertEqual(cleared.reviewerId, "doc-1")
+
+        with self.Session() as session:
+            self.assertIsNone(case_service.get_case(session, case_id).derivedClinicalData)
+
+    def test_update_derived_clinical_data_missing_case_returns_none(self):
+        with self.Session() as session:
+            self.assertIsNone(
+                case_service.update_derived_clinical_data(
+                    session,
+                    "missing-case",
+                    {"history": {}},
+                )
+            )
 
     def test_missing_case_returns_none(self):
         with self.Session() as session:
