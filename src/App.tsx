@@ -1,52 +1,29 @@
-import { Badge } from './components/Badge'
-import { Card } from './components/Card'
-import './index.css'
+import { Routes, Route } from 'react-router-dom';
+import { LandingPage } from './pages/LandingPage';
+import { PatientOnboardingPage } from './pages/patient/PatientOnboardingPage';
+import { PatientIntakePage } from './pages/patient/PatientIntakePage';
+import { PatientDocumentsPage } from './pages/patient/PatientDocumentsPage';
+import { PatientVerificationPage } from './pages/patient/PatientVerificationPage';
+import { DoctorCasesPage } from './pages/doctor/DoctorCasesPage';
+import { DoctorCaseDetailPage } from './pages/doctor/DoctorCaseDetailPage';
+import { DoctorLoginPage } from './pages/doctor/DoctorLoginPage';
+import { NotFoundPage } from './pages/NotFoundPage';
+import './index.css';
 
 function App() {
   return (
-    <>
-      <Badge text="The project is under development." />
-      
-      <div className="container">
-        <header>
-          <div className="logo">MedMap</div>
-        </header>
-
-        <main>
-          <section className="hero">
-            <h1>AI-powered pre-consultation patient case-taking platform.</h1>
-            <p>
-              MedMap is an AI-powered pre-consultation platform that helps patients provide their medical history through voice or touch and upload their previous medical documents. AI organizes the information from the conversation and documents into a unified clinical case, including a chronological view of relevant medical information. Patients can verify important information before it reaches the doctor, helping the doctor begin the consultation with a structured pre-consultation brief.
-            </p>
-          </section>
-
-          <section className="cards-grid">
-            <Card 
-              title="Voice & Touch Intake" 
-              description="Patients easily provide their medical history through an intuitive conversational interface using voice or touch, capturing nuances accurately." 
-            />
-            <Card 
-              title="Document Upload" 
-              description="Securely upload previous medical records, test results, and notes, allowing the system to extract and contextualize past health data." 
-            />
-            <Card 
-              title="Unified Clinical Case" 
-              description="AI intelligently organizes all conversation inputs and documents into a structured, chronological view of relevant medical information." 
-            />
-            <Card 
-              title="Patient Verification" 
-              description="Patients maintain control by verifying the accuracy of the compiled information before it is submitted to the healthcare provider." 
-              highlightVerify={true}
-            />
-            <Card 
-              title="Pre-consultation Brief" 
-              description="Doctors receive a verified, clearly structured brief before the consultation begins, saving time and improving care quality." 
-            />
-          </section>
-        </main>
-      </div>
-    </>
-  )
+    <Routes>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/patient" element={<PatientOnboardingPage />} />
+      <Route path="/patient/intake" element={<PatientIntakePage />} />
+      <Route path="/patient/documents" element={<PatientDocumentsPage />} />
+      <Route path="/patient/verification" element={<PatientVerificationPage />} />
+      <Route path="/doctor/login" element={<DoctorLoginPage />} />
+      <Route path="/doctor/cases" element={<DoctorCasesPage />} />
+      <Route path="/doctor/cases/:caseId" element={<DoctorCaseDetailPage />} />
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
+  );
 }
 
-export default App
+export default App;
