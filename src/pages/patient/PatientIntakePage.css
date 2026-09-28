@@ -472,3 +472,116 @@
     padding: 2rem 1.25rem;
   }
 }
+
+/* ==========================================================================
+   Patient Verification Enhancements
+   ========================================================================== */
+
+/* Badges */
+.verification-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.verification-badge-provided {
+  background-color: rgba(6, 182, 212, 0.12);
+  border-color: var(--color-accent);
+  color: #0891b2;
+}
+
+.verification-badge-skipped {
+  background-color: rgba(245, 158, 11, 0.12);
+  border-color: var(--color-warning);
+  color: #b45309;
+}
+
+.verification-badge-edited {
+  background-color: rgba(15, 23, 42, 0.08);
+  border-color: var(--color-navy);
+  color: var(--color-navy);
+}
+
+/* Edit action button */
+.verification-edit-btn {
+  background-color: transparent;
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  border-radius: 6px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.verification-edit-btn:hover:not(:disabled) {
+  background-color: var(--color-accent);
+  color: #ffffff;
+}
+
+.verification-edit-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Inline Edit Box */
+.verification-edit-box {
+  background-color: var(--color-bg);
+  border: 1.5px solid var(--color-accent);
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 2px 4px rgba(6, 182, 212, 0.1);
+  animation: intake-fadeIn 0.2s ease;
+}
+
+/* Summary Grid */
+.verification-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+}
+
+.verification-summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 0.5rem;
+  background-color: var(--color-bg);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.verification-summary-num {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.verification-summary-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-top: 0.25rem;
+}
+
+/* Responsive adjustment for summary grid on narrow screens */
+@media (max-width: 600px) {
+  .verification-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
