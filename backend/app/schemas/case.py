@@ -4,6 +4,12 @@ from datetime import datetime
 from enum import Enum
 
 
+class AISummary(BaseModel):
+    chiefComplaint: str
+    historyOfPresentIllness: str
+    pastMedicalHistory: str
+
+
 class CaseStatus(str, Enum):
     INTAKE = "intake"
     PATIENT_VERIFYING = "patient_verifying"
@@ -22,6 +28,7 @@ class CaseUpdate(BaseModel):
     language: Optional[str] = None
     consentGranted: Optional[bool] = None
     intakeAnswers: Optional[Dict[str, str]] = None
+    derivedClinicalData: Optional[Dict[str, Any]] = None
     clinicalAssessment: Optional[Dict[str, Any]] = None
     reviewerId: Optional[str] = None
 
@@ -42,5 +49,7 @@ class CaseResponse(BaseModel):
     consentGranted: bool = False
     status: str
     intakeAnswers: Optional[Dict[str, str]] = None
+    derivedClinicalData: Optional[Dict[str, Any]] = None
     clinicalAssessment: Optional[Dict[str, Any]] = None
+    aiSummary: Optional[AISummary] = None
     reviewerId: Optional[str] = None

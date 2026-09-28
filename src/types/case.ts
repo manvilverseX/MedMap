@@ -10,5 +10,11 @@ export interface ClinicalCase {
   status: CaseStatus;
   intakeAnswers?: Record<string, string>;
   clinicalAssessment?: Record<string, any>;
+  aiSummary?: {
+    chiefComplaint: string;
+    historyOfPresentIllness: string;
+    pastMedicalHistory: string;
+  };
+  derivedClinicalData?: Record<string, any>;
   reviewerId?: string;
 }

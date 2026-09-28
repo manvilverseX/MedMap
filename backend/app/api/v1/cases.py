@@ -44,6 +44,12 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
 
     provided_fields = case_in.model_dump(exclude_unset=True).keys()
 
+    if "derivedClinicalData" in provided_fields:
+        raise HTTPException(
+            status_code=403,
+            detail="Derived clinical data is server-controlled"
+        )
+
     if current_user.get("role") == "patient":
         if current_user.get("case_id") != case_id:
             raise HTTPException(status_code=403, detail="Not authorized to update this case")
@@ -124,3 +130,44 @@ def get_case_documents(case_id: str, db: Session = Depends(get_db), current_user
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
     return document_service.get_documents(db, case_id)
+
+
+@router.post("/{case_id}/ai-summary", response_model=CaseResponse)
+def generate_case_ai_summary(
+    case_id: str,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(require_patient_or_doctor)
+):
+    if current_user.get("role") == "patient" and current_user.get("case_id") != case_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this case")
+
+    case = case_service.get_case(db, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Idempotency
+    if case.aiSummary:
+        return case
+
+    if not case.intakeAnswers:
+        raise HTTPException(status_code=400, detail="Cannot generate AI summary: intake answers are empty")
+
+    from app.services import ai_service
+    from pydantic import ValidationError
+
+    try:
+        summary_dict = ai_service.generate_clinical_brief(case.intakeAnswers)
+    except ValidationError:
+        raise HTTPException(status_code=502, detail="AI generated malformed response")
+    except ValueError as ve:
+        raise HTTPException(status_code=500, detail=str(ve))
+    except RuntimeError:
+        raise HTTPException(status_code=502, detail="AI Generation Failed")
+    except Exception:
+        raise HTTPException(status_code=500, detail="An unexpected error occurred during AI generation")
+
+    updated_case = case_service.update_ai_summary(db, case_id, summary_dict)
+    if not updated_case:
+        raise HTTPException(status_code=404, detail="Case not found during update")
+
+    return updated_case
