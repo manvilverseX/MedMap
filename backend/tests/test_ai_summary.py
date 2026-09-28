@@ -21,25 +21,25 @@ client = TestClient(app)
 @pytest.fixture(scope="module", autouse=True)
 def setup_db():
     from app.core.database import get_db
-    
+
     if os.path.exists("./test_ai.db"):
         os.remove("./test_ai.db")
-        
+
     Base.metadata.create_all(bind=engine)
-    
+
     def override_get_db():
         try:
             db = TestingSessionLocal()
             yield db
         finally:
             db.close()
-            
+
     app.dependency_overrides[get_db] = override_get_db
     yield
     app.dependency_overrides.clear()
     if os.path.exists("./test_ai.db"):
         os.remove("./test_ai.db")
-    
+
 @pytest.fixture
 def db_session():
     db = TestingSessionLocal()
@@ -67,7 +67,7 @@ def test_case(db_session):
     db_session.add(case)
     db_session.commit()
     yield case
-    
+
     # Teardown
     case_to_delete = db_session.query(ClinicalCase).filter(ClinicalCase.caseId == "test-case-1").first()
     if case_to_delete:
@@ -92,7 +92,7 @@ def test_generate_ai_summary_empty_intake(db_session, test_case, doctor_token):
 def test_generate_ai_summary_idempotency(db_session, test_case, doctor_token):
     test_case.aiSummary = {"chiefComplaint": "x", "historyOfPresentIllness": "y", "pastMedicalHistory": "z"}
     db_session.commit()
-    
+
     headers = {"Authorization": f"Bearer {doctor_token}"}
     with patch("app.services.ai_service.generate_clinical_brief") as mock_generate:
         response = client.post(f"/api/v1/cases/{test_case.caseId}/ai-summary", headers=headers)
@@ -104,21 +104,21 @@ def test_generate_ai_summary_idempotency(db_session, test_case, doctor_token):
 def test_generate_ai_summary_success(mock_generate, db_session, test_case, doctor_token):
     test_case.intakeAnswers = {"Q": "A"}
     db_session.commit()
-    
+
     expected_summary = {
         "chiefComplaint": "A",
         "historyOfPresentIllness": "B",
         "pastMedicalHistory": "C"
     }
     mock_generate.return_value = expected_summary
-    
+
     headers = {"Authorization": f"Bearer {doctor_token}"}
     response = client.post(f"/api/v1/cases/{test_case.caseId}/ai-summary", headers=headers)
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["aiSummary"] == expected_summary
-    
+
     # Verify DB was updated
     db_session.refresh(test_case)
     assert test_case.aiSummary == expected_summary
@@ -128,14 +128,14 @@ def test_generate_ai_summary_failure_does_not_modify_case(mock_generate, db_sess
     test_case.intakeAnswers = {"Q": "A"}
     test_case.status = "doctor_review"
     db_session.commit()
-    
+
     mock_generate.side_effect = RuntimeError("AI Error")
-    
+
     headers = {"Authorization": f"Bearer {doctor_token}"}
     response = client.post(f"/api/v1/cases/{test_case.caseId}/ai-summary", headers=headers)
-    
+
     assert response.status_code == 502
-    
+
     db_session.refresh(test_case)
     assert test_case.aiSummary is None
     assert test_case.status == "doctor_review"
@@ -145,20 +145,20 @@ def test_generate_ai_summary_failure_does_not_modify_case(mock_generate, db_sess
 def test_generate_ai_summary_validation_error(mock_generate, db_session, test_case, doctor_token):
     test_case.intakeAnswers = {"Q": "A"}
     db_session.commit()
-    
+
     from pydantic import ValidationError
     from app.schemas.case import AISummary
-    
+
     def raise_validation_error(*args, **kwargs):
         AISummary.model_validate_json('{"invalid": "yes"}')
-        
+
     mock_generate.side_effect = raise_validation_error
-    
+
     headers = {"Authorization": f"Bearer {doctor_token}"}
     response = client.post(f"/api/v1/cases/{test_case.caseId}/ai-summary", headers=headers)
-    
+
     assert response.status_code == 502
     assert "malformed response" in response.json()["detail"]
-    
+
     db_session.refresh(test_case)
     assert test_case.aiSummary is None
