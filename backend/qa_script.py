@@ -15,7 +15,7 @@ def run_tests():
     except Exception as e:
         print(f"Health failed: {e}")
 
-    load_dotenv(dotenv_path="c:/Projects/MedMap/backend/.env")
+    load_dotenv()
     secret_key = os.getenv("SECRET_KEY")
     
     payload = {

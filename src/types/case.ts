@@ -15,5 +15,6 @@ export interface ClinicalCase {
     historyOfPresentIllness: string;
     pastMedicalHistory: string;
   };
+  derivedClinicalData?: Record<string, any>;
   reviewerId?: string;
 }
