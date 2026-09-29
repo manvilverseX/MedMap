@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "vercel-build": "npm run build && if [ \"$VERCEL_ENV\" = \"preview\" ]; then pip3 install -r requirements.txt && cd backend && python3 -m alembic upgrade head; fi",
     "lint": "oxlint",
     "preview": "vite preview"
   },
