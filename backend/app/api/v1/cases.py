@@ -2,6 +2,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
 from app.schemas.case import CaseCreate, CaseUpdate, CaseResponse, CaseStatus
+from app.schemas.intake import IntakeRequestMode, IntakeSessionState
 from app.services import case_service
 from app.core.database import get_db
 from fastapi import UploadFile, File, Form
@@ -35,6 +36,33 @@ def get_case(case_id: str, db: Session = Depends(get_db), current_user: Dict[str
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
     return case
+
+
+@router.get("/{case_id}/adaptive-intake", response_model=IntakeSessionState)
+def get_adaptive_intake_state(
+    case_id: str,
+    mode: Optional[IntakeRequestMode] = Query(None),
+    question_id: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(require_patient_or_doctor),
+):
+    if current_user.get("role") == "patient" and current_user.get("case_id") != case_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this case")
+
+    case = case_service.get_case(db, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    from app.services.adaptive_intake import select_intake_state
+
+    try:
+        return select_intake_state(
+            case.intakeAnswers,
+            mode=mode,
+            question_id=question_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 @router.put("/{case_id}", response_model=CaseResponse)
 def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(require_patient_or_doctor)):
