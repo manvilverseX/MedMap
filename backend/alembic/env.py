@@ -14,7 +14,7 @@ from app.models.document import PatientDocument
 from app.models.user import User
 from app.models.event import UnifiedClinicalEvent
 from app.models.evidence import Evidence
-from app.core.database import DATABASE_URL
+from app.core.database import DATABASE_URL, engine as db_engine
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -71,11 +71,7 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    connectable = db_engine
 
     with connectable.connect() as connection:
         context.configure(
