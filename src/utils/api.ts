@@ -1,4 +1,5 @@
 import type { ClinicalCase } from '../types/case';
+import { upload } from '@vercel/blob/client';
 
 export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1').replace(/\/+$/, '');
 
@@ -89,42 +90,30 @@ export const generateAISummary = async (caseId: string): Promise<ClinicalCase> =
 };
 
 export const uploadDocument = async (caseId: string, file: File): Promise<any> => {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('caseId', caseId);
-  
-  // Attempt JS Vercel Blob Upload
   let blobMetadata = null;
   
   try {
-    const blobRes = await fetch('/api/blob-upload', {
-      method: 'POST',
-      headers: { ...getAuthHeaders() },
-      body: formData
+    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    const safeFilename = `${caseId}/${crypto.randomUUID()}${ext}`;
+
+    blobMetadata = await upload(safeFilename, file, {
+      access: 'private',
+      handleUploadUrl: '/api/blob-upload',
+      clientPayload: caseId,
+      headers: { ...getAuthHeaders() }
     });
-    
-    if (blobRes.ok) {
-      blobMetadata = await blobRes.json();
-    } else if (blobRes.status !== 404 && blobRes.status !== 405 && blobRes.status !== 502) {
-      let err;
-      try { err = await blobRes.json(); } catch(e) { err = {}; }
-      throw new Error(err.detail || 'Blob upload failed');
-    }
   } catch (error: any) {
-    if (error.message !== 'Failed to fetch' && !error.message.includes('Blob upload failed')) {
-      throw error;
-    }
+    throw new Error(error.message || 'Blob upload failed');
   }
   
-  // If blob succeeded, send metadata. Otherwise, fallback to sending file.
-  let finalBody;
-  
-  if (blobMetadata) {
-    finalBody = new FormData();
-    finalBody.append('metadata', JSON.stringify(blobMetadata));
-  } else {
-    finalBody = formData;
-  }
+  const finalBody = new FormData();
+  finalBody.append('metadata', JSON.stringify({
+    url: blobMetadata.url,
+    pathname: blobMetadata.pathname,
+    filename: file.name,
+    mimeType: file.type,
+    sizeBytes: file.size
+  }));
   
   const response = await fetch(`${API_BASE_URL}/cases/${caseId}/documents`, {
     method: 'POST',
