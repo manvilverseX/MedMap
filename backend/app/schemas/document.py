@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
+from typing import Optional, Any, Dict
 
 class DocumentResponse(BaseModel):
     id: str
@@ -8,3 +9,8 @@ class DocumentResponse(BaseModel):
     mimeType: str
     sizeBytes: int
     createdAt: datetime
+    extractedText: Optional[str] = None
+    extractionStatus: Optional[str] = None
+    medicalEntities: Optional[Dict[str, Any]] = None
+    documentCategory: Optional[str] = None
+    v2ExtractionData: Optional[Dict[str, Any]] = None

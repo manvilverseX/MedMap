@@ -12,6 +12,8 @@ from app.models.base import Base
 from app.models.case import ClinicalCase
 from app.models.document import PatientDocument
 from app.models.user import User
+from app.models.event import UnifiedClinicalEvent
+from app.models.evidence import Evidence
 from app.core.database import DATABASE_URL
 
 # this is the Alembic Config object, which provides
