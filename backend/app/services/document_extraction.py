@@ -39,7 +39,7 @@ def get_image_base64(storage_path: str) -> Optional[str]:
         if storage_path.startswith("http://") or storage_path.startswith("https://"):
             headers = {'User-Agent': 'Mozilla/5.0'}
             # If it's a Vercel Blob, we need to pass the BLOB_READ_WRITE_TOKEN to access private blobs
-            blob_token = os.getenv("BLOB_READ_WRITE_TOKEN")
+            blob_token = os.getenv("BLOB_READ_WRITE_TOKEN") or os.getenv("VERCEL_OIDC_TOKEN")
             if blob_token and "vercel-storage.com" in storage_path:
                 headers['Authorization'] = f"Bearer {blob_token}"
                 

@@ -164,3 +164,38 @@ def test_extraction_schema():
     )
     assert entity.sourceReference == "doc_id_123"
     assert entity.medications == []
+
+@patch("os.getenv")
+@patch("urllib.request.Request")
+@patch("urllib.request.urlopen")
+def test_blob_token_precedence(mock_urlopen, mock_request, mock_getenv):
+    from app.services.document_extraction import get_image_base64
+    
+    # Mock urlopen to return empty bytes
+    mock_response = MagicMock()
+    mock_response.read.return_value = b""
+    mock_urlopen.return_value.__enter__.return_value = mock_response
+    
+    # Test BLOB_READ_WRITE_TOKEN takes precedence
+    def mock_getenv_side_effect(key, default=None):
+        if key == "BLOB_READ_WRITE_TOKEN":
+            return "legacy-token"
+        if key == "VERCEL_OIDC_TOKEN":
+            return "oidc-token"
+        return default
+        
+    mock_getenv.side_effect = mock_getenv_side_effect
+    get_image_base64("https://test.blob.vercel-storage.com/test.png")
+    headers = mock_request.call_args[1]["headers"]
+    assert headers["Authorization"] == "Bearer legacy-token"
+    
+    # Test VERCEL_OIDC_TOKEN fallback
+    def mock_getenv_side_effect_2(key, default=None):
+        if key == "VERCEL_OIDC_TOKEN":
+            return "oidc-token"
+        return default
+        
+    mock_getenv.side_effect = mock_getenv_side_effect_2
+    get_image_base64("https://test.blob.vercel-storage.com/test.png")
+    headers = mock_request.call_args[1]["headers"]
+    assert headers["Authorization"] == "Bearer oidc-token"
