@@ -1,4 +1,5 @@
-import { handleUpload } from '@vercel/blob/client';
+import { handleUploadPresigned } from '@vercel/blob/client';
+import { issueSignedToken } from '@vercel/blob';
 import * as jose from 'jose';
 
 const ALLOWED_MIMES = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
@@ -51,10 +52,10 @@ export default async function handler(req, res) {
       }
     }
 
-    const jsonResponse = await handleUpload({
+    const jsonResponse = await handleUploadPresigned({
       body,
       request: req,
-      onBeforeGenerateToken: async (pathname, clientPayload) => {
+      getSignedToken: async (pathname, clientPayload, multipart) => {
         const caseId = clientPayload;
         
         if (!caseId) {
@@ -74,11 +75,17 @@ export default async function handler(req, res) {
           throw new Error('Unsupported file format');
         }
 
-        return {
+        const validUntil = Date.now() + 60 * 60 * 1000;
+
+        const token = await issueSignedToken({
+          pathname,
           allowedContentTypes: ALLOWED_MIMES,
           maximumSizeInBytes: MAX_SIZE,
-          addRandomSuffix: false, // The client generates a unique UUID
-        };
+          validUntil,
+          operations: ['put']
+        });
+
+        return { token };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
         // Upload completed, no server-side persistence needed here since the client triggers FastAPI directly.

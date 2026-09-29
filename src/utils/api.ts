@@ -1,5 +1,5 @@
 import type { ClinicalCase } from '../types/case';
-import { upload } from '@vercel/blob/client';
+import { uploadPresigned } from '@vercel/blob/client';
 
 export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1').replace(/\/+$/, '');
 
@@ -96,7 +96,7 @@ export const uploadDocument = async (caseId: string, file: File): Promise<any> =
     const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
     const safeFilename = `${caseId}/${crypto.randomUUID()}${ext}`;
 
-    blobMetadata = await upload(safeFilename, file, {
+    blobMetadata = await uploadPresigned(safeFilename, file, {
       access: 'private',
       handleUploadUrl: '/api/blob-upload',
       clientPayload: caseId,

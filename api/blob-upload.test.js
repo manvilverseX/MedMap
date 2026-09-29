@@ -3,16 +3,24 @@ import assert from 'node:assert';
 
 mock.module('@vercel/blob/client', {
   exports: {
-    handleUpload: async (options) => {
-      if (options.onBeforeGenerateToken) {
+    handleUploadPresigned: async (options) => {
+      if (options.getSignedToken) {
         try {
-          const config = await options.onBeforeGenerateToken(options.body?.payload?.pathname || '', options.body?.payload?.clientPayload || null);
-          return { type: 'blob.generate-client-token', clientToken: 'fake-token', config };
+          const { token, urlOptions } = await options.getSignedToken(options.body?.payload?.pathname || '', options.body?.payload?.clientPayload || null, false);
+          return { type: 'blob.generate-presigned-url', presignedUrlPayload: { delegationToken: token.delegationToken }, config: token.options };
         } catch (err) {
           throw err;
         }
       }
-      return { type: 'blob.generate-client-token', clientToken: 'fake-token' };
+      return { type: 'blob.generate-presigned-url' };
+    }
+  }
+});
+
+mock.module('@vercel/blob', {
+  exports: {
+    issueSignedToken: async (options) => {
+      return { delegationToken: 'fake-delegation-token', options };
     }
   }
 });
@@ -50,7 +58,7 @@ test('authorized patient gets token for their own case with correct config', asy
     method: 'POST', 
     headers: { authorization: 'Bearer valid-patient-token' },
     body: {
-      type: 'blob.generate-client-token',
+      type: 'blob.generate-presigned-url',
       payload: {
         pathname: 'case123/file.pdf',
         clientPayload: 'case123'
@@ -64,7 +72,7 @@ test('authorized patient gets token for their own case with correct config', asy
   };
   await handler(req, res);
   assert.strictEqual(status, 200);
-  assert.strictEqual(jsonBody.type, 'blob.generate-client-token');
+  assert.strictEqual(jsonBody.type, 'blob.generate-presigned-url');
   assert.strictEqual(jsonBody.config.maximumSizeInBytes, 10 * 1024 * 1024);
   assert.deepStrictEqual(jsonBody.config.allowedContentTypes, ["application/pdf", "image/png", "image/jpeg", "image/webp"]);
 });
@@ -87,7 +95,7 @@ test('patient cannot request another case pathname', async () => {
     method: 'POST', 
     headers: { authorization: 'Bearer valid-patient-token' },
     body: {
-      type: 'blob.generate-client-token',
+      type: 'blob.generate-presigned-url',
       payload: {
         pathname: 'othercase/file.pdf',
         clientPayload: 'othercase'
@@ -110,7 +118,7 @@ test('unsupported content type is rejected (by extension)', async () => {
     method: 'POST', 
     headers: { authorization: 'Bearer valid-patient-token' },
     body: {
-      type: 'blob.generate-client-token',
+      type: 'blob.generate-presigned-url',
       payload: {
         pathname: 'case123/file.exe',
         clientPayload: 'case123'
