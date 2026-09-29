@@ -80,7 +80,10 @@ def upload_document(db: Session, case_id: str, file: UploadFile) -> DocumentResp
         filename=db_doc.filename,
         mimeType=db_doc.mimeType,
         sizeBytes=db_doc.sizeBytes,
-        createdAt=db_doc.createdAt
+        createdAt=db_doc.createdAt,
+        extractedText=db_doc.extractedText,
+        extractionStatus=db_doc.extractionStatus,
+        medicalEntities=db_doc.medicalEntities
     )
 
 def save_document_metadata(db: Session, case_id: str, metadata: any) -> DocumentResponse:
@@ -115,7 +118,10 @@ def save_document_metadata(db: Session, case_id: str, metadata: any) -> Document
         filename=db_doc.filename,
         mimeType=db_doc.mimeType,
         sizeBytes=db_doc.sizeBytes,
-        createdAt=db_doc.createdAt
+        createdAt=db_doc.createdAt,
+        extractedText=db_doc.extractedText,
+        extractionStatus=db_doc.extractionStatus,
+        medicalEntities=db_doc.medicalEntities
     )
 
 def get_documents(db: Session, case_id: str) -> list[DocumentResponse]:
@@ -127,6 +133,9 @@ def get_documents(db: Session, case_id: str) -> list[DocumentResponse]:
             filename=d.filename,
             mimeType=d.mimeType,
             sizeBytes=d.sizeBytes,
-            createdAt=d.createdAt
+            createdAt=d.createdAt,
+            extractedText=d.extractedText,
+            extractionStatus=d.extractionStatus,
+            medicalEntities=d.medicalEntities
         ) for d in docs
     ]

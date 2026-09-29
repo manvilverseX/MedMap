@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { DoctorCaseStatusBadge } from '../../components/doctor/DoctorCaseStatusBadge';
 import { DoctorSectionCard } from '../../components/doctor/DoctorSectionCard';
-import { getCase, getCaseDocuments, updateCase } from '../../utils/api';
+import { getCase, getCaseDocuments, updateCase, generateAISummary } from '../../utils/api';
 import type { ClinicalCase } from '../../types/case';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { Button } from '../../components/Button';
@@ -18,6 +18,8 @@ export function DoctorCaseDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [assessment, setAssessment] = useState({
     diagnosis: '',
     prescription: '',
@@ -81,6 +83,24 @@ export function DoctorCaseDetailPage() {
       setActionError(err.message || 'Failed to save draft.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleGenerateSummary = async () => {
+    if (!caseId) return;
+    setIsGeneratingSummary(true);
+    setSummaryError(null);
+    try {
+      const updatedCase = await generateAISummary(caseId);
+      setCaseDetail(updatedCase);
+    } catch (err: any) {
+      if (err.message === 'Unauthorized') {
+        navigate('/doctor/login');
+        return;
+      }
+      setSummaryError(err.message || 'Failed to generate AI summary.');
+    } finally {
+      setIsGeneratingSummary(false);
     }
   };
 
@@ -256,6 +276,20 @@ export function DoctorCaseDetailPage() {
                 <div className="doctor-empty-state" style={{ margin: '1rem 0' }}>
                   <span className="empty-icon">🤖</span>
                   <h3 className="empty-title">AI summary not available yet.</h3>
+                  {summaryError && (
+                    <div style={{ color: 'var(--color-danger)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                      {summaryError}
+                    </div>
+                  )}
+                  <Button
+                    variant="outline"
+                    onClick={handleGenerateSummary}
+                    isLoading={isGeneratingSummary}
+                    disabled={isGeneratingSummary}
+                    style={{ marginTop: '0.5rem' }}
+                  >
+                    {isGeneratingSummary ? 'Generating AI Summary...' : 'Generate AI Summary'}
+                  </Button>
                 </div>
               )}
             </DoctorSectionCard>
@@ -306,6 +340,55 @@ export function DoctorCaseDetailPage() {
                         <span style={{ marginLeft: '0.5rem' }}>{doc.mimeType}</span> •
                         <span style={{ marginLeft: '0.5rem' }}>Uploaded: {new Date(doc.createdAt).toLocaleString()}</span>
                       </div>
+
+                      {doc.extractionStatus === 'completed' && doc.medicalEntities && (
+                        <div style={{ marginTop: '0.75rem', marginLeft: '1.7rem', padding: '0.75rem', backgroundColor: 'var(--color-background-alt)', borderRadius: '6px', border: '1px solid var(--color-border-subtle)' }}>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--color-primary)', fontWeight: 600, marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>✨ Document Extracted / AI-assisted</span>
+                            <span style={{ color: 'var(--color-text-secondary)', backgroundColor: '#fff3cd', padding: '0.15rem 0.4rem', borderRadius: '4px', border: '1px solid #ffeeba' }}>Requires Doctor Review</span>
+                          </div>
+                          {doc.extractedText && (
+                            <div style={{ fontSize: '0.85rem', marginBottom: '0.5rem', color: 'var(--color-text-secondary)' }}>
+                              <strong>Summary:</strong> {doc.extractedText}
+                            </div>
+                          )}
+                          {doc.medicalEntities.diagnoses && doc.medicalEntities.diagnoses.length > 0 && (
+                            <div style={{ fontSize: '0.85rem', marginBottom: '0.25rem' }}>
+                              <strong>Diagnoses:</strong> {doc.medicalEntities.diagnoses.join(', ')}
+                            </div>
+                          )}
+                          {doc.medicalEntities.medications && doc.medicalEntities.medications.length > 0 && (
+                            <div style={{ fontSize: '0.85rem', marginBottom: '0.25rem' }}>
+                              <strong>Medications:</strong> {doc.medicalEntities.medications.map((m: any) => [m.name, m.dose, m.frequency].filter(Boolean).join(' — ')).join(', ')}
+                            </div>
+                          )}
+                          {doc.medicalEntities.investigations && doc.medicalEntities.investigations.length > 0 && (
+                            <div style={{ fontSize: '0.85rem', marginBottom: '0.25rem' }}>
+                              <strong>Investigations:</strong> {doc.medicalEntities.investigations.map((inv: any) => [inv.testName, [inv.value, inv.unit].filter(Boolean).join(' ')].filter(Boolean).join(' — ')).join(', ')}
+                            </div>
+                          )}
+                          {doc.medicalEntities.clinicallyRelevantDates && doc.medicalEntities.clinicallyRelevantDates.length > 0 && (
+                            <div style={{ fontSize: '0.85rem', marginBottom: '0.25rem' }}>
+                              <strong>Clinically Relevant Dates:</strong> {doc.medicalEntities.clinicallyRelevantDates.join(', ')}
+                            </div>
+                          )}
+                          {doc.medicalEntities.sourceReference && (
+                            <div style={{ fontSize: '0.75rem', marginTop: '0.5rem', color: 'var(--color-text-secondary)' }}>
+                              <em>Source document: {doc.medicalEntities.sourceReference}</em>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {doc.extractionStatus === 'unsupported' && (
+                         <div style={{ marginTop: '0.5rem', marginLeft: '1.7rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                           <em>Document extraction unsupported for this format.</em>
+                         </div>
+                      )}
+                      {doc.extractionStatus === 'failed' && (
+                         <div style={{ marginTop: '0.5rem', marginLeft: '1.7rem', fontSize: '0.8rem', color: 'var(--color-danger)' }}>
+                           <em>Document extraction failed.</em>
+                         </div>
+                      )}
                     </div>
                   ))}
                 </div>

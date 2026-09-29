@@ -132,6 +132,20 @@ def get_case_documents(case_id: str, db: Session = Depends(get_db), current_user
     return document_service.get_documents(db, case_id)
 
 
+@router.post("/{case_id}/documents/{document_id}/extract", response_model=DocumentResponse)
+def trigger_document_extraction(
+    case_id: str,
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(require_patient_or_doctor)
+):
+    if current_user.get("role") == "patient" and current_user.get("case_id") != case_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this document")
+
+    from app.services import document_extraction
+    updated_doc = document_extraction.process_document(db, case_id, document_id)
+    return updated_doc
+
 @router.post("/{case_id}/ai-summary", response_model=CaseResponse)
 def generate_case_ai_summary(
     case_id: str,

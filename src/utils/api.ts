@@ -66,6 +66,28 @@ export const updateCase = async (caseId: string, data: Partial<ClinicalCase>): P
   return response.json();
 };
 
+export const generateAISummary = async (caseId: string): Promise<ClinicalCase> => {
+  const response = await fetch(`${API_BASE_URL}/cases/${caseId}/ai-summary`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
+
+  if (!response.ok) {
+    let errorMessage = 'Failed to generate AI summary';
+    try {
+      const errorData = await response.json();
+      if (errorData.detail) errorMessage = errorData.detail;
+    } catch {
+      // Ignore
+    }
+    throw new Error(errorMessage);
+  }
+
+  return response.json();
+};
+
 export const uploadDocument = async (caseId: string, file: File): Promise<any> => {
   const formData = new FormData();
   formData.append('file', file);
@@ -121,6 +143,26 @@ export const uploadDocument = async (caseId: string, file: File): Promise<any> =
     throw new Error(errorMessage);
   }
   
+  return response.json();
+};
+
+export const extractDocument = async (caseId: string, documentId: string): Promise<any> => {
+  const response = await fetch(`${API_BASE_URL}/cases/${caseId}/documents/${documentId}/extract`, {
+    method: 'POST',
+    headers: { ...getAuthHeaders() },
+  });
+
+  if (!response.ok) {
+    let errorMessage = 'Failed to extract document details';
+    try {
+      const errorData = await response.json();
+      if (errorData.detail) errorMessage = errorData.detail;
+    } catch {
+      // Ignore
+    }
+    throw new Error(errorMessage);
+  }
+
   return response.json();
 };
 
