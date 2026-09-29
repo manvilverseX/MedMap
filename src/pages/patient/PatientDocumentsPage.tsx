@@ -246,6 +246,19 @@ export function PatientDocumentsPage() {
             </div>
           )}
 
+          {/* Skip Action for Idle State */}
+          {status === 'idle' && (
+            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center' }}>
+              <button
+                type="button"
+                className="doc-btn doc-btn-secondary"
+                onClick={() => navigate('/patient/verification')}
+              >
+                Skip & Continue to Verification →
+              </button>
+            </div>
+          )}
+
           {/* Selected, Processing, or Success File View */}
           {selectedFile && status !== 'idle' && (
             <div className="doc-file-card">
