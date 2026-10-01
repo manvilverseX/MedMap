@@ -1,6 +1,7 @@
 import os
 import json
 import base64
+import logging
 import urllib.request
 from sqlalchemy.orm import Session
 from app.models.document import PatientDocument
@@ -8,6 +9,8 @@ from fastapi import HTTPException
 from pydantic import BaseModel, ValidationError
 from typing import Optional, List, Dict, Any
 from groq import Groq
+
+logger = logging.getLogger(__name__)
 
 # Define the Structured Schema for Extraction
 class ExtractedMedication(BaseModel):
@@ -34,7 +37,7 @@ class ExtractedMedicalEntities(BaseModel):
     summary: Optional[str] = None
     sourceReference: str
 
-def get_image_base64(storage_path: str) -> Optional[str]:
+def get_image_base64(storage_path: str, document_id: str = "unknown") -> Optional[str]:
     try:
         if storage_path.startswith("http://") or storage_path.startswith("https://"):
             headers = {'User-Agent': 'Mozilla/5.0'}
@@ -50,7 +53,8 @@ def get_image_base64(storage_path: str) -> Optional[str]:
             with open(storage_path, "rb") as f:
                 img_data = f.read()
         return base64.b64encode(img_data).decode('utf-8')
-    except Exception:
+    except Exception as e:
+        logger.exception(f"Blob retrieval failed for document {document_id}. Path: {storage_path}. Exception: {type(e).__name__} - {str(e)}")
         return None
 
 def process_document(db: Session, case_id: str, document_id: str):
@@ -82,7 +86,7 @@ def process_document(db: Session, case_id: str, document_id: str):
         db.refresh(doc)
         return doc
         
-    img_b64 = get_image_base64(doc.storagePath)
+    img_b64 = get_image_base64(doc.storagePath, doc.id)
     if not img_b64:
         doc.extractionStatus = "failed"
         db.commit()
@@ -143,9 +147,11 @@ def process_document(db: Session, case_id: str, document_id: str):
         doc.extractedText = validated_entities.summary or "Extracted via vision model"
         doc.extractionStatus = "completed"
         
-    except ValidationError:
+    except ValidationError as e:
+        logger.exception(f"Validation failed during extraction for document {doc.id}. Model: {model_name}. MIME: {doc.mimeType}. Size: {doc.sizeBytes}. Exception: {type(e).__name__} - {str(e)}")
         doc.extractionStatus = "failed"
-    except Exception:
+    except Exception as e:
+        logger.exception(f"Groq/extraction processing failed for document {doc.id}. Model: {model_name}. MIME: {doc.mimeType}. Size: {doc.sizeBytes}. Exception: {type(e).__name__} - {str(e)}")
         doc.extractionStatus = "failed"
         
     db.commit()

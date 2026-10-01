@@ -54,6 +54,7 @@ test('unauthenticated request rejected', async () => {
 test('authorized patient gets token for their own case with correct config', async () => {
   const handler = (await import('./blob-upload.js')).default;
   process.env.SECRET_KEY = 'secret';
+  process.env.VERCEL = '1';
   const req = { 
     method: 'POST', 
     headers: { authorization: 'Bearer valid-patient-token' },
