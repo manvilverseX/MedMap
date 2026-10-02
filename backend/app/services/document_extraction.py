@@ -3,6 +3,7 @@ import json
 import base64
 import logging
 import urllib.request
+import urllib.parse
 from sqlalchemy.orm import Session
 from app.models.document import PatientDocument
 from fastapi import HTTPException
@@ -41,12 +42,27 @@ def get_image_base64(storage_path: str, document_id: str = "unknown") -> Optiona
     try:
         if storage_path.startswith("http://") or storage_path.startswith("https://"):
             headers = {'User-Agent': 'Mozilla/5.0'}
-            # If it's a Vercel Blob, we need to pass the BLOB_READ_WRITE_TOKEN to access private blobs
-            blob_token = os.getenv("BLOB_READ_WRITE_TOKEN") or os.getenv("VERCEL_OIDC_TOKEN")
-            if blob_token and "vercel-storage.com" in storage_path:
-                headers['Authorization'] = f"Bearer {blob_token}"
+
+            # If it's a Vercel Blob in a deployed environment, route through our internal Node read boundary
+            if "vercel-storage.com" in storage_path:
+                vercel_url = os.getenv("VERCEL_URL")
+                secret_key = os.getenv("SECRET_KEY")
+
+                if vercel_url and secret_key:
+                    # Construct the internal Node endpoint URL
+                    internal_endpoint = f"https://{vercel_url}/api/blob-read?url={urllib.parse.quote(storage_path)}"
+
+                    # Authenticate securely with the shared secret
+                    headers['x-internal-auth'] = secret_key
+
+                    # Re-target the request to our internal proxy
+                    req = urllib.request.Request(internal_endpoint, headers=headers)
+                else:
+                    # Fallback to direct request (e.g. if local or misconfigured) without leaking tokens
+                    req = urllib.request.Request(storage_path, headers=headers)
+            else:
+                req = urllib.request.Request(storage_path, headers=headers)
                 
-            req = urllib.request.Request(storage_path, headers=headers)
             with urllib.request.urlopen(req, timeout=15) as response:
                 img_data = response.read()
         else:
