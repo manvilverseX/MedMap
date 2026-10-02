@@ -184,4 +184,7 @@ const blobUploadMiddleware = () => ({
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [react(), envLoaderPlugin({ mode }), localBlobMockPlugin(), blobUploadMiddleware()],
+  define: {
+    'process.env.VERCEL_BLOB_API_URL': JSON.stringify(process.env.VERCEL_BLOB_API_URL || '')
+  }
 }))
