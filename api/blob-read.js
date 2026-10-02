@@ -1,4 +1,4 @@
-import { head } from '@vercel/blob';
+import { get } from '@vercel/blob';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -34,25 +34,24 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Get blob metadata which includes a presigned downloadUrl
-    const blobDetails = await head(blobUrl);
+    // Get the private blob directly using the SDK
+    const result = await get(blobUrl, { access: 'private' });
     
-    if (!blobDetails || !blobDetails.downloadUrl) {
+    if (!result) {
       return res.status(404).json({ error: 'Blob not found or not downloadable' });
     }
 
-    // Fetch the actual file bytes using the presigned downloadUrl
-    const response = await fetch(blobDetails.downloadUrl);
-    if (!response.ok) {
-      return res.status(response.status).json({ error: 'Failed to retrieve blob bytes' });
-    }
+    const { stream, blob } = result;
 
     // Stream the file back to the requester
-    const contentType = response.headers.get('content-type') || blobDetails.contentType || 'application/octet-stream';
+    const contentType = blob?.contentType || 'application/octet-stream';
     res.setHeader('Content-Type', contentType);
     
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const chunks = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.from(chunk));
+    }
+    const buffer = Buffer.concat(chunks);
     return res.status(200).send(buffer);
   } catch (error) {
     console.error("blob-read error:", error.message);
