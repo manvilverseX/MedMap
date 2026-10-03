@@ -10,6 +10,7 @@ from app.schemas.document import DocumentResponse
 from app.services import document_service
 from app.core.security import require_doctor, require_patient_or_doctor, create_access_token
 from typing import Dict, Any
+import logging
 
 router = APIRouter()
 
@@ -113,7 +114,24 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
                 detail=f"Invalid state transition from {current_case.status} to {case_in.status.value}"
             )
 
+    was_intake_completion = (
+        current_case.status == CaseStatus.INTAKE.value and case_in.status == CaseStatus.PATIENT_VERIFYING
+    )
+
     case = case_service.update_case(db, case_id, case_in)
+
+    # Automatically generate AI summary on intake completion
+    if was_intake_completion and not case.aiSummary and case.intakeAnswers:
+        from app.services import ai_service
+        try:
+            summary_dict = ai_service.generate_clinical_brief(case.intakeAnswers)
+            updated_case = case_service.update_ai_summary(db, case_id, summary_dict)
+            if updated_case:
+                case = updated_case
+        except Exception as e:
+            logging.error(f"Automatic AI summary generation failed: {e}")
+            # We explicitly swallow the error so patient intake remains successfully saved
+
     return case
 
 @router.post("/{case_id}/documents", response_model=DocumentResponse, status_code=201)
