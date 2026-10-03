@@ -84,6 +84,7 @@ def get_image_slices_base64(storage_path: str, document_id: str = "unknown") -> 
                 logger.info(f"Local file fetched. First 100 bytes: {repr(img_data[:100])}")
 
         # Slice the image using Pillow
+        print(f"[debug] Response preview: {img_data[:200]}")
         image = Image.open(io.BytesIO(img_data))
 
         # Handle EXIF orientation
