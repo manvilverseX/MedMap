@@ -43,11 +43,13 @@ class ExtractedMedicalEntities(BaseModel):
 def get_image_slices_base64(storage_path: str, document_id: str = "unknown") -> Optional[List[str]]:
     try:
         if storage_path.startswith("http://") or storage_path.startswith("https://"):
-            if "api/blob-read?url=" in storage_path:
-                parsed = urllib.parse.urlparse(storage_path)
-                query = urllib.parse.parse_qs(parsed.query)
-                if 'url' in query:
-                    storage_path = query['url'][0]
+            target_url = storage_path
+            if "url=" in target_url:
+                parsed = urllib.parse.urlparse(target_url)
+                qs = urllib.parse.parse_qs(parsed.query)
+                if "url" in qs and len(qs["url"]) > 0:
+                    target_url = urllib.parse.unquote(qs["url"][0])
+            storage_path = target_url
 
             headers = {'User-Agent': 'Mozilla/5.0'}
 
