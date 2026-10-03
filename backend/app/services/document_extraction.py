@@ -146,12 +146,13 @@ def process_document(db: Session, case_id: str, document_id: str):
     img_b64_slices = get_image_slices_base64(doc.storagePath, doc.id)
     if not img_b64_slices:
         doc.extractionStatus = "failed"
+        doc.extractedText = "Extraction error: Failed to retrieve or process image slices."
         db.commit()
         db.refresh(doc)
         return doc
 
     api_key = os.getenv("GROQ_API_KEY")
-    model_name = os.getenv("GROQ_DOCUMENT_MODEL", "qwen/qwen3.8-27b")
+    model_name = os.getenv("GROQ_DOCUMENT_MODEL", "llama-3.2-11b-vision-preview")
     client = Groq(api_key=api_key)
 
     schema_dict = ExtractedMedicalEntities.model_json_schema()
@@ -244,9 +245,11 @@ def process_document(db: Session, case_id: str, document_id: str):
     except ValidationError as e:
         logger.exception(f"Validation failed during extraction for document {doc.id}. Model: {model_name}. MIME: {doc.mimeType}. Size: {doc.sizeBytes}. Exception: {type(e).__name__} - {str(e)}")
         doc.extractionStatus = "failed"
+        doc.extractedText = f"Extraction error: Validation failed - {str(e)}"
     except Exception as e:
         logger.exception(f"Groq/extraction processing failed for document {doc.id}. Model: {model_name}. MIME: {doc.mimeType}. Size: {doc.sizeBytes}. Exception: {type(e).__name__} - {str(e)}")
         doc.extractionStatus = "failed"
+        doc.extractedText = f"Extraction error: {type(e).__name__} - {str(e)}"
 
     db.commit()
     db.refresh(doc)
