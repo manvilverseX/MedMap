@@ -56,15 +56,16 @@ def get_image_slices_base64(storage_path: str, document_id: str = "unknown") -> 
             if ".vercel.app" in storage_path:
                 raise Exception(f"Refusing to request a vercel.app proxy URL directly, it will hit Deployment Protection. URL: {storage_path}")
 
-            headers = {'User-Agent': 'Mozilla/5.0'}
-
-            # If it's a Vercel Blob in a deployed environment
-            if "vercel-storage.com" in storage_path:
-                blob_token = os.getenv("BLOB_READ_WRITE_TOKEN")
-                if blob_token:
-                    headers["Authorization"] = f"Bearer {blob_token}"
-
-            req = urllib.request.Request(storage_path, headers=headers)
+            token = os.environ.get("BLOB_READ_WRITE_TOKEN")
+            if "private.blob.vercel-storage.com" in storage_path and token:
+                fetch_url = f"https://blob.vercel-storage.com?url={urllib.parse.quote(storage_path, safe='')}"
+                headers = {
+                    "Authorization": f"Bearer {token}",
+                    "User-Agent": "MedMap-Backend/1.0"
+                }
+                req = urllib.request.Request(fetch_url, headers=headers)
+            else:
+                req = urllib.request.Request(storage_path, headers={"User-Agent": "MedMap-Backend/1.0"})
 
             try:
                 with urllib.request.urlopen(req, timeout=15) as response:
