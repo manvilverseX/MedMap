@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useCase } from '../../context/CaseContext';
 import { uploadDocument, extractDocument } from '../../utils/api';
 import { ErrorMessage } from '../../components/ErrorMessage';
+import { compressImageIfNeeded } from '../../utils/imageCompressor';
 
 // Max file size: 10 MB
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -124,7 +125,9 @@ export function PatientDocumentsPage() {
     setProcessingMessage('Uploading securely to server... Please wait.');
 
     try {
-      const uploadedDoc = await uploadDocument(caseId, selectedFile);
+      let finalFile = selectedFile;
+      finalFile = await compressImageIfNeeded(finalFile);
+      const uploadedDoc = await uploadDocument(caseId, finalFile);
 
       setProcessingMessage('Extracting medical details... This may take up to 30 seconds.');
       await extractDocument(caseId, uploadedDoc.id);
@@ -235,7 +238,7 @@ export function PatientDocumentsPage() {
               </div>
 
               <div className="doc-supported-specs">
-                Supported: PDF, JPG, PNG, WEBP • Max 10 MB
+                Supported: PDF, JPG, PNG, WEBP • Max 10 MB (Large images are automatically optimized)
               </div>
 
               <button
