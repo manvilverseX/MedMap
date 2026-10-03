@@ -81,7 +81,7 @@ def get_image_slices_base64(storage_path: str, document_id: str = "unknown") -> 
                             data = json.loads(img_data.decode("utf-8"))
                             download_url = data.get("downloadUrl") or data.get("url")
                             if download_url:
-                                req2 = urllib.request.Request(download_url, headers={"User-Agent": "MedMap-Backend/1.0"})
+                                req2 = urllib.request.Request(download_url)
                                 with urllib.request.urlopen(req2, timeout=15) as res2:
                                     if res2.status != 200:
                                         body2 = res2.read().decode('utf-8', errors='ignore')
