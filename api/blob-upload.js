@@ -98,7 +98,8 @@ export default async function handler(req, res) {
           allowedContentTypes: ALLOWED_MIMES,
           maximumSizeInBytes: MAX_SIZE,
           validUntil,
-          operations: ['put']
+          operations: ['put'],
+          access: 'public'
         };
 
         // On Vercel the SDK resolves OIDC credentials automatically from the
