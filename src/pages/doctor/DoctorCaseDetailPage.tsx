@@ -258,7 +258,12 @@ export function DoctorCaseDetailPage() {
                   {[
                     { key: 'chiefComplaint', label: 'Chief Complaint' },
                     { key: 'historyOfPresentIllness', label: 'History of Present Illness' },
-                    { key: 'pastMedicalHistory', label: 'Past Medical History' }
+                    { key: 'pastMedicalHistory', label: 'Past Medical History' },
+                    { key: 'pastSurgicalHistory', label: 'Past Surgical History' },
+                    { key: 'medications', label: 'Medications' },
+                    { key: 'allergies', label: 'Allergies' },
+                    { key: 'familyHistory', label: 'Family History' },
+                    { key: 'reviewOfSystems', label: 'Review of Systems' }
                   ].map(({ key, label }) => {
                     const value = caseDetail.aiSummary![key as keyof typeof caseDetail.aiSummary];
                     if (!value) return null;

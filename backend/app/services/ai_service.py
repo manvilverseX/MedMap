@@ -16,7 +16,7 @@ def generate_clinical_brief(intake_answers: dict) -> dict:
     schema_dict["additionalProperties"] = False
     
     prompt = f"""
-    You are a medical summarization assistant. Review the following patient intake answers and generate a clinical brief.
+    You are a medical summarization assistant. Review the following patient intake answers and generate a comprehensive clinical brief.
     
     IMPORTANT CLINICAL SAFETY REQUIREMENTS:
     - Summarize ONLY information actually present in the patient answers.
@@ -25,7 +25,17 @@ def generate_clinical_brief(intake_answers: dict) -> dict:
     - DO NOT infer a diagnosis from symptoms.
     - DO NOT provide treatment recommendations.
     - DO NOT add information that is absent.
-    - Clearly represent missing information rather than fabricating it (e.g., write "Not provided").
+    - If a specific clinical category has no patient-provided information, return null.
+
+    Specifically, organize the patient's information into these categories based on their intake:
+    1. Chief Complaint
+    2. History of Present Illness
+    3. Past Medical History
+    4. Past Surgical History
+    5. Medications
+    6. Allergies
+    7. Family History
+    8. Review of Systems
     
     Patient Intake Answers:
     {json.dumps(intake_answers, indent=2)}

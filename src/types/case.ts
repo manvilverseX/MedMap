@@ -14,6 +14,11 @@ export interface ClinicalCase {
     chiefComplaint: string;
     historyOfPresentIllness: string;
     pastMedicalHistory: string;
+    pastSurgicalHistory?: string;
+    medications?: string;
+    allergies?: string;
+    familyHistory?: string;
+    reviewOfSystems?: string;
   };
   derivedClinicalData?: Record<string, any>;
   reviewerId?: string;

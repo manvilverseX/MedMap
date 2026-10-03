@@ -94,21 +94,36 @@ def test_generate_ai_summary_idempotency(db_session, test_case, doctor_token):
     db_session.commit()
 
     headers = {"Authorization": f"Bearer {doctor_token}"}
+    expected_api_summary = {
+        "chiefComplaint": "x",
+        "historyOfPresentIllness": "y",
+        "pastMedicalHistory": "z",
+        "pastSurgicalHistory": None,
+        "medications": None,
+        "allergies": None,
+        "familyHistory": None,
+        "reviewOfSystems": None
+    }
     with patch("app.services.ai_service.generate_clinical_brief") as mock_generate:
         response = client.post(f"/api/v1/cases/{test_case.caseId}/ai-summary", headers=headers)
         assert response.status_code == 200
         mock_generate.assert_not_called()
-        assert response.json()["aiSummary"] == test_case.aiSummary
+        assert response.json()["aiSummary"] == expected_api_summary
 
 @patch("app.services.ai_service.generate_clinical_brief")
-def test_generate_ai_summary_success(mock_generate, db_session, test_case, doctor_token):
+def test_generate_ai_summary_success_8_fields(mock_generate, db_session, test_case, doctor_token):
     test_case.intakeAnswers = {"Q": "A"}
     db_session.commit()
 
     expected_summary = {
         "chiefComplaint": "A",
         "historyOfPresentIllness": "B",
-        "pastMedicalHistory": "C"
+        "pastMedicalHistory": "C",
+        "pastSurgicalHistory": "D",
+        "medications": "E",
+        "allergies": "F",
+        "familyHistory": "G",
+        "reviewOfSystems": "H"
     }
     mock_generate.return_value = expected_summary
 
@@ -122,6 +137,40 @@ def test_generate_ai_summary_success(mock_generate, db_session, test_case, docto
     # Verify DB was updated
     db_session.refresh(test_case)
     assert test_case.aiSummary == expected_summary
+
+@patch("app.services.ai_service.generate_clinical_brief")
+def test_generate_ai_summary_success_3_fields_compat(mock_generate, db_session, test_case, doctor_token):
+    test_case.intakeAnswers = {"Q": "A"}
+    db_session.commit()
+
+    # Mock returns only the 3 required fields (like an old model response)
+    mocked_return = {
+        "chiefComplaint": "A",
+        "historyOfPresentIllness": "B",
+        "pastMedicalHistory": "C"
+    }
+    mock_generate.return_value = mocked_return
+
+    headers = {"Authorization": f"Bearer {doctor_token}"}
+    response = client.post(f"/api/v1/cases/{test_case.caseId}/ai-summary", headers=headers)
+    assert response.status_code == 200
+
+    data = response.json()
+    # The API response should include the missing fields as null/None
+    expected_api_summary = {
+        "chiefComplaint": "A",
+        "historyOfPresentIllness": "B",
+        "pastMedicalHistory": "C",
+        "pastSurgicalHistory": None,
+        "medications": None,
+        "allergies": None,
+        "familyHistory": None,
+        "reviewOfSystems": None
+    }
+    assert data["aiSummary"] == expected_api_summary
+
+    db_session.refresh(test_case)
+    assert test_case.aiSummary == mocked_return
 
 @patch("app.services.ai_service.generate_clinical_brief")
 def test_generate_ai_summary_failure_does_not_modify_case(mock_generate, db_session, test_case, doctor_token):

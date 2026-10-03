@@ -8,6 +8,11 @@ class AISummary(BaseModel):
     chiefComplaint: str
     historyOfPresentIllness: str
     pastMedicalHistory: str
+    pastSurgicalHistory: Optional[str] = None
+    medications: Optional[str] = None
+    allergies: Optional[str] = None
+    familyHistory: Optional[str] = None
+    reviewOfSystems: Optional[str] = None
 
 
 class CaseStatus(str, Enum):
