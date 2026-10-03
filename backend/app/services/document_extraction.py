@@ -45,28 +45,29 @@ def get_image_slices_base64(storage_path: str, document_id: str = "unknown") -> 
         if storage_path.startswith("http://") or storage_path.startswith("https://"):
             headers = {'User-Agent': 'Mozilla/5.0'}
 
-            # If it's a Vercel Blob in a deployed environment, route through our internal Node read boundary
+            # If it's a Vercel Blob in a deployed environment
             if "vercel-storage.com" in storage_path:
-                vercel_url = os.getenv("VERCEL_URL")
-                secret_key = os.getenv("SECRET_KEY")
-
-                if vercel_url and secret_key:
-                    # Construct the internal Node endpoint URL
-                    internal_endpoint = f"https://{vercel_url}/api/blob-read?url={urllib.parse.quote(storage_path)}"
-
-                    # Authenticate securely with the shared secret
-                    headers['x-internal-auth'] = secret_key
-
-                    # Re-target the request to our internal proxy
-                    req = urllib.request.Request(internal_endpoint, headers=headers)
+                blob_token = os.getenv("BLOB_READ_WRITE_TOKEN")
+                if blob_token:
+                    headers["Authorization"] = f"Bearer {blob_token}"
                 else:
-                    # Fallback to direct request (e.g. if local or misconfigured) without leaking tokens
-                    req = urllib.request.Request(storage_path, headers=headers)
-            else:
-                req = urllib.request.Request(storage_path, headers=headers)
+                    vercel_url = os.getenv("VERCEL_URL")
+                    secret_key = os.getenv("SECRET_KEY")
+                    if vercel_url and secret_key:
+                        storage_path = f"https://{vercel_url}/api/blob-read?url={urllib.parse.quote(storage_path)}"
+                        headers['x-internal-auth'] = secret_key
 
-            with urllib.request.urlopen(req, timeout=15) as response:
-                img_data = response.read()
+            req = urllib.request.Request(storage_path, headers=headers)
+
+            try:
+                with urllib.request.urlopen(req, timeout=15) as response:
+                    if response.status != 200:
+                        body = response.read().decode('utf-8', errors='ignore')
+                        raise Exception(f"HTTP {response.status} Error fetching blob: {body}")
+                    img_data = response.read()
+            except urllib.error.HTTPError as e:
+                body = e.read().decode('utf-8', errors='ignore')
+                raise Exception(f"HTTP {e.code} Error fetching blob: {body}")
         else:
             with open(storage_path, "rb") as f:
                 img_data = f.read()
