@@ -43,6 +43,12 @@ class ExtractedMedicalEntities(BaseModel):
 def get_image_slices_base64(storage_path: str, document_id: str = "unknown") -> Optional[List[str]]:
     try:
         if storage_path.startswith("http://") or storage_path.startswith("https://"):
+            if "api/blob-read?url=" in storage_path:
+                parsed = urllib.parse.urlparse(storage_path)
+                query = urllib.parse.parse_qs(parsed.query)
+                if 'url' in query:
+                    storage_path = query['url'][0]
+
             headers = {'User-Agent': 'Mozilla/5.0'}
 
             # If it's a Vercel Blob in a deployed environment
@@ -65,12 +71,15 @@ def get_image_slices_base64(storage_path: str, document_id: str = "unknown") -> 
                         body = response.read().decode('utf-8', errors='ignore')
                         raise Exception(f"HTTP {response.status} Error fetching blob: {body}")
                     img_data = response.read()
+                    content_type = response.headers.get('Content-Type', 'unknown')
+                    logger.info(f"Blob fetched. Content-Type: {content_type}, First 100 bytes: {repr(img_data[:100])}")
             except urllib.error.HTTPError as e:
                 body = e.read().decode('utf-8', errors='ignore')
                 raise Exception(f"HTTP {e.code} Error fetching blob: {body}")
         else:
             with open(storage_path, "rb") as f:
                 img_data = f.read()
+                logger.info(f"Local file fetched. First 100 bytes: {repr(img_data[:100])}")
 
         # Slice the image using Pillow
         image = Image.open(io.BytesIO(img_data))
