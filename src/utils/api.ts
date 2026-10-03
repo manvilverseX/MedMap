@@ -97,7 +97,7 @@ export const uploadDocument = async (caseId: string, file: File): Promise<any> =
     const safeFilename = `${caseId}/${crypto.randomUUID()}${ext}`;
 
     blobMetadata = await uploadPresigned(safeFilename, file, {
-      access: 'private',
+      access: 'public',
       handleUploadUrl: '/api/blob-upload',
       clientPayload: caseId,
       headers: { ...getAuthHeaders() }
