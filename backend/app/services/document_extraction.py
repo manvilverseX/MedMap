@@ -43,13 +43,18 @@ class ExtractedMedicalEntities(BaseModel):
 def get_image_slices_base64(storage_path: str, document_id: str = "unknown") -> Optional[List[str]]:
     try:
         if storage_path.startswith("http://") or storage_path.startswith("https://"):
-            target_url = storage_path
-            if "url=" in target_url:
-                parsed = urllib.parse.urlparse(target_url)
-                qs = urllib.parse.parse_qs(parsed.query)
-                if "url" in qs and len(qs["url"]) > 0:
-                    target_url = urllib.parse.unquote(qs["url"][0])
-            storage_path = target_url
+            logger.info(f"URL before unwrap: {storage_path}")
+            
+            if "url=" in storage_path:
+                parsed = urllib.parse.urlparse(storage_path)
+                params = urllib.parse.parse_qs(parsed.query)
+                if "url" in params:
+                    storage_path = urllib.parse.unquote(params["url"][0])
+            
+            logger.info(f"URL after unwrap: {storage_path}")
+
+            if ".vercel.app" in storage_path:
+                raise Exception(f"Refusing to request a vercel.app proxy URL directly, it will hit Deployment Protection. URL: {storage_path}")
 
             headers = {'User-Agent': 'Mozilla/5.0'}
 
@@ -58,12 +63,6 @@ def get_image_slices_base64(storage_path: str, document_id: str = "unknown") -> 
                 blob_token = os.getenv("BLOB_READ_WRITE_TOKEN")
                 if blob_token:
                     headers["Authorization"] = f"Bearer {blob_token}"
-                else:
-                    vercel_url = os.getenv("VERCEL_URL")
-                    secret_key = os.getenv("SECRET_KEY")
-                    if vercel_url and secret_key:
-                        storage_path = f"https://{vercel_url}/api/blob-read?url={urllib.parse.quote(storage_path)}"
-                        headers['x-internal-auth'] = secret_key
 
             req = urllib.request.Request(storage_path, headers=headers)
 
