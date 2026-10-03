@@ -57,15 +57,12 @@ def get_image_slices_base64(storage_path: str, document_id: str = "unknown") -> 
                 raise Exception(f"Refusing to request a vercel.app proxy URL directly, it will hit Deployment Protection. URL: {storage_path}")
 
             token = os.environ.get("BLOB_READ_WRITE_TOKEN")
-            is_vercel_blob_api = False
             if "private.blob.vercel-storage.com" in storage_path and token:
-                fetch_url = f"https://blob.vercel-storage.com?url={urllib.parse.quote(storage_path, safe='')}"
                 headers = {
                     "Authorization": f"Bearer {token}",
                     "User-Agent": "MedMap-Backend/1.0"
                 }
-                req = urllib.request.Request(fetch_url, headers=headers)
-                is_vercel_blob_api = True
+                req = urllib.request.Request(storage_path, headers=headers)
             else:
                 req = urllib.request.Request(storage_path, headers={"User-Agent": "MedMap-Backend/1.0"})
 
@@ -76,20 +73,6 @@ def get_image_slices_base64(storage_path: str, document_id: str = "unknown") -> 
                         raise Exception(f"HTTP {response.status} Error fetching blob: {body}")
                     img_data = response.read()
                     
-                    if is_vercel_blob_api:
-                        try:
-                            data = json.loads(img_data.decode("utf-8"))
-                            download_url = data.get("downloadUrl") or data.get("url")
-                            if download_url:
-                                req2 = urllib.request.Request(download_url)
-                                with urllib.request.urlopen(req2, timeout=15) as res2:
-                                    if res2.status != 200:
-                                        body2 = res2.read().decode('utf-8', errors='ignore')
-                                        raise Exception(f"HTTP {res2.status} Error fetching real blob: {body2}")
-                                    img_data = res2.read()
-                        except json.JSONDecodeError:
-                            pass
-
                     content_type = response.headers.get('Content-Type', 'unknown')
                     logger.info(f"Blob fetched. Content-Type: {content_type}, First 100 bytes: {repr(img_data[:100])}")
             except urllib.error.HTTPError as e:

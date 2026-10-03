@@ -195,10 +195,10 @@ def test_extraction_schema():
     assert entity.sourceReference == "doc_id_123"
     assert entity.medications == []
 
-@patch("os.getenv")
+@patch("os.environ.get")
 @patch("urllib.request.Request")
 @patch("urllib.request.urlopen")
-def test_internal_blob_proxy_logic(mock_urlopen, mock_request, mock_getenv):
+def test_direct_authenticated_blob_fetch(mock_urlopen, mock_request, mock_getenv):
     from app.services.document_extraction import get_image_slices_base64
 
     # Mock urlopen to return empty bytes
@@ -206,28 +206,26 @@ def test_internal_blob_proxy_logic(mock_urlopen, mock_request, mock_getenv):
     mock_response.read.return_value = b""
     mock_urlopen.return_value.__enter__.return_value = mock_response
 
-    # Test proxying through internal API when env vars are set
+    # Test direct fetching when env vars are set
     def mock_getenv_side_effect(key, default=None):
-        if key == "VERCEL_URL":
-            return "my-vercel-project.vercel.app"
-        if key == "SECRET_KEY":
-            return "my-secret-key"
+        if key == "BLOB_READ_WRITE_TOKEN":
+            return "my-blob-token"
         return default
 
     mock_getenv.side_effect = mock_getenv_side_effect
 
     # Since get_image_slices_base64 tries to parse as Image, it will fail on empty bytes
     # We only care that the network logic executes correctly
-    get_image_slices_base64("https://test.blob.vercel-storage.com/test.png")
+    get_image_slices_base64("https://test.private.blob.vercel-storage.com/test.png")
 
-    # Assert it called the correct internal proxy URL and set the x-internal-auth header
+    # Assert it called the correct URL directly and set the Authorization header
     args = mock_request.call_args[0]
     headers = mock_request.call_args[1]["headers"]
 
-    internal_endpoint = args[0]
-    assert internal_endpoint.startswith("https://my-vercel-project.vercel.app/api/blob-read")
-    assert headers.get("x-internal-auth") == "my-secret-key"
-    assert "Authorization" not in headers
+    endpoint = args[0]
+    assert endpoint == "https://test.private.blob.vercel-storage.com/test.png"
+    assert headers.get("Authorization") == "Bearer my-blob-token"
+    assert headers.get("User-Agent") == "MedMap-Backend/1.0"
 
 def test_real_pillow_slicing(tmp_path):
     from app.services.document_extraction import get_image_slices_base64
