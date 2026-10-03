@@ -93,6 +93,41 @@ def _is_eligible(question: IntakeQuestion, answers: Mapping[str, Any]) -> bool:
     return normalized not in excluded
 
 
+def validate_intake_answers(
+    answers: Any,
+    *,
+    questions: Sequence[IntakeQuestion] = INTAKE_QUESTIONS,
+) -> dict[str, str]:
+    """Validate intake answers and return a new, normalized answer mapping."""
+    if not isinstance(answers, Mapping):
+        raise ValueError("Intake answers must be a mapping")
+
+    by_id = {question.id: question for question in questions}
+
+    unknown_ids = [
+        question_id
+        for question_id in answers
+        if question_id not in by_id
+    ]
+    if unknown_ids:
+        raise ValueError(f"Unknown intake question: {unknown_ids[0]}")
+
+    validated: dict[str, str] = {}
+
+    for question_id, answer in answers.items():
+        if not isinstance(answer, str):
+            raise ValueError(
+                f"Intake answer for '{question_id}' must be a string"
+            )
+        validated[question_id] = answer.strip()
+
+    for question in questions:
+        if question.id in validated and not _is_eligible(question, validated):
+            validated.pop(question.id)
+
+    return validated
+
+
 def select_intake_state(
     answers: Any,
     *,
