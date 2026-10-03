@@ -174,8 +174,8 @@ def test_document_extraction_malformed_json(MockGroq, mock_get_base64, db: Sessi
     mock_client_instance = MagicMock()
     MockGroq.return_value = mock_client_instance
     mock_response1 = MagicMock()
-    # Missing required sourceReference field in the response causes validation error
-    mock_response1.choices[0].message.content = '{"diagnoses": ["Hypertension"]}'
+    # Supplying a string instead of a list for diagnoses causes a validation error
+    mock_response1.choices[0].message.content = '{"diagnoses": "not-a-list"}'
     mock_client_instance.chat.completions.create.return_value = mock_response1
 
     res = patient_client.post(f"/api/v1/cases/{patient_case}/documents/{doc_id}/extract")

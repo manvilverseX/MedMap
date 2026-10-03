@@ -182,7 +182,6 @@ def process_document(db: Session, case_id: str, document_id: str):
     - NEVER convert uncertain handwriting into confident clinical facts.
     - Preserve ambiguity and conflicting values.
     - Use null or empty lists when information is not explicitly present in this slice.
-    - Set sourceReference to "{doc.id}".
 
     Ensure your output exactly matches this JSON schema:
     {json.dumps(schema_dict, indent=2)}
@@ -213,7 +212,9 @@ def process_document(db: Session, case_id: str, document_id: str):
                 raise ValueError(f"Empty response for slice {idx}")
 
             # Validate schema
-            slice_entities = ExtractedMedicalEntities.model_validate_json(result_text)
+            result_dict = json.loads(result_text)
+            result_dict["sourceReference"] = doc.id
+            slice_entities = ExtractedMedicalEntities.model_validate(result_dict)
 
             merged_entities.diagnoses.extend(slice_entities.diagnoses)
             merged_entities.procedures.extend(slice_entities.procedures)
