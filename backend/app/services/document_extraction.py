@@ -165,7 +165,7 @@ def process_document(db: Session, case_id: str, document_id: str):
         return doc
 
     api_key = os.getenv("GROQ_API_KEY")
-    model_name = os.getenv("GROQ_DOCUMENT_MODEL", "llama-3.2-11b-vision-preview")
+    model_name = os.getenv("GROQ_DOCUMENT_MODEL", "qwen/qwen3.8-27b")
     client = Groq(api_key=api_key)
 
     schema_dict = ExtractedMedicalEntities.model_json_schema()
