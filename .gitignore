@@ -29,3 +29,6 @@ dist-ssr
 .vercel
 .env*
 !.env.example
+
+# Local Blob mock — dev-only file storage, never committed
+.vercel-blob-local/

@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCase } from '../../context/CaseContext';
-import { uploadDocument } from '../../utils/api';
+import { uploadDocument, extractDocument } from '../../utils/api';
 import { ErrorMessage } from '../../components/ErrorMessage';
 
 // Max file size: 10 MB
@@ -25,6 +25,7 @@ export function PatientDocumentsPage() {
   const [status, setStatus] = useState<DocumentStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState<boolean>(false);
+  const [processingMessage, setProcessingMessage] = useState<string>('Uploading securely to server... Please wait.');
 
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024 * 1024) {
@@ -120,12 +121,17 @@ export function PatientDocumentsPage() {
 
     setStatus('processing');
     setError(null);
+    setProcessingMessage('Uploading securely to server... Please wait.');
 
     try {
-      await uploadDocument(caseId, selectedFile);
+      const uploadedDoc = await uploadDocument(caseId, selectedFile);
+
+      setProcessingMessage('Extracting medical details... This may take up to 30 seconds.');
+      await extractDocument(caseId, uploadedDoc.id);
+
       setStatus('success');
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred during upload.");
+      setError(err.message || "An unexpected error occurred during processing.");
       setStatus('selected'); // Revert back so user can try again or remove
     }
   };
@@ -285,7 +291,7 @@ export function PatientDocumentsPage() {
                   )}
                   {status === 'processing' && (
                     <span className="doc-badge doc-badge-processing">
-                      <span className="spinner"></span> Uploading...
+                      <span className="spinner"></span> Processing...
                     </span>
                   )}
                   {status === 'success' && (
@@ -308,9 +314,9 @@ export function PatientDocumentsPage() {
                 <div className="doc-alert doc-alert-success" style={{ marginTop: '1.25rem', marginBottom: '0' }} role="status">
                   <span style={{ fontSize: '1.2rem' }}>✅</span>
                   <div>
-                    <strong>Upload Complete</strong>
+                    <strong>Upload & Extraction Complete</strong>
                     <div style={{ marginTop: '0.2rem', fontSize: '0.9rem' }}>
-                      Document has been successfully uploaded and securely stored.
+                      Document uploaded securely and AI-assisted extraction is complete. Details will be reviewed by your doctor.
                     </div>
                   </div>
                 </div>
@@ -340,7 +346,7 @@ export function PatientDocumentsPage() {
 
                 {status === 'processing' && (
                   <div style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>
-                    Uploading securely to server... Please wait.
+                    {processingMessage}
                   </div>
                 )}
 
@@ -367,9 +373,9 @@ export function PatientDocumentsPage() {
             </div>
           )}
 
-          {/* Prototype Scope Note */}
+          {/* AI Extraction Note */}
           <div className="doc-prototype-notice">
-            ℹ️ <strong>MedMap Upload Notice:</strong> Documents are securely uploaded. OCR extraction is intentionally disabled for this phase.
+            ℹ️ <strong>MedMap Processing Notice:</strong> Documents are securely uploaded and processed using AI-assisted extraction. Extracted information is not a diagnosis and requires doctor review.
           </div>
         </section>
       </main>
