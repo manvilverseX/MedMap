@@ -14,6 +14,7 @@ def generate_clinical_brief(intake_answers: dict) -> dict:
     
     schema_dict = AISummary.model_json_schema()
     schema_dict["additionalProperties"] = False
+    schema_dict["required"] = list(schema_dict["properties"].keys())
     
     prompt = f"""
     You are a medical summarization assistant. Review the following patient intake answers and generate a comprehensive clinical brief.
