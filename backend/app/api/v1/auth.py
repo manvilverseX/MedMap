@@ -27,3 +27,14 @@ def login_doctor(form_data: OAuth2PasswordRequestForm = Depends(), db: Session =
     
     access_token = create_access_token(data={"sub": user.username, "role": user.role})
     return {"access_token": access_token, "token_type": "bearer"}
+
+from app.core.security import oauth2_scheme
+from app.models.user import TokenBlocklist
+from datetime import datetime, timezone
+
+@router.post("/logout")
+def logout(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    blocklist_entry = TokenBlocklist(token=token, expires_at=datetime.now(timezone.utc))
+    db.add(blocklist_entry)
+    db.commit()
+    return {"msg": "Successfully logged out"}

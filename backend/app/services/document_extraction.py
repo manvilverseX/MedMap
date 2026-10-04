@@ -40,6 +40,50 @@ class ExtractedMedicalEntities(BaseModel):
     summary: Optional[str] = None
     sourceReference: str
 
+def get_pdf_pages_base64(storage_path: str, document_id: str = "unknown") -> Optional[List[str]]:
+    import fitz
+    try:
+        if storage_path.startswith("http://") or storage_path.startswith("https://"):
+            if "url=" in storage_path:
+                parsed = urllib.parse.urlparse(storage_path)
+                params = urllib.parse.parse_qs(parsed.query)
+                if "url" in params:
+                    storage_path = urllib.parse.unquote(params["url"][0])
+                    
+            if ".vercel.app" in storage_path:
+                raise Exception(f"Refusing to request a vercel.app proxy URL directly, it will hit Deployment Protection. URL: {storage_path}")
+
+            token = os.environ.get("BLOB_READ_WRITE_TOKEN")
+            headers = {"User-Agent": "MedMap-Backend/1.0"}
+            if "private.blob.vercel-storage.com" in storage_path and token:
+                headers["Authorization"] = f"Bearer {token}"
+            
+            req = urllib.request.Request(storage_path, headers=headers)
+            with urllib.request.urlopen(req, timeout=15) as response:
+                if response.status != 200:
+                    raise Exception(f"HTTP {response.status} Error fetching PDF")
+                pdf_data = response.read()
+        else:
+            with open(storage_path, "rb") as f:
+                pdf_data = f.read()
+
+        doc = fitz.open(stream=pdf_data, filetype="pdf")
+        base64_pages = []
+        total_pages = len(doc)
+        # Process up to 5 pages to prevent timeouts/OOM
+        for i in range(min(total_pages, 5)):
+            page = doc.load_page(i)
+            # Render at 150 DPI
+            pix = page.get_pixmap(matrix=fitz.Matrix(150/72, 150/72))
+            img_data = pix.tobytes("jpeg")
+            b64_str = base64.b64encode(img_data).decode('utf-8')
+            base64_pages.append(b64_str)
+        doc.close()
+        return base64_pages, total_pages
+    except Exception as e:
+        logger.exception(f"PDF extraction failed for document {document_id}. Path: {storage_path}. Exception: {type(e).__name__} - {str(e)}")
+        return None, 0
+
 def get_image_slices_base64(storage_path: str, document_id: str = "unknown") -> Optional[List[str]]:
     try:
         if storage_path.startswith("http://") or storage_path.startswith("https://"):
@@ -140,9 +184,8 @@ def process_document(db: Session, case_id: str, document_id: str):
     db.commit()
     db.refresh(doc)
 
-    # Verify supported format
-    supported_image_mimes = {"image/png", "image/jpeg", "image/webp", "image/jpg"}
-    if doc.mimeType not in supported_image_mimes:
+    supported_mimes = {"image/png", "image/jpeg", "image/webp", "image/jpg", "application/pdf"}
+    if doc.mimeType not in supported_mimes:
         doc.extractionStatus = "unsupported"
         db.commit()
         db.refresh(doc)
@@ -156,7 +199,13 @@ def process_document(db: Session, case_id: str, document_id: str):
         db.refresh(doc)
         return doc
 
-    img_b64_slices = get_image_slices_base64(doc.storagePath, doc.id)
+    total_pages = 1
+    is_pdf = doc.mimeType == "application/pdf"
+    if is_pdf:
+        import fitz
+        img_b64_slices, total_pages = get_pdf_pages_base64(doc.storagePath, doc.id)
+    else:
+        img_b64_slices = get_image_slices_base64(doc.storagePath, doc.id)
     if not img_b64_slices:
         doc.extractionStatus = "failed"
         doc.extractedText = "Extraction error: Failed to retrieve or process image slices."
@@ -251,9 +300,14 @@ def process_document(db: Session, case_id: str, document_id: str):
         # Ensure sourceReference matches
         if merged_entities.sourceReference != doc.id:
             merged_entities.sourceReference = doc.id
-
+            
         doc.medicalEntities = merged_entities.model_dump()
-        doc.extractedText = merged_entities.summary or "Extracted via vision model"
+        
+        extracted_summary = merged_entities.summary or "Extracted via vision model"
+        if is_pdf and "total_pages" in locals() and locals()["total_pages"] > 5:
+            extracted_summary += f" (Note: Truncated to first 5 pages out of {locals()['total_pages']} due to processing limits.)"
+            
+        doc.extractedText = extracted_summary
         doc.extractionStatus = "completed"
 
     except ValidationError as e:

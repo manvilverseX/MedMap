@@ -91,6 +91,24 @@ def test_doctor_can_access_cases():
     res2 = client.get("/api/v1/cases", headers={"Authorization": f"Bearer {doc_token}"})
     assert res2.status_code == 200
 
+def test_logout_invalidates_token():
+    # Login doctor
+    res = client.post("/api/v1/auth/doctor/login", data={"username": "testdoc", "password": "pass123"})
+    assert res.status_code == 200
+    doc_token = res.json()["access_token"]
+    
+    # Access resource successfully
+    res_success = client.get("/api/v1/cases", headers={"Authorization": f"Bearer {doc_token}"})
+    assert res_success.status_code == 200
+    
+    # Logout
+    res_logout = client.post("/api/v1/auth/logout", headers={"Authorization": f"Bearer {doc_token}"})
+    assert res_logout.status_code == 200
+    
+    # Try accessing resource again (should fail)
+    res_fail = client.get("/api/v1/cases", headers={"Authorization": f"Bearer {doc_token}"})
+    assert res_fail.status_code == 401
+
 
 def test_create_case_requires_consent():
     # omitted consent

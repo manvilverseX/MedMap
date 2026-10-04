@@ -16,7 +16,11 @@ elif db_url and db_url.startswith("postgres"):
     raw_url = db_url
 elif medmap_url and medmap_url.startswith("postgres"):
     raw_url = medmap_url
+elif db_url and db_url.startswith("sqlite"):
+    raw_url = db_url
 else:
+    if os.getenv("VERCEL_ENV") in ["production", "preview"]:
+        raise ValueError("DATABASE_URL is missing in production/preview environment.")
     raw_url = "postgresql://postgres:PASSWORD_PLACEHOLDER@localhost:5432/medmap"
 
 if raw_url.startswith("postgresql://"):

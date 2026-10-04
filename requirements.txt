@@ -13,3 +13,4 @@ requests==2.31.0
 vercel
 groq
 Pillow==11.0.0
+pymupdf==1.28.2
