@@ -128,6 +128,28 @@ def validate_intake_answers(
     return validated
 
 
+def apply_intake_response(
+    answers: Any,
+    question_id: str,
+    response: Any,
+    *,
+    mode: Optional[IntakeRequestMode] = None,
+    questions: Sequence[IntakeQuestion] = INTAKE_QUESTIONS,
+) -> dict[str, str]:
+    """Validate and apply one patient intake response deterministically."""
+    validated = validate_intake_answers(answers, questions=questions)
+    by_id = {question.id: question for question in questions}
+    if question_id not in by_id:
+        raise ValueError(f"Unknown intake question: {question_id}")
+    if not isinstance(response, str):
+        raise ValueError(f"Intake answer for '{question_id}' must be a string")
+    if mode == IntakeRequestMode.CORRECTION and question_id not in validated:
+        raise ValueError("Only an answered question can be corrected")
+    updated = dict(validated)
+    updated[question_id] = response.strip()
+    return validate_intake_answers(updated, questions=questions)
+
+
 def select_intake_state(
     answers: Any,
     *,
