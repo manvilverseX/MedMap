@@ -86,9 +86,13 @@ export function PatientIntakePage() {
         setIsReviewing(false);
       }
 
-      const rawAns = currentAnswers[state.currentQuestion.id];
-      if (rawAns !== undefined) {
-        setCurrentAnswer(typeof rawAns === 'string' ? rawAns : rawAns.value || '');
+      if (state.currentQuestion) {
+        const rawAns = currentAnswers[state.currentQuestion.id];
+        if (rawAns !== undefined) {
+          setCurrentAnswer(typeof rawAns === 'string' ? rawAns : rawAns.value || '');
+        } else {
+          setCurrentAnswer('');
+        }
       } else {
         setCurrentAnswer('');
       }
