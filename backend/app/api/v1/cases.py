@@ -255,3 +255,52 @@ def generate_case_ai_summary(
         raise HTTPException(status_code=404, detail="Case not found during update")
 
     return updated_case
+
+@router.get("/{case_id}/clinical-intelligence")
+def get_clinical_intelligence(
+    case_id: str,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(require_patient_or_doctor)
+):
+    if current_user.get("role") == "patient" and current_user.get("case_id") != case_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this case")
+
+    case = case_service.get_case(db, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    docs = document_service.get_documents(db, case_id)
+    # Serialize docs to dict for medication processor
+    doc_dicts = [
+        {"id": d.documentId, "createdAt": d.createdAt.isoformat(), "medicalEntities": d.medicalEntities}
+        for d in docs if d.medicalEntities
+    ]
+
+    from app.services.clinical_intelligence import ClinicalRuleEngine, process_medication_intelligence
+    
+    # Simple dict form for rule engine
+    case_dict = {"intakeAnswers": case.intakeAnswers or {}}
+    
+    flags = ClinicalRuleEngine.evaluate_case(case_dict)
+    medications = process_medication_intelligence(case_dict, doc_dicts)
+
+    return {
+        "redFlags": flags,
+        "medicationIntelligence": medications
+    }
+
+@router.get("/{case_id}/fhir")
+def export_fhir_prototype(
+    case_id: str,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(require_patient_or_doctor)
+):
+    if current_user.get("role") == "patient" and current_user.get("case_id") != case_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this case")
+
+    case = case_service.get_case(db, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    from app.services.fhir_mapper import generate_fhir_bundle
+    return generate_fhir_bundle(case)
