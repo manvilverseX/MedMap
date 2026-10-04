@@ -304,3 +304,20 @@ def export_fhir_prototype(
 
     from app.services.fhir_mapper import generate_fhir_bundle
     return generate_fhir_bundle(case)
+
+@router.get("/{case_id}/unified")
+def get_unified_case(
+    case_id: str,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(require_patient_or_doctor)
+):
+    if current_user.get("role") == "patient" and current_user.get("case_id") != case_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this case")
+
+    from app.services.longitudinal_service import generate_unified_case
+    unified = generate_unified_case(db, case_id)
+    
+    if not unified:
+        raise HTTPException(status_code=404, detail="Case not found")
+        
+    return unified
