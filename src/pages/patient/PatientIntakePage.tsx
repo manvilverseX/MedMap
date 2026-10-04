@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCase } from '../../context/CaseContext';
-import { getCase, updateCase, getAdaptiveIntakeState } from '../../utils/api';
+import { getCase, updateCase, getAdaptiveIntakeState, getUnifiedCase } from '../../utils/api';
 import type { ClinicalCase } from '../../types/case';
 import { Button } from '../../components/Button';
 import { ErrorMessage } from '../../components/ErrorMessage';
@@ -33,6 +33,8 @@ export function PatientIntakePage() {
 
   // ── Case loading state ────────────────────────────────────────────────
   const [clinicalCase, setClinicalCase] = useState<ClinicalCase | null>(null);
+  const [unifiedCase, setUnifiedCase] = useState<any>(null);
+  const [showLongitudinalPrompt, setShowLongitudinalPrompt] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,10 +53,20 @@ export function PatientIntakePage() {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await getCase(caseId);
+      const [data, unified] = await Promise.all([
+        getCase(caseId),
+        getUnifiedCase(caseId).catch(() => null)
+      ]);
       setClinicalCase(data);
+      setUnifiedCase(unified);
+      
       const loadedAnswers = data.intakeAnswers || {};
       setAnswers(loadedAnswers);
+      
+      // If patient is returning and hasn't answered anything yet, show the longitudinal prompt
+      if (unified && unified.previousVerified && Object.keys(loadedAnswers).length === 0 && data.status === 'intake') {
+        setShowLongitudinalPrompt(true);
+      }
       
       if (data.status !== 'intake') {
         setSessionState({
@@ -196,6 +208,60 @@ export function PatientIntakePage() {
             <div className="intake-error-actions">
               <Button variant="primary" onClick={loadCase}>Try Again</Button>
               <Link to="/" className="intake-btn intake-btn-skip">Back to Home</Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (showLongitudinalPrompt && unifiedCase?.previousVerified) {
+    const prevDate = new Date(unifiedCase.previousVerified.createdAt).toLocaleDateString();
+    
+    return (
+      <div className="container">
+        <div className="intake-page">
+          <div className="intake-header">
+            <h1>Welcome Back</h1>
+            <p className="intake-case-id" style={{display: "flex", alignItems: "center", gap: "0.5rem"}}>Case {clinicalCase.caseId} <StatusBadge status={clinicalCase.status} /></p>
+          </div>
+          
+          <div className="intake-review-card">
+            <div style={{ backgroundColor: 'var(--color-background-alt)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid var(--color-border-subtle)'}}>
+              <p style={{ margin: 0, fontWeight: 600 }}>We have your verified medical information from your previous visit on {prevDate}.</p>
+            </div>
+            
+            <h2 className="intake-question-prompt">What has changed since your last visit?</h2>
+            <p className="intake-question-helper">Please tell us about any new symptoms, worsened conditions, or changes in your medications. If nothing has changed for a particular issue, you don't need to re-enter it.</p>
+            
+            <textarea
+              className="intake-textarea"
+              placeholder="e.g. My fever is gone but I have a new cough. I started taking cough syrup."
+              value={currentAnswer}
+              onChange={(e) => setCurrentAnswer(e.target.value)}
+              rows={4}
+              style={{ width: '100%', marginTop: '1rem' }}
+            />
+            
+            <div className="intake-actions" style={{marginTop: '2rem'}}>
+              {error && <ErrorMessage message={error} />}
+              <Button variant="outline" onClick={() => { setShowLongitudinalPrompt(false); setCurrentAnswer(''); }} className="intake-btn intake-btn-skip">
+                Skip / Start Fresh
+              </Button>
+              <Button
+                variant="primary"
+                onClick={async () => {
+                  if (currentAnswer.trim().length > 0) {
+                    await handleAnswerSubmit(currentAnswer);
+                  }
+                  setShowLongitudinalPrompt(false);
+                  setCurrentAnswer('');
+                }}
+                className="intake-btn-continue"
+                disabled={isSubmitting || currentAnswer.trim().length === 0}
+              >
+                {isSubmitting ? 'Saving...' : 'Save & Continue →'}
+              </Button>
             </div>
           </div>
         </div>
