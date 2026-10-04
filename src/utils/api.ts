@@ -210,3 +210,32 @@ export const getCaseDocuments = async (caseId: string): Promise<any[]> => {
   }
   return response.json();
 };
+
+export const getClinicalIntelligence = async (caseId: string): Promise<any> => {
+  const response = await fetch(`${API_BASE_URL}/cases/${caseId}/clinical-intelligence`, {
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
+  if (response.status === 401 || response.status === 403) {
+    throw new Error('Unauthorized');
+  }
+  if (!response.ok) {
+    throw new Error('Failed to load clinical intelligence');
+  }
+  return response.json();
+};
+export const getUnifiedCase = async (caseId: string): Promise<any> => {
+  const response = await fetch(`${API_BASE_URL}/cases/${caseId}/unified`, {
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
+  if (response.status === 401 || response.status === 403) {
+    throw new Error('Unauthorized');
+  }
+  if (!response.ok) {
+    throw new Error('Failed to load unified case');
+  }
+  return response.json();
+};

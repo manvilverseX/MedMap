@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { DoctorCaseStatusBadge } from '../../components/doctor/DoctorCaseStatusBadge';
 import { DoctorSectionCard } from '../../components/doctor/DoctorSectionCard';
-import { getCase, getCaseDocuments, updateCase, generateAISummary } from '../../utils/api';
+import { getCase, getCaseDocuments, updateCase, generateAISummary, getClinicalIntelligence, getUnifiedCase } from '../../utils/api';
 import type { ClinicalCase } from '../../types/case';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { Button } from '../../components/Button';
@@ -14,6 +14,8 @@ export function DoctorCaseDetailPage() {
   const { caseId } = useParams<{ caseId: string }>();
   const [caseDetail, setCaseDetail] = useState<ClinicalCase | null>(null);
   const [documents, setDocuments] = useState<any[]>([]);
+  const [clinicalIntelligence, setClinicalIntelligence] = useState<any>(null);
+  const [unifiedCase, setUnifiedCase] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -39,9 +41,11 @@ export function DoctorCaseDetailPage() {
 
     const fetchCase = async () => {
       try {
-        const [data, docs] = await Promise.all([
+        const [data, docs, ci, unified] = await Promise.all([
           getCase(caseId),
-          getCaseDocuments(caseId).catch(() => []) // Fallback to empty array if docs fail
+          getCaseDocuments(caseId).catch(() => []), 
+          getClinicalIntelligence(caseId).catch(() => null),
+          getUnifiedCase(caseId).catch(() => null)
         ]);
         setCaseDetail(data);
         if (data.clinicalAssessment) {
@@ -54,6 +58,8 @@ export function DoctorCaseDetailPage() {
           });
         }
         setDocuments(docs);
+        setClinicalIntelligence(ci);
+        setUnifiedCase(unified);
       } catch (err: any) {
         if (err.message === 'Unauthorized') {
           navigate('/doctor/login');
@@ -244,6 +250,59 @@ export function DoctorCaseDetailPage() {
             </div>
           )}
 
+          {/* Longitudinal History */}
+          {unifiedCase && unifiedCase.previousVerified && (
+            <div style={{ marginTop: '2rem' }}>
+              <DoctorSectionCard title="Longitudinal Changes" tag="Historical Comparison">
+                <div className="history-subsection">
+                  <div style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: 'var(--color-background-alt)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                      <strong>Previous Encounter:</strong> {new Date(unifiedCase.previousVerified.createdAt).toLocaleDateString()} (ID: {unifiedCase.previousVerified.caseId})
+                    </p>
+                  </div>
+                  
+                  {/* Symptoms Changes */}
+                  {unifiedCase.longitudinalChanges && unifiedCase.longitudinalChanges.symptoms && (
+                    <div style={{ marginBottom: '1.5rem' }}>
+                      <h3 className="history-subheading" style={{ color: 'var(--color-navy)', marginBottom: '0.5rem', fontWeight: 600 }}>Symptom Deltas</h3>
+                      {unifiedCase.longitudinalChanges.symptoms.new?.length > 0 && (
+                        <p style={{ margin: '0.25rem 0', fontSize: '0.85rem' }}><strong style={{ color: 'var(--color-danger)' }}>New:</strong> {unifiedCase.longitudinalChanges.symptoms.new.join(', ')}</p>
+                      )}
+                      {unifiedCase.longitudinalChanges.symptoms.resolved?.length > 0 && (
+                        <p style={{ margin: '0.25rem 0', fontSize: '0.85rem' }}><strong style={{ color: 'var(--color-verify)' }}>Resolved:</strong> {unifiedCase.longitudinalChanges.symptoms.resolved.join(', ')}</p>
+                      )}
+                      {unifiedCase.longitudinalChanges.symptoms.unchanged?.length > 0 && (
+                        <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}><strong>Unchanged:</strong> {unifiedCase.longitudinalChanges.symptoms.unchanged.join(', ')}</p>
+                      )}
+                      {unifiedCase.longitudinalChanges.symptoms.new?.length === 0 && unifiedCase.longitudinalChanges.symptoms.resolved?.length === 0 && unifiedCase.longitudinalChanges.symptoms.unchanged?.length === 0 && (
+                        <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', fontStyle: 'italic', color: 'var(--color-text-secondary)' }}>No symptoms identified.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Medication Changes */}
+                  {unifiedCase.longitudinalChanges && unifiedCase.longitudinalChanges.medications && (
+                    <div style={{ marginBottom: '1.5rem' }}>
+                      <h3 className="history-subheading" style={{ color: 'var(--color-navy)', marginBottom: '0.5rem', fontWeight: 600 }}>Medication Deltas</h3>
+                      {unifiedCase.longitudinalChanges.medications.started?.length > 0 && (
+                        <p style={{ margin: '0.25rem 0', fontSize: '0.85rem' }}><strong style={{ color: 'var(--color-danger)' }}>Started:</strong> {unifiedCase.longitudinalChanges.medications.started.join(', ')}</p>
+                      )}
+                      {unifiedCase.longitudinalChanges.medications.stopped?.length > 0 && (
+                        <p style={{ margin: '0.25rem 0', fontSize: '0.85rem' }}><strong style={{ color: 'var(--color-verify)' }}>Stopped:</strong> {unifiedCase.longitudinalChanges.medications.stopped.join(', ')}</p>
+                      )}
+                      {unifiedCase.longitudinalChanges.medications.unchanged?.length > 0 && (
+                        <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}><strong>Unchanged:</strong> {unifiedCase.longitudinalChanges.medications.unchanged.join(', ')}</p>
+                      )}
+                      {unifiedCase.longitudinalChanges.medications.started?.length === 0 && unifiedCase.longitudinalChanges.medications.stopped?.length === 0 && unifiedCase.longitudinalChanges.medications.unchanged?.length === 0 && (
+                        <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', fontStyle: 'italic', color: 'var(--color-text-secondary)' }}>No known medication changes.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </DoctorSectionCard>
+            </div>
+          )}
+
           {/* AI Case Summary */}
           <div style={{ marginTop: '2rem' }}>
             <DoctorSectionCard title="AI Case Summary" tag="AI Assisted">
@@ -406,6 +465,42 @@ export function DoctorCaseDetailPage() {
               )}
             </DoctorSectionCard>
           </div>
+          
+          {/* Clinical Intelligence Section */}
+          {clinicalIntelligence && (clinicalIntelligence.redFlags?.length > 0 || Object.keys(clinicalIntelligence.medicationIntelligence || {}).length > 0) && (
+            <div style={{ marginTop: '2rem' }}>
+              <DoctorSectionCard title="Clinical Intelligence" tag="AI Aggregated">
+                <div className="history-subsection">
+                  {clinicalIntelligence.redFlags?.length > 0 && (
+                    <div style={{ marginBottom: '1.5rem' }}>
+                      <h3 style={{ color: 'var(--color-danger)', fontSize: '1.1rem', marginBottom: '0.75rem' }}>⚠️ Safety Signals</h3>
+                      {clinicalIntelligence.redFlags.map((flag: any, i: number) => (
+                        <div key={i} style={{ padding: '0.75rem', backgroundColor: '#fff3cd', border: '1px solid #ffeeba', borderRadius: '6px', marginBottom: '0.5rem' }}>
+                          <strong style={{ color: '#856404' }}>{flag.category.toUpperCase()} ({flag.severity}):</strong> {flag.explanation}
+                          <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', color: '#856404' }}>
+                            <em>Evidence: "{flag.evidence}" ({flag.source})</em>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {Object.keys(clinicalIntelligence.medicationIntelligence || {}).length > 0 && (
+                    <div>
+                      <h3 style={{ color: 'var(--color-primary)', fontSize: '1.1rem', marginBottom: '0.75rem' }}>💊 Medication Intelligence</h3>
+                      {Object.entries(clinicalIntelligence.medicationIntelligence).map(([, data]: [string, any], i: number) => (
+                        <div key={i} style={{ padding: '0.75rem', backgroundColor: 'var(--color-background-alt)', border: '1px solid var(--color-border-subtle)', borderRadius: '6px', marginBottom: '0.5rem' }}>
+                          <strong>{data.name}</strong> 
+                          {data.is_duplicate && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', backgroundColor: '#e2e3e5', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>Multiple Records</span>}
+                          {data.conflict && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', backgroundColor: '#f8d7da', color: '#721c24', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>Dosage Conflict</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </DoctorSectionCard>
+            </div>
+          )}
+          
         </div>
 
         {/* Right Column: Physician Review Panel & Sidebar Summary */}
