@@ -118,6 +118,30 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
         current_case.status == CaseStatus.INTAKE.value and case_in.status == CaseStatus.PATIENT_VERIFYING
     )
 
+    if case_in.intakeAnswers is not None:
+        from app.services.ai_service import validate_answer_with_llm
+        from app.services.adaptive_intake import INTAKE_QUESTIONS
+        by_id = {q.id: q for q in INTAKE_QUESTIONS}
+        
+        for q_id, answer in list(case_in.intakeAnswers.items()):
+            if not isinstance(answer, str) or not answer.strip():
+                continue
+                
+            old_answer = current_case.intakeAnswers.get(q_id) if current_case.intakeAnswers else None
+            if isinstance(old_answer, dict):
+                old_answer = old_answer.get("value")
+                
+            if old_answer == answer:
+                continue
+                
+            q_prompt = by_id[q_id].prompt if q_id in by_id else "Patient answer:"
+            val = validate_answer_with_llm(q_prompt, answer)
+            if val.needs_clarification:
+                case_in.intakeAnswers[q_id] = {
+                    "value": answer,
+                    "clarification_needed": val.clarifying_question or "Please clarify this answer."
+                }
+
     case = case_service.update_case(db, case_id, case_in)
 
     # Automatically generate AI summary on intake completion

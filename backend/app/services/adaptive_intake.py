@@ -149,10 +149,14 @@ def select_intake_state(
 
     if malformed_ids:
         malformed_id = malformed_ids[0]
+        issue_text = "The saved answer is malformed and needs clarification"
+        if isinstance(answer_map[malformed_id], dict) and "clarification_needed" in answer_map[malformed_id]:
+            issue_text = answer_map[malformed_id]["clarification_needed"]
+            
         return IntakeSessionState(
             state=IntakeState.CLARIFICATION,
             currentQuestion=by_id[malformed_id],
-            issue="The saved answer is malformed and needs clarification",
+            issue=issue_text,
             **state_kwargs,
         )
 

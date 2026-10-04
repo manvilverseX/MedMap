@@ -32,7 +32,7 @@ class CaseUpdate(BaseModel):
     status: Optional[CaseStatus] = None
     language: Optional[str] = None
     consentGranted: Optional[bool] = None
-    intakeAnswers: Optional[Dict[str, str]] = None
+    intakeAnswers: Optional[Dict[str, Any]] = None
     derivedClinicalData: Optional[Dict[str, Any]] = None
     clinicalAssessment: Optional[Dict[str, Any]] = None
     reviewerId: Optional[str] = None
@@ -44,6 +44,23 @@ class CaseUpdate(BaseModel):
             raise ValueError("Field cannot be null")
         return value
 
+    @field_validator("intakeAnswers", mode="before")
+    @classmethod
+    def validate_intake_answers(cls, v):
+        if v is None:
+            return v
+        if not isinstance(v, dict):
+            raise ValueError("intakeAnswers must be a dict")
+        for k, val in v.items():
+            if isinstance(val, str):
+                continue
+            if isinstance(val, dict):
+                if "value" not in val or "clarification_needed" not in val:
+                    raise ValueError(f"Invalid value type for {k}")
+                continue
+            raise ValueError(f"Invalid value type for {k}")
+        return v
+
 
 class CaseResponse(BaseModel):
     caseId: str
@@ -53,7 +70,7 @@ class CaseResponse(BaseModel):
     language: Optional[str] = None
     consentGranted: bool = False
     status: str
-    intakeAnswers: Optional[Dict[str, str]] = None
+    intakeAnswers: Optional[Dict[str, Any]] = None
     derivedClinicalData: Optional[Dict[str, Any]] = None
     clinicalAssessment: Optional[Dict[str, Any]] = None
     aiSummary: Optional[AISummary] = None

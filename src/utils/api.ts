@@ -46,6 +46,35 @@ export const getCase = async (caseId: string): Promise<ClinicalCase> => {
   return response.json();
 };
 
+export const getAdaptiveIntakeState = async (caseId: string, mode?: string, questionId?: string): Promise<any> => {
+  const params = new URLSearchParams();
+  if (mode) params.append('mode', mode);
+  if (questionId) params.append('questionId', questionId);
+  const qs = params.toString() ? `?${params.toString()}` : '';
+
+  const response = await fetch(`${API_BASE_URL}/cases/${caseId}/adaptive-intake${qs}`, {
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    throw new Error('Unauthorized');
+  }
+  if (!response.ok) {
+    let errorMessage = 'Failed to load adaptive intake state';
+    try {
+      const errorData = await response.json();
+      if (errorData.detail) errorMessage = errorData.detail;
+    } catch {
+      // Ignore
+    }
+    throw new Error(errorMessage);
+  }
+
+  return response.json();
+};
+
 export const updateCaseStatus = async (caseId: string, status: string): Promise<ClinicalCase> => {
   return updateCase(caseId, { status: status as any });
 };
@@ -97,7 +126,7 @@ export const uploadDocument = async (caseId: string, file: File): Promise<any> =
     const safeFilename = `${caseId}/${crypto.randomUUID()}${ext}`;
 
     blobMetadata = await uploadPresigned(safeFilename, file, {
-      access: 'public',
+      access: 'private',
       handleUploadUrl: '/api/blob-upload',
       clientPayload: caseId,
       headers: { ...getAuthHeaders() }

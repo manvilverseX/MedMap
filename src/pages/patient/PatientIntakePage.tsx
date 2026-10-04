@@ -1,14 +1,31 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCase } from '../../context/CaseContext';
-import { getCase, updateCase } from '../../utils/api';
+import { getCase, updateCase, getAdaptiveIntakeState } from '../../utils/api';
 import type { ClinicalCase } from '../../types/case';
 import { Button } from '../../components/Button';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { LoadingIndicator } from '../../components/LoadingIndicator';
 import { StatusBadge } from '../../components/StatusBadge';
-import { INTAKE_QUESTIONS } from '../../data/intakeQuestions';
 import './PatientIntakePage.css';
+
+interface IntakeQuestion {
+  id: string;
+  category: string;
+  prompt: string;
+  helperText?: string;
+  inputType: 'text' | 'textarea';
+}
+
+interface IntakeSessionState {
+  state: 'question' | 'clarification' | 'complete';
+  currentQuestion?: IntakeQuestion;
+  issue?: string;
+  answeredQuestionIds: string[];
+  skippedQuestionIds: string[];
+  irrelevantQuestionIds: string[];
+  malformedAnswerQuestionIds: string[];
+}
 
 export function PatientIntakePage() {
   const { caseId } = useCase();
@@ -19,16 +36,14 @@ export function PatientIntakePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ── Intake questionnaire state ────────────────────────────────────────
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  // ── Adaptive Intake state ──────────────────────────────────────────────
+  const [sessionState, setSessionState] = useState<IntakeSessionState | null>(null);
+  const [answers, setAnswers] = useState<Record<string, any>>({});
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isReviewing, setIsReviewing] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
-
-  const isComplete = currentIndex >= INTAKE_QUESTIONS.length;
-  const currentQuestion = isComplete ? null : INTAKE_QUESTIONS[currentIndex];
 
   // ── Load case on mount ────────────────────────────────────────────────
   const loadCase = useCallback(async () => {
@@ -38,24 +53,20 @@ export function PatientIntakePage() {
     try {
       const data = await getCase(caseId);
       setClinicalCase(data);
+      const loadedAnswers = data.intakeAnswers || {};
+      setAnswers(loadedAnswers);
       
       if (data.status !== 'intake') {
-        setCurrentIndex(INTAKE_QUESTIONS.length);
+        setSessionState({
+          state: 'complete',
+          answeredQuestionIds: Object.keys(loadedAnswers).filter(k => loadedAnswers[k] !== ''),
+          skippedQuestionIds: Object.keys(loadedAnswers).filter(k => loadedAnswers[k] === ''),
+          irrelevantQuestionIds: [],
+          malformedAnswerQuestionIds: []
+        });
+        setIsReviewing(true);
       } else {
-        const loadedAnswers = data.intakeAnswers || {};
-        setAnswers(loadedAnswers);
-        
-        let nextIndex = 0;
-        for (let i = 0; i < INTAKE_QUESTIONS.length; i++) {
-          if (!(INTAKE_QUESTIONS[i].id in loadedAnswers)) {
-            nextIndex = i;
-            break;
-          }
-          if (i === INTAKE_QUESTIONS.length - 1) {
-            nextIndex = INTAKE_QUESTIONS.length;
-          }
-        }
-        setCurrentIndex(nextIndex);
+        await refreshAdaptiveState(data.intakeAnswers || {});
       }
     } catch {
       setError("We couldn't load your case. Please check your connection and try again.");
@@ -63,6 +74,28 @@ export function PatientIntakePage() {
       setIsLoading(false);
     }
   }, [caseId]);
+
+  const refreshAdaptiveState = async (currentAnswers: Record<string, any>, mode?: string, questionId?: string) => {
+    try {
+      const state = await getAdaptiveIntakeState(caseId!, mode, questionId);
+      setSessionState(state);
+      
+      if (state.state === 'complete' && !mode) {
+        setIsReviewing(true);
+      } else {
+        setIsReviewing(false);
+      }
+
+      const rawAns = currentAnswers[state.currentQuestion.id];
+      if (rawAns !== undefined) {
+        setCurrentAnswer(typeof rawAns === 'string' ? rawAns : rawAns.value || '');
+      } else {
+        setCurrentAnswer('');
+      }
+    } catch (err) {
+      setError('Failed to load next question. Please try again.');
+    }
+  };
 
   useEffect(() => {
     if (!caseId) {
@@ -74,46 +107,62 @@ export function PatientIntakePage() {
 
   // ── Focus input on question change ────────────────────────────────────
   useEffect(() => {
-    if (!isLoading && !error && !isComplete && inputRef.current) {
+    if (!isLoading && !error && sessionState?.state !== 'complete' && !isReviewing && inputRef.current) {
       inputRef.current.focus();
     }
-  }, [currentIndex, isLoading, error, isComplete]);
+  }, [sessionState, isLoading, error, isReviewing]);
 
   // ── Handlers ──────────────────────────────────────────────────────────
   const handleAnswerSubmit = async (answerValue: string) => {
-    if (!currentQuestion || !caseId) return;
+    if (!sessionState?.currentQuestion || !caseId) return;
     
-    const newAnswers = { ...answers, [currentQuestion.id]: answerValue };
-    
-    if (currentIndex === INTAKE_QUESTIONS.length - 1) {
-      setIsSubmitting(true);
-      setError(null);
-      try {
-        await updateCase(caseId, { intakeAnswers: newAnswers });
-        setAnswers(newAnswers);
-        setCurrentAnswer('');
-        setCurrentIndex((prev) => prev + 1);
-      } catch (err) {
-        setError('Failed to save your answers. Please try again.');
-      } finally {
-        setIsSubmitting(false);
-      }
-    } else {
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const newAnswers = { ...answers, [sessionState.currentQuestion.id]: answerValue };
+      await updateCase(caseId, { intakeAnswers: newAnswers });
       setAnswers(newAnswers);
-      setCurrentAnswer('');
-      setCurrentIndex((prev) => prev + 1);
+      await refreshAdaptiveState(newAnswers);
+    } catch (err) {
+      setError('Failed to save your answers. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleContinue = () => handleAnswerSubmit(currentAnswer);
   const handleSkip = () => handleAnswerSubmit('');
 
+  const handleEdit = async (questionId: string) => {
+    if (!caseId) return;
+    setIsSubmitting(true);
+    try {
+      await refreshAdaptiveState(answers, 'correction', questionId);
+    } catch (err) {
+      setError('Failed to load question for correction.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleComplete = async () => {
+    if (!caseId) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await updateCase(caseId, { status: 'patient_verifying' });
+      navigate('/patient/documents');
+    } catch (err) {
+      setError('Failed to confirm your answers. Please try again.');
+      setIsSubmitting(false);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Allow Enter to submit on single-line text inputs (not textarea)
     if (
       e.key === 'Enter' &&
       !e.shiftKey &&
-      currentQuestion?.inputType === 'text' &&
+      sessionState?.currentQuestion?.inputType === 'text' &&
       currentAnswer.trim().length > 0
     ) {
       e.preventDefault();
@@ -121,10 +170,8 @@ export function PatientIntakePage() {
     }
   };
 
-  // ── Redirect if no caseId ─────────────────────────────────────────────
   if (!caseId) return null;
 
-  // ── Loading state ─────────────────────────────────────────────────────
   if (isLoading || isSubmitting) {
     return (
       <div className="container">
@@ -135,8 +182,7 @@ export function PatientIntakePage() {
     );
   }
 
-  // ── Error state ───────────────────────────────────────────────────────
-  if (error || !clinicalCase) {
+  if (error || !clinicalCase || !sessionState) {
     return (
       <div className="container">
         <div className="intake-page">
@@ -144,15 +190,8 @@ export function PatientIntakePage() {
             <h2>Something went wrong</h2>
             <ErrorMessage message={error || 'Case not found.'} />
             <div className="intake-error-actions">
-              <Button
-                variant="primary"
-                onClick={loadCase}
-              >
-                Try Again
-              </Button>
-              <Link to="/" className="intake-btn intake-btn-skip">
-                Back to Home
-              </Link>
+              <Button variant="primary" onClick={loadCase}>Try Again</Button>
+              <Link to="/" className="intake-btn intake-btn-skip">Back to Home</Link>
             </div>
           </div>
         </div>
@@ -160,88 +199,82 @@ export function PatientIntakePage() {
     );
   }
 
-  // ── Completion state ──────────────────────────────────────────────────
-  if (isComplete) {
+  if (isReviewing || sessionState.state === 'complete') {
     return (
       <div className="container">
         <div className="intake-page">
           <div className="intake-header">
-            <h1>Medical History</h1>
-            <p className="intake-case-id">Case {clinicalCase.caseId}</p>
+            <h1>Review Your Medical History</h1>
+            <p className="intake-case-id" style={{display: "flex", alignItems: "center", gap: "0.5rem"}}>Case {clinicalCase.caseId} <StatusBadge status={clinicalCase.status} /></p>
           </div>
 
-          <div className="intake-complete-card">
-            <div className="intake-complete-icon" aria-hidden="true">✓</div>
-            <h2>Intake Complete</h2>
-            <p>
-              Your medical history has been recorded. You can now proceed
-              to upload any supporting medical documents.
+          <div className="intake-review-card">
+            <p className="intake-review-intro">
+              Please review the information you have provided. If everything is correct, you can proceed.
             </p>
-            <Link
-              to="/patient/documents"
-              className="intake-btn-complete"
-              id="intake-continue-documents"
-            >
-              Continue to Documents →
-            </Link>
+            
+            <div className="intake-review-list">
+              {Object.entries(answers).map(([qId, ans]) => (
+                <div key={qId} className="intake-review-item">
+                  <div className="intake-review-item-content">
+                    <strong>{qId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</strong>
+                    <p>{(typeof ans === 'string' ? ans : ans?.value) || <em style={{opacity: 0.6}}>Skipped</em>}</p>
+                  </div>
+                  <Button variant="outline" onClick={() => handleEdit(qId)} className="intake-btn-edit">Edit</Button>
+                </div>
+              ))}
+            </div>
+
+            <div className="intake-actions" style={{marginTop: '2rem'}}>
+              {error && <ErrorMessage message={error} />}
+              <Button
+                variant="primary"
+                onClick={handleComplete}
+                className="intake-btn-complete"
+                id="intake-continue-documents"
+                disabled={isSubmitting}
+                style={{width: '100%', textAlign: 'center', display: 'block'}}
+              >
+                {isSubmitting ? 'Confirming...' : 'Confirm & Continue to Documents →'}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  // ── Questioning state ─────────────────────────────────────────────────
-  // Guard: TypeScript cannot narrow through the `isComplete` boolean, so
-  // we check `currentQuestion` directly.
+  const { currentQuestion, state, issue, answeredQuestionIds } = sessionState;
   if (!currentQuestion) return null;
 
-  const progressPercent = (currentIndex / INTAKE_QUESTIONS.length) * 100;
+  const progressLabel = `${answeredQuestionIds.length} questions answered`;
 
   return (
     <div className="container">
       <div className="intake-page">
-        {/* Back link */}
-        <Link to="/" className="intake-back-link">
-          ← Back to Home
-        </Link>
-
-        {/* Header */}
+        <Link to="/" className="intake-back-link">← Back to Home</Link>
         <div className="intake-header">
           <h1>Medical History</h1>
           <p className="intake-case-id" style={{display: "flex", alignItems: "center", gap: "0.5rem"}}>Case {clinicalCase.caseId} <StatusBadge status={clinicalCase.status} /></p>
         </div>
 
-        {/* Progress bar */}
         <div className="intake-progress">
           <div className="intake-progress-header">
-            <span className="intake-progress-label">
-              {currentQuestion.category}
-            </span>
-            <span className="intake-progress-count">
-              {currentIndex + 1} of {INTAKE_QUESTIONS.length}
-            </span>
-          </div>
-          <div
-            className="intake-progress-track"
-            role="progressbar"
-            aria-valuenow={currentIndex + 1}
-            aria-valuemin={0}
-            aria-valuemax={INTAKE_QUESTIONS.length}
-            aria-label="Intake progress"
-          >
-            <div
-              className="intake-progress-fill"
-              style={{ width: `${progressPercent}%` }}
-            />
+            <span className="intake-progress-label">{currentQuestion.category}</span>
+            <span className="intake-progress-count">{progressLabel}</span>
           </div>
         </div>
 
-        {/* Question card */}
-        <div className="intake-question-card" key={currentQuestion.id}>
-          <h2 className="intake-question-category">
-            {currentQuestion.category}
-          </h2>
+        <div className={`intake-question-card ${state === 'clarification' ? 'intake-clarification-card' : ''}`} key={currentQuestion.id}>
+          {state === 'clarification' && (
+            <div className="intake-clarification-banner">
+              <span aria-hidden="true">⚠️</span> {issue}
+            </div>
+          )}
+          
+          <h2 className="intake-question-category">{currentQuestion.category}</h2>
           <p className="intake-question-prompt">{currentQuestion.prompt}</p>
+          
           {currentQuestion.helperText && (
             <p className="intake-question-helper" id={`helper-${currentQuestion.id}`}>
               {currentQuestion.helperText}
@@ -256,12 +289,7 @@ export function PatientIntakePage() {
               value={currentAnswer}
               onChange={(e) => setCurrentAnswer(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={currentQuestion.placeholder}
-              aria-describedby={
-                currentQuestion.helperText
-                  ? `helper-${currentQuestion.id}`
-                  : undefined
-              }
+              aria-describedby={currentQuestion.helperText ? `helper-${currentQuestion.id}` : undefined}
               aria-label={currentQuestion.prompt}
             />
           ) : (
@@ -273,58 +301,19 @@ export function PatientIntakePage() {
               value={currentAnswer}
               onChange={(e) => setCurrentAnswer(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={currentQuestion.placeholder}
-              aria-describedby={
-                currentQuestion.helperText
-                  ? `helper-${currentQuestion.id}`
-                  : undefined
-              }
+              aria-describedby={currentQuestion.helperText ? `helper-${currentQuestion.id}` : undefined}
               aria-label={currentQuestion.prompt}
             />
           )}
 
           <div className="intake-actions">
             <Button variant="outline" onClick={handleSkip} className="intake-btn intake-btn-skip">Skip this question</Button>
-            <Button variant="primary" onClick={handleContinue} disabled={currentAnswer.trim().length === 0} id="intake-btn-continue" className="intake-btn intake-btn-continue">Continue →</Button>
+            <Button variant="primary" onClick={handleContinue} disabled={currentAnswer.trim().length === 0} id="intake-btn-continue" className="intake-btn intake-btn-continue">
+              {state === 'clarification' ? 'Save Clarification →' : 'Continue →'}
+            </Button>
           </div>
         </div>
-
-        {/* Answered summary */}
-        <ul className="intake-summary" aria-label="Question progress">
-          {INTAKE_QUESTIONS.map((q, idx) => {
-            const isDone = idx < currentIndex;
-            const isCurrent = idx === currentIndex;
-
-            return (
-              <li key={q.id} className="intake-summary-item">
-                <span
-                  className={`intake-summary-icon ${
-                    isDone
-                      ? 'intake-summary-icon--done'
-                      : isCurrent
-                        ? 'intake-summary-icon--current'
-                        : 'intake-summary-icon--pending'
-                  }`}
-                  aria-hidden="true"
-                >
-                  {isDone ? '✓' : isCurrent ? '·' : ''}
-                </span>
-                <span
-                  className={isCurrent ? 'intake-summary-label--current' : ''}
-                >
-                  {q.category}
-                  {isDone && answers[q.id] === '' && (
-                    <span style={{ marginLeft: '0.5rem', fontSize: '0.8rem', opacity: 0.6 }}>
-                      (skipped)
-                    </span>
-                  )}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
       </div>
     </div>
   );
 }
-

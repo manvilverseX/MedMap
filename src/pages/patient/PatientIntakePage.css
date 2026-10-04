@@ -585,3 +585,76 @@
   }
 }
 
+/* ---------- Clarification state ---------- */
+.intake-clarification-card {
+  border-color: var(--color-warning);
+}
+
+.intake-clarification-banner {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #b45309;
+  padding: 0.75rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+/* ---------- Review state ---------- */
+.intake-review-card {
+  background-color: var(--color-surface);
+  border: 2px solid var(--color-navy);
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 4px 4px 0px rgba(15, 23, 42, 0.12);
+  margin-bottom: 2rem;
+}
+
+.intake-review-intro {
+  margin-bottom: 1.5rem;
+  color: var(--color-text-secondary);
+}
+
+.intake-review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.intake-review-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 8px;
+  background-color: var(--color-bg);
+}
+
+.intake-review-item-content strong {
+  color: var(--color-navy);
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.intake-review-item-content p {
+  color: var(--color-text-secondary);
+  font-size: 0.95rem;
+}
+
+.intake-btn-edit {
+  background-color: transparent;
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  padding: 0.4rem 1rem;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.intake-btn-edit:hover {
+  background-color: var(--color-accent);
+  color: white;
+}
+
