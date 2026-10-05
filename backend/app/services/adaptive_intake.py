@@ -93,6 +93,63 @@ def _is_eligible(question: IntakeQuestion, answers: Mapping[str, Any]) -> bool:
     return normalized not in excluded
 
 
+def validate_intake_answers(
+    answers: Any,
+    *,
+    questions: Sequence[IntakeQuestion] = INTAKE_QUESTIONS,
+) -> dict[str, str]:
+    """Validate intake answers and return a new, normalized answer mapping."""
+    if not isinstance(answers, Mapping):
+        raise ValueError("Intake answers must be a mapping")
+
+    by_id = {question.id: question for question in questions}
+
+    unknown_ids = [
+        question_id
+        for question_id in answers
+        if question_id not in by_id
+    ]
+    if unknown_ids:
+        raise ValueError(f"Unknown intake question: {unknown_ids[0]}")
+
+    validated: dict[str, str] = {}
+
+    for question_id, answer in answers.items():
+        if not isinstance(answer, str):
+            raise ValueError(
+                f"Intake answer for '{question_id}' must be a string"
+            )
+        validated[question_id] = answer.strip()
+
+    for question in questions:
+        if question.id in validated and not _is_eligible(question, validated):
+            validated.pop(question.id)
+
+    return validated
+
+
+def apply_intake_response(
+    answers: Any,
+    question_id: str,
+    response: Any,
+    *,
+    mode: Optional[IntakeRequestMode] = None,
+    questions: Sequence[IntakeQuestion] = INTAKE_QUESTIONS,
+) -> dict[str, str]:
+    """Validate and apply one patient intake response deterministically."""
+    validated = validate_intake_answers(answers, questions=questions)
+    by_id = {question.id: question for question in questions}
+    if question_id not in by_id:
+        raise ValueError(f"Unknown intake question: {question_id}")
+    if not isinstance(response, str):
+        raise ValueError(f"Intake answer for '{question_id}' must be a string")
+    if mode == IntakeRequestMode.CORRECTION and question_id not in validated:
+        raise ValueError("Only an answered question can be corrected")
+    updated = dict(validated)
+    updated[question_id] = response.strip()
+    return validate_intake_answers(updated, questions=questions)
+
+
 def select_intake_state(
     answers: Any,
     *,
