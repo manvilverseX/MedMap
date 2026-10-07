@@ -36,6 +36,19 @@ export const getCase = async (caseId: string): Promise<ClinicalCase> => {
     },
   });
 
+  if (!response.ok) {
+    let errorDetail = 'Unknown Error';
+    try {
+      const errorData = await response.clone().json();
+      if (errorData.detail) {
+        errorDetail = typeof errorData.detail === 'string' ? errorData.detail : JSON.stringify(errorData.detail);
+      }
+    } catch {}
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`[API Error] endpoint="/cases/${caseId}" caseId="${caseId}" status=${response.status} category="${errorDetail}"`);
+    }
+  }
+
   if (response.status === 401 || response.status === 403) {
     throw new Error('Unauthorized');
   }

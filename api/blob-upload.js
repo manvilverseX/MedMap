@@ -16,38 +16,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    const authHeader = req.headers['authorization'] || req.headers['Authorization'];
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ detail: 'Not authenticated' });
-    }
-
-    const token = authHeader.split(' ')[1];
-    const secret = process.env.SECRET_KEY;
-
-    if (!secret) {
-      console.error("SECRET_KEY environment variable missing");
-      return res.status(500).json({ detail: 'Internal server error' });
-    }
-
-    let userPayload;
-    try {
-      const secretKey = new TextEncoder().encode(secret);
-      const { payload } = await jose.jwtVerify(token, secretKey, {
-        algorithms: ['HS256']
-      });
-      userPayload = payload;
-    } catch (err) {
-      console.error("JWT verification failed:", err);
-      return res.status(401).json({ detail: 'Invalid token' });
-    }
-
-    const role = userPayload.role;
-    if (role !== 'patient' && role !== 'doctor') {
-      return res.status(401).json({ detail: 'Invalid role' });
-    }
-
-    // Vercel serverless parses JSON body automatically; Vite dev middleware
-    // pre-parses it in vite.config.ts.
     let body = req.body;
     if (typeof body === 'string') {
       try {
@@ -56,6 +24,41 @@ export default async function handler(req, res) {
         return res.status(400).json({ detail: 'Invalid JSON body' });
       }
     }
+
+    let userPayload = null;
+    let role = null;
+
+    if (body && body.type === 'blob.generate-presigned-url') {
+      const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ detail: 'Not authenticated' });
+      }
+
+      const token = authHeader.split(' ')[1];
+      const secret = process.env.SECRET_KEY;
+
+      if (!secret) {
+        console.error("SECRET_KEY environment variable missing");
+        return res.status(500).json({ detail: 'Internal server error' });
+      }
+
+      try {
+        const secretKey = new TextEncoder().encode(secret);
+        const { payload } = await jose.jwtVerify(token, secretKey, {
+          algorithms: ['HS256']
+        });
+        userPayload = payload;
+      } catch (err) {
+        console.error("JWT verification failed:", err);
+        return res.status(401).json({ detail: 'Invalid token' });
+      }
+
+      role = userPayload.role;
+      if (role !== 'patient' && role !== 'doctor') {
+        return res.status(401).json({ detail: 'Invalid role' });
+      }
+    }
+
 
     // In local development, BLOB_READ_WRITE_TOKEN and VERCEL_BLOB_API_URL must
     // be set in .env.local to route blob calls to the local Vite mock server.
@@ -72,6 +75,10 @@ export default async function handler(req, res) {
       body,
       request: req,
       getSignedToken: async (pathname, clientPayload, _multipart) => {
+        if (!userPayload) {
+          throw new Error('Unauthorized');
+        }
+
         const caseId = clientPayload;
 
         if (!caseId) {
@@ -98,19 +105,22 @@ export default async function handler(req, res) {
           allowedContentTypes: ALLOWED_MIMES,
           maximumSizeInBytes: MAX_SIZE,
           validUntil,
-          operations: ['put'],
-          access: 'public'
+          operations: ['put']
         };
 
-        // On Vercel the SDK resolves OIDC credentials automatically from the
-        // environment — no explicit token field is needed.
-        // In local development we pass the static read-write token explicitly.
-        if (!isVercelDeployment) {
+        // Unconditionally use the explicitly configured token if it exists
+        if (process.env.BLOB_READ_WRITE_TOKEN) {
           tokenOptions.token = process.env.BLOB_READ_WRITE_TOKEN;
         }
 
         const signedToken = await issueSignedToken(tokenOptions);
-        return { token: signedToken };
+        return { 
+          token: signedToken,
+          urlOptions: {
+            access: 'private',
+            addRandomSuffix: false
+          }
+        };
       }
     });
 

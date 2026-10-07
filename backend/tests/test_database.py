@@ -22,7 +22,7 @@ print(DATABASE_URL)
     env["DATABASE_URL"] = "postgres://user:pass@host/db"
     env["MEDMAP_DATABASE_URL"] = "MEDMAP_DATABASE_URL"
     
-    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
+    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(__file__)))
     assert "postgresql+pg8000://user:pass@host/db" in result.stdout
 
 def test_database_invalid_url_fallback():
@@ -43,7 +43,7 @@ print(DATABASE_URL)
     env["DATABASE_URL"] = "MEDMAP_DATABASE_URL"
     env["MEDMAP_DATABASE_URL"] = "MEDMAP_DATABASE_URL"
     
-    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
+    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(__file__)))
     assert "postgresql+pg8000://postgres:PASSWORD_PLACEHOLDER@localhost:5432/medmap" in result.stdout
 
 def test_database_preview_url_precedence():
@@ -65,7 +65,7 @@ print(DATABASE_URL)
     env["DATABASE_URL"] = "postgres://user:pass@host/db"
     env["MEDMAP_DATABASE_URL"] = "postgres://medmap:pass@host/db"
     
-    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
+    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(__file__)))
     assert "postgresql+pg8000://preview:pass@host/db" in result.stdout
 
 def test_database_url_parameter_normalization():
@@ -84,7 +84,7 @@ print(DATABASE_URL)
     env["PYTHONPATH"] = "."
     env["DATABASE_URL"] = "postgresql://user:pass@host/db?sslmode=require&channel_binding=require"
     
-    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
+    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(__file__)))
     assert "postgresql+pg8000://user:pass@host/db" in result.stdout
     assert "sslmode" not in result.stdout
     assert "ssl_context" not in result.stdout
@@ -115,6 +115,6 @@ with patch('sqlalchemy.create_engine') as mock_create_engine:
     env["PYTHONPATH"] = "."
     env["DATABASE_URL"] = "postgresql://user:pass@host/db?sslmode=require"
     
-    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
+    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(__file__)))
     assert "URL: postgresql+pg8000://user:pass@host/db" in result.stdout
     assert "CONNECT_ARGS: True" in result.stdout

@@ -37,8 +37,12 @@ def setup_db():
     app.dependency_overrides[get_db] = override_get_db
     yield
     app.dependency_overrides.clear()
+    engine.dispose()
     if os.path.exists("./test_ai.db"):
-        os.remove("./test_ai.db")
+        try:
+            os.remove("./test_ai.db")
+        except PermissionError:
+            pass
 
 @pytest.fixture
 def db_session():
