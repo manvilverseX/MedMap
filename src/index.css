@@ -570,3 +570,194 @@ header {
   }
 }
 
+/* ==========================================================================
+   Doctor Login Demo Credentials Box
+   ========================================================================== */
+
+.demo-credentials-box {
+  background-color: #f0fdfa;
+  border: 2px solid var(--color-navy);
+  border-radius: 12px;
+  padding: 1.15rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 3px 3px 0px var(--color-navy);
+  text-align: left;
+}
+
+.demo-credentials-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.demo-credentials-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.demo-credentials-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--color-navy);
+  flex-shrink: 0;
+}
+
+.demo-credentials-title {
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-navy);
+  margin: 0;
+}
+
+.demo-credentials-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background-color: var(--color-accent);
+  color: var(--color-navy);
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  border: 1px solid var(--color-navy);
+  box-shadow: 1px 1px 0px var(--color-navy);
+}
+
+.demo-credentials-desc {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  line-height: 1.45;
+  margin: 0 0 0.85rem 0;
+}
+
+.demo-credentials-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.demo-credential-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background-color: #ffffff;
+  border: 1.5px solid var(--color-navy);
+  border-radius: 8px;
+  padding: 0.4rem 0.65rem;
+  box-shadow: 1.5px 1.5px 0px rgba(15, 23, 42, 0.1);
+  transition: all 0.15s ease;
+}
+
+.demo-credential-item:hover {
+  background-color: #f8fafc;
+}
+
+.demo-credential-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.demo-credential-label {
+  font-size: 0.825rem;
+  font-weight: 700;
+  color: var(--color-navy);
+  white-space: nowrap;
+}
+
+.demo-credential-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-navy);
+  background-color: #f1f5f9;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.demo-credential-code:hover {
+  background-color: #e2e8f0;
+  border-color: var(--color-navy);
+}
+
+.demo-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  color: var(--color-navy);
+  background-color: #ffffff;
+  border: 1.5px solid var(--color-navy);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  flex-shrink: 0;
+  box-shadow: 1.5px 1.5px 0px var(--color-navy);
+}
+
+.demo-copy-btn:hover {
+  background-color: #e0f2fe;
+  transform: translateY(-1px);
+  box-shadow: 2px 2px 0px var(--color-navy);
+}
+
+.demo-copy-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0.5px 0.5px 0px var(--color-navy);
+}
+
+.demo-copy-btn.copied {
+  background-color: #ecfdf5;
+  border-color: #059669;
+  color: #059669;
+  box-shadow: 1.5px 1.5px 0px #059669;
+}
+
+.demo-fill-btn {
+  margin-top: 0.65rem;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  color: var(--color-navy);
+  background-color: #e0f2fe;
+  border: 1.5px solid var(--color-navy);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  box-shadow: 2px 2px 0px var(--color-navy);
+}
+
+.demo-fill-btn:hover {
+  background-color: #bae6fd;
+  transform: translateY(-1px);
+  box-shadow: 2.5px 2.5px 0px var(--color-navy);
+}
+
+.demo-fill-btn:active {
+  transform: translateY(1px);
+  box-shadow: 1px 1px 0px var(--color-navy);
+}
+
+@media (max-width: 480px) {
+  .demo-credential-item {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+}
