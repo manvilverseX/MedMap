@@ -1,12 +1,29 @@
+import difflib
+import re
 from collections.abc import Mapping
+from datetime import datetime, timezone
 from typing import Any, Optional, Sequence
 
 from app.schemas.intake import (
+    ClinicalProgress,
     IntakeDependency,
     IntakeQuestion,
     IntakeRequestMode,
     IntakeSessionState,
     IntakeState,
+    SafetyEscalation,
+)
+from app.services.interview_engine.clinical_gaps import (
+    ClinicalGap,
+    identify_unresolved_gaps,
+)
+from app.services.interview_engine.policy_engine import (
+    CURATED_GAP_QUESTIONS,
+    InterviewPolicyEngine,
+)
+from app.services.interview_engine.safety_evaluator import (
+    SafetyCheckResult,
+    evaluate_emergency_safety,
 )
 
 
@@ -17,6 +34,14 @@ INTAKE_QUESTIONS: tuple[IntakeQuestion, ...] = (
         prompt="What is the main reason for your visit today?",
         helperText="Describe your primary concern in a few words.",
         inputType="text",
+        clarificationOptions=(
+            "Fever or chills",
+            "Cough or respiratory issue",
+            "Headache or migraine",
+            "Stomach or abdominal pain",
+            "Chest discomfort",
+            "Body ache or fatigue",
+        ),
     ),
     IntakeQuestion(
         id="present_illness",
@@ -24,55 +49,221 @@ INTAKE_QUESTIONS: tuple[IntakeQuestion, ...] = (
         prompt="Please describe your current symptoms in detail.",
         helperText="When did it start? How has it changed? What makes it better or worse?",
         inputType="textarea",
+        clarificationOptions=(
+            "Started today",
+            "1 to 3 days ago",
+            "About 1 week ago",
+            "2 to 4 weeks ago",
+            "More than a month ago",
+            "I'm not sure",
+        ),
     ),
     IntakeQuestion(
         id="past_medical",
         category="Past Medical History",
         prompt="Do you have any previously diagnosed medical conditions?",
+        helperText="Include chronic conditions such as high blood pressure, diabetes, or asthma.",
         inputType="textarea",
+        options=(
+            "No prior medical conditions",
+            "High blood pressure (Hypertension)",
+            "Diabetes",
+            "Asthma / Respiratory condition",
+            "Thyroid disorder",
+        ),
     ),
     IntakeQuestion(
         id="past_surgical",
         category="Past Surgical History",
         prompt="Have you had any surgeries or procedures in the past?",
+        helperText="List procedure names and approximate years if you recall them.",
         inputType="textarea",
+        options=(
+            "No previous surgeries or procedures",
+            "Yes, had surgery in the past",
+        ),
     ),
     IntakeQuestion(
         id="medications",
         category="Medication History",
         prompt="What medications are you currently taking?",
+        helperText="Include prescriptions, over-the-counter drugs, and herbal supplements.",
         inputType="textarea",
+        options=(
+            "No current medications",
+            "Yes, taking daily medications",
+        ),
     ),
     IntakeQuestion(
         id="allergies",
         category="Allergies",
         prompt="Do you have any known allergies?",
+        helperText="Mention allergies to medications (e.g. Penicillin), foods, or latex.",
         inputType="textarea",
+        options=(
+            "No known allergies",
+            "Penicillin or antibiotics",
+            "Sulfa drugs",
+            "Food allergy",
+            "Other allergy",
+        ),
     ),
     IntakeQuestion(
         id="allergy_reaction",
         category="Allergies",
         prompt="What reaction do you have to the allergy or allergies you listed?",
-        helperText="Describe the reaction only if you know it.",
+        helperText="Describe the reaction only if you know it (e.g. hives, swelling, difficulty breathing).",
         inputType="textarea",
         dependency=IntakeDependency(
             questionId="allergies",
-            excludedAnswers=("", "no", "none", "no known allergies", "n/a", "na"),
+            excludedAnswers=(
+                "",
+                "no",
+                "none",
+                "no known allergies",
+                "no allergies",
+                "n/a",
+                "na",
+                "nil",
+                "nothing",
+                "denies",
+            ),
+        ),
+        options=(
+            "Mild rash or itching",
+            "Hives / Urticaria",
+            "Swelling (lips, face, throat)",
+            "Breathing difficulty",
+            "Anaphylaxis",
+            "I'm not sure",
         ),
     ),
     IntakeQuestion(
         id="family_history",
         category="Family History",
         prompt="Is there any significant medical history in your immediate family?",
+        helperText="Mention conditions like heart disease, diabetes, or cancer in parents or siblings.",
         inputType="textarea",
+        options=(
+            "No significant family medical history",
+            "Heart disease in family",
+            "Diabetes in family",
+            "Cancer in family",
+            "I'm not sure",
+        ),
     ),
     IntakeQuestion(
         id="review_of_systems",
         category="Review of Systems",
         prompt="Are you experiencing any other symptoms we haven't discussed?",
+        helperText="For example: fatigue, unexplained weight change, dizziness, or sleep issues.",
         inputType="textarea",
+        options=(
+            "No other symptoms",
+            "Fatigue or low energy",
+            "Dizziness or lightheadedness",
+            "Unexplained weight change",
+            "Nausea or appetite loss",
+        ),
     ),
 )
+
+
+def extract_answer_text(answer_entry: Any) -> str:
+    """Extract clean string value from raw answer or structured answer dictionary."""
+    if isinstance(answer_entry, str):
+        return answer_entry
+    if isinstance(answer_entry, Mapping):
+        val = answer_entry.get("value")
+        if isinstance(val, str):
+            return val
+        orig = answer_entry.get("originalValue")
+        if isinstance(orig, str):
+            return orig
+    return ""
+
+
+def is_uncertain_answer(text: str) -> bool:
+    """Detect if the patient indicated genuine uncertainty."""
+    cleaned = text.strip().casefold()
+    uncertain_markers = (
+        "not sure",
+        "don't know",
+        "dont know",
+        "do not know",
+        "unknown",
+        "uncertain",
+        "can't remember",
+        "cant remember",
+        "cannot recall",
+        "no idea",
+        "unsure",
+    )
+    return any(marker in cleaned for marker in uncertain_markers)
+
+
+def validate_clinical_answer(
+    question_id: str,
+    answer_text: str,
+    previous_attempts: int = 0,
+) -> tuple[bool, Optional[str]]:
+    """Deterministic clinical validator to identify incomplete or ambiguous answers."""
+    # Never loop endlessly: if patient already attempted clarification once, accept their answer
+    if previous_attempts >= 1:
+        return False, None
+
+    cleaned = answer_text.strip().casefold()
+    if not cleaned:
+        return False, None
+
+    # Never penalize uncertainty: if patient says they don't know, accept it without clarification
+    if is_uncertain_answer(cleaned):
+        return False, None
+
+    # Common valid negative or affirmative responses
+    valid_direct_responses = {
+        "no",
+        "none",
+        "no known allergies",
+        "no allergies",
+        "n/a",
+        "na",
+        "nil",
+        "nothing",
+        "never",
+        "denies",
+    }
+    if cleaned in valid_direct_responses:
+        return False, None
+
+    # Deterministic nonsensical / uninterpretable input detection (e.g. keyboard mash 'asdfghjkl', consonant clusters, repeated chars)
+    has_repeated = bool(re.search(r"(.)\1{3,}", cleaned))
+    has_consonant_cluster = bool(re.search(r"[bcdfghjklmnpqrstvwxyz]{5,}", cleaned))
+    has_row_mash = bool(re.search(r"(asdf|sdfg|dfgh|fghj|ghjk|hjkl|qwerty|zxcv)", cleaned))
+    has_no_vowels = bool(re.search(r"[a-z]", cleaned)) and not bool(re.search(r"[aeiouy]", cleaned)) and len(cleaned) >= 4
+    if has_repeated or has_consonant_cluster or has_row_mash or has_no_vowels:
+        return True, "Could you please describe your symptoms in clear words so your care team can understand?"
+
+    # Question-specific ambiguity detection
+    if question_id == "chief_complaint":
+        vague_single_terms = {"sick", "pain", "problem", "hurt", "bad", "issue", "not well", "unwell", "ill", "checkup"}
+        if cleaned in vague_single_terms or (len(cleaned) < 15 and any(w in cleaned.split() for w in vague_single_terms) and len(cleaned.split()) <= 2):
+            return True, "Could you tell us what specific symptom you are experiencing or which part of your body is affected?"
+
+    elif question_id == "present_illness":
+        vague_time_terms = {"recently", "sometime", "a while", "today", "few days", "some time", "yesterday"}
+        if cleaned in vague_time_terms:
+            return True, "Could you specify approximately how long you have had these symptoms (e.g. hours, days, or weeks)?"
+
+    elif question_id == "allergies":
+        if cleaned in {"yes", "i have allergies", "allergies", "allergic"}:
+            return True, "Please specify which medications, foods, or substances you are allergic to (or select 'Not sure')."
+
+    elif question_id == "medications":
+        if cleaned in {"yes", "taking pills", "medication", "meds", "tablets"}:
+            return True, "Please list the names of the medications you are currently taking (or indicate if you don't recall)."
+
+    return False, None
 
 
 def _normalized_answers(answers: Any) -> Mapping[str, Any]:
@@ -85,12 +276,117 @@ def _is_eligible(question: IntakeQuestion, answers: Mapping[str, Any]) -> bool:
         return True
 
     dependency_answer = answers.get(dependency.questionId)
-    if not isinstance(dependency_answer, str):
+    answer_text = extract_answer_text(dependency_answer)
+    if not answer_text:
         return False
 
-    normalized = dependency_answer.strip().casefold()
+    normalized = answer_text.strip().casefold()
     excluded = {answer.casefold() for answer in dependency.excludedAnswers}
     return normalized not in excluded
+
+
+def sanitize_active_answers(
+    answers: Mapping[str, Any],
+    questions: Sequence[IntakeQuestion] = INTAKE_QUESTIONS,
+) -> tuple[dict[str, Any], list[str]]:
+    """Filter out answers to questions that are no longer eligible based on updated dependencies.
+    Preserves all active questions including dynamic, curated HPI, and follow-up inquiries.
+    """
+    sanitized: dict[str, Any] = {}
+    inactivated_ids: list[str] = []
+
+    # First pass: check eligibility of configured questions with dependencies
+    for question in questions:
+        if question.id in answers:
+            if _is_eligible(question, sanitized):
+                sanitized[question.id] = answers[question.id]
+            else:
+                inactivated_ids.append(question.id)
+
+    # Second pass: preserve all other answered questions (dynamic, curated HPI, or follow-ups)
+    for q_id, val in answers.items():
+        if q_id not in sanitized and q_id not in inactivated_ids:
+            sanitized[q_id] = val
+
+    return sanitized, inactivated_ids
+
+
+def build_structured_intake(
+    answers: Mapping[str, Any],
+    verified: bool = False,
+    questions: Sequence[IntakeQuestion] = INTAKE_QUESTIONS,
+) -> dict[str, Any]:
+    """Convert answers into structured medical history records with provenance.
+    Supports both static questions and dynamic clinical interview follow-ups.
+    """
+    sanitized, inactivated = sanitize_active_answers(answers, questions)
+    structured: dict[str, Any] = {}
+    by_id = {q.id: q for q in questions}
+
+    # Process active sanitized answers
+    for q_id, raw_val in sanitized.items():
+        val_text = extract_answer_text(raw_val)
+        orig_val = raw_val.get("originalValue", val_text) if isinstance(raw_val, dict) else val_text
+        is_clarified = raw_val.get("isClarified", False) if isinstance(raw_val, dict) else False
+        is_corrected = raw_val.get("isCorrected", False) if isinstance(raw_val, dict) else False
+        is_uncertain = is_uncertain_answer(val_text)
+
+        # Lookup prompt and category
+        val_prompt = raw_val.get("prompt") if isinstance(raw_val, Mapping) else None
+        val_cat = raw_val.get("category") if isinstance(raw_val, Mapping) else None
+
+        if val_prompt:
+            prompt = str(val_prompt)
+            category = str(val_cat) if val_cat else "Clinical History"
+        elif q_id in by_id:
+            prompt = by_id[q_id].prompt
+            category = by_id[q_id].category
+        elif q_id in CURATED_GAP_QUESTIONS:
+            prompt = CURATED_GAP_QUESTIONS[q_id]["prompt"]
+            category = CURATED_GAP_QUESTIONS[q_id]["category"]
+        else:
+            # Dynamic question key formatted as dynamic_<gap> or <gap>_followup
+            gap_key = q_id.replace("dynamic_", "").replace("_ext", "").replace("_followup", "")
+            if gap_key in CURATED_GAP_QUESTIONS:
+                prompt = CURATED_GAP_QUESTIONS[gap_key]["prompt"]
+                category = CURATED_GAP_QUESTIONS[gap_key]["category"]
+            else:
+                prompt = q_id.replace("_", " ").title()
+                category = "Clinical History"
+
+        structured[q_id] = {
+            "questionId": q_id,
+            "category": category,
+            "prompt": prompt,
+            "value": val_text,
+            "originalValue": orig_val,
+            "isClarified": is_clarified,
+            "isCorrected": is_corrected,
+            "isUncertain": is_uncertain,
+            "active": True,
+            "verified": verified,
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }
+
+    # Process inactivated answers (branch audit trail)
+    for q_id in inactivated:
+        old_val = extract_answer_text(answers.get(q_id))
+        prompt = by_id[q_id].prompt if q_id in by_id else q_id.replace("_", " ").title()
+        category = by_id[q_id].category if q_id in by_id else "Allergies"
+
+        structured[q_id] = {
+            "questionId": q_id,
+            "category": category,
+            "prompt": prompt,
+            "value": old_val,
+            "originalValue": old_val,
+            "active": False,
+            "verified": False,
+            "inactivatedReason": "Conditional dependency not met",
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }
+
+    return structured
 
 
 def select_intake_state(
@@ -99,73 +395,231 @@ def select_intake_state(
     mode: Optional[IntakeRequestMode] = None,
     question_id: Optional[str] = None,
     questions: Sequence[IntakeQuestion] = INTAKE_QUESTIONS,
+    enable_ai: bool = True,
 ) -> IntakeSessionState:
-    """Derive adaptive intake state without mutating or reformatting source answers."""
+    """Derive adaptive intake state using the hybrid clinical interview engine.
+    Orchestrates safety checks, structured extraction, gap analysis, AI generation,
+    deterministic policy validation, and defensible stopping conditions.
+    """
     answer_map = _normalized_answers(answers)
-    by_id = {question.id: question for question in questions}
-    eligible = [question for question in questions if _is_eligible(question, answer_map)]
-    eligible_ids = {question.id for question in eligible}
+    by_id = {q.id: q for q in questions}
+    # Also index curated gap questions
+    for gap_id, q_data in CURATED_GAP_QUESTIONS.items():
+        if q_data["id"] not in by_id:
+            by_id[q_data["id"]] = IntakeQuestion(
+                id=q_data["id"],
+                category=q_data["category"],
+                prompt=q_data["prompt"],
+                helperText=q_data.get("helperText"),
+                inputType=q_data.get("inputType", "textarea"),
+                options=q_data.get("options"),
+            )
 
-    answered_ids = [
-        question.id
-        for question in eligible
-        if question.id in answer_map and isinstance(answer_map[question.id], str)
-    ]
-    skipped_ids = [
-        question_id
-        for question_id in answered_ids
-        if not answer_map[question_id].strip()
-    ]
-    irrelevant_ids = [
-        question.id
-        for question in questions
-        if question.id not in eligible_ids
-    ]
-    malformed_ids = [
-        question.id
-        for question in eligible
-        if question.id in answer_map and not isinstance(answer_map[question.id], str)
-    ]
+    # 1. Deterministic Emergency Safety Check
+    safety_result = evaluate_emergency_safety(answer_map)
+    if safety_result.is_escalated:
+        escalation_obj = SafetyEscalation(
+            isEscalated=True,
+            severity=safety_result.severity,
+            title=safety_result.title,
+            message=safety_result.message,
+            instructions=safety_result.instructions,
+            redFlags=safety_result.red_flags,
+        )
+        return IntakeSessionState(
+            state=IntakeState.SAFETY_ESCALATION,
+            currentQuestion=None,
+            answeredQuestionIds=list(answer_map.keys()),
+            skippedQuestionIds=[],
+            irrelevantQuestionIds=[],
+            malformedAnswerQuestionIds=[],
+            safetyEscalation=escalation_obj,
+            allowUncertainty=True,
+        )
 
-    state_kwargs = {
+    # 2. Track Answered, Skipped, and Malformed Answers
+    answered_ids: list[str] = []
+    skipped_ids: list[str] = []
+    malformed_ids: list[str] = []
+
+    for q_key, raw_val in answer_map.items():
+        if isinstance(raw_val, str):
+            answered_ids.append(q_key)
+            if not raw_val.strip():
+                skipped_ids.append(q_key)
+        elif isinstance(raw_val, Mapping):
+            if "clarification_needed" in raw_val or "value" not in raw_val or not isinstance(raw_val.get("value"), str):
+                malformed_ids.append(q_key)
+            else:
+                answered_ids.append(q_key)
+                val = raw_val.get("value", "")
+                if not val.strip():
+                    skipped_ids.append(q_key)
+        else:
+            malformed_ids.append(q_key)
+
+    # Check allergy branch relevance
+    allergy_ans = extract_answer_text(answer_map.get("allergies", ""))
+    has_allergy = allergy_ans and allergy_ans.lower() not in (
+        "no", "none", "no known allergies", "no allergies", "n/a", "na", "nil", "nothing", "denies"
+    )
+    irrelevant_ids = ["allergy_reaction"] if ("allergies" in answer_map and not has_allergy) else []
+
+    # Calculate clinical progress
+    resolved_gaps, unresolved_gaps = identify_unresolved_gaps(
+        answer_map,
+        extract_answer_text(answer_map.get("chief_complaint", "")),
+    )
+    progress_obj = ClinicalProgress(
+        domainsExplored=[g.replace("_", " ").title() for g in resolved_gaps],
+        activeDomain=unresolved_gaps[0].replace("_", " ").title() if unresolved_gaps else "Complete",
+        questionsAnswered=len(answered_ids),
+        coverageStatus="satisfactory" if len(resolved_gaps) >= 4 else "in_progress",
+        unresolvedGapsCount=len(unresolved_gaps),
+    )
+
+    state_kwargs: dict[str, Any] = {
         "answeredQuestionIds": answered_ids,
         "skippedQuestionIds": skipped_ids,
         "irrelevantQuestionIds": irrelevant_ids,
         "malformedAnswerQuestionIds": malformed_ids,
+        "clinicalProgress": progress_obj,
+        "allowUncertainty": True,
     }
 
-    if mode is not None:
-        if question_id is None or question_id not in by_id:
-            raise ValueError("A known question_id is required for clarification or correction")
-        if question_id not in eligible_ids:
-            raise ValueError("The requested question is not relevant to the current answers")
-        if mode == IntakeRequestMode.CORRECTION and question_id not in answer_map:
+    # Helper to find previous question ID for back navigation
+    def find_previous_question_id(target_id: Optional[str]) -> Optional[str]:
+        if not target_id or not answered_ids:
+            return None
+        if target_id in answered_ids:
+            idx = answered_ids.index(target_id)
+            if idx > 0:
+                return answered_ids[idx - 1]
+        elif answered_ids:
+            return answered_ids[-1]
+        return None
+
+    # Handle Correction Mode (e.g. patient navigating back to review/edit)
+    if mode == IntakeRequestMode.CORRECTION:
+        if not question_id:
+            raise ValueError("A question_id is required for correction mode")
+        if question_id not in answer_map:
             raise ValueError("Only an answered question can be corrected")
+
+        # Resolve target question
+        if question_id in by_id:
+            target_question = by_id[question_id]
+        else:
+            gap_key = question_id.replace("dynamic_", "").replace("_ext", "")
+            template = CURATED_GAP_QUESTIONS.get(gap_key, CURATED_GAP_QUESTIONS[ClinicalGap.REVIEW_OF_SYSTEMS])
+            target_question = IntakeQuestion(
+                id=question_id,
+                category=template["category"],
+                prompt=template["prompt"],
+                helperText=template.get("helperText"),
+                inputType=template.get("inputType", "textarea"),
+                options=template.get("options"),
+            )
+
+        orig_answer = extract_answer_text(answer_map.get(question_id))
+        prev_id = find_previous_question_id(question_id)
+
         return IntakeSessionState(
-            state=IntakeState(mode.value),
-            currentQuestion=by_id[question_id],
+            state=IntakeState.CORRECTION,
+            currentQuestion=target_question,
+            originalAnswer=orig_answer,
+            previousQuestionId=prev_id,
+            currentQuestionIndex=answered_ids.index(question_id) + 1 if question_id in answered_ids else 1,
             **state_kwargs,
         )
 
-    if malformed_ids:
-        malformed_id = malformed_ids[0]
-        issue_text = "The saved answer is malformed and needs clarification"
-        if isinstance(answer_map[malformed_id], dict) and "clarification_needed" in answer_map[malformed_id]:
-            issue_text = answer_map[malformed_id]["clarification_needed"]
-            
-        return IntakeSessionState(
-            state=IntakeState.CLARIFICATION,
-            currentQuestion=by_id[malformed_id],
-            issue=issue_text,
-            **state_kwargs,
-        )
+    # Handle Clarification Mode or Unresolved Malformed Answers
+    if mode == IntakeRequestMode.CLARIFICATION or malformed_ids:
+        target_clar_id = question_id if mode == IntakeRequestMode.CLARIFICATION and question_id else (malformed_ids[0] if malformed_ids else None)
+        if target_clar_id:
+            raw_val = answer_map.get(target_clar_id)
+            issue_text = "The saved answer needs clarification"
+            orig_answer = extract_answer_text(raw_val)
+            attempts = 1
+            if isinstance(raw_val, Mapping):
+                if "clarification_needed" in raw_val:
+                    issue_text = str(raw_val["clarification_needed"])
+                attempts = int(raw_val.get("clarification_attempts", 1))
 
-    for question in eligible:
-        if question.id not in answer_map:
+            target_q = by_id.get(target_clar_id)
+            if not target_q:
+                gap_key = target_clar_id.replace("dynamic_", "").replace("_ext", "")
+                tpl = CURATED_GAP_QUESTIONS.get(gap_key, CURATED_GAP_QUESTIONS[ClinicalGap.REVIEW_OF_SYSTEMS])
+                target_q = IntakeQuestion(
+                    id=target_clar_id,
+                    category=tpl["category"],
+                    prompt=tpl["prompt"],
+                    helperText=tpl.get("helperText"),
+                    inputType=tpl.get("inputType", "textarea"),
+                    options=tpl.get("options"),
+                )
+
+            prev_id = find_previous_question_id(target_clar_id)
+
             return IntakeSessionState(
-                state=IntakeState.QUESTION,
-                currentQuestion=question,
+                state=IntakeState.CLARIFICATION,
+                currentQuestion=target_q,
+                issue=issue_text,
+                originalAnswer=orig_answer,
+                clarificationAttempts=attempts,
+                previousQuestionId=prev_id,
+                currentQuestionIndex=answered_ids.index(target_clar_id) + 1 if target_clar_id in answered_ids else 1,
                 **state_kwargs,
             )
 
-    return IntakeSessionState(state=IntakeState.COMPLETE, **state_kwargs)
+    # 3. Normal Interview Loop Evaluation
+    next_state, next_question, next_safety, completion_reason = InterviewPolicyEngine.evaluate_interview_step(
+        answers=answer_map,
+        enable_ai=enable_ai,
+    )
+
+    if next_state == IntakeState.SAFETY_ESCALATION and next_safety:
+        escalation_obj = SafetyEscalation(
+            isEscalated=True,
+            severity=next_safety.severity,
+            title=next_safety.title,
+            message=next_safety.message,
+            instructions=next_safety.instructions,
+            redFlags=next_safety.red_flags,
+        )
+        return IntakeSessionState(
+            state=IntakeState.SAFETY_ESCALATION,
+            currentQuestion=None,
+            safetyEscalation=escalation_obj,
+            **state_kwargs,
+        )
+
+    if next_state in (IntakeState.COMPLETE, IntakeState.INCOMPLETE):
+        return IntakeSessionState(
+            state=next_state,
+            currentQuestion=None,
+            completionReason=completion_reason,
+            previousQuestionId=answered_ids[-1] if answered_ids else None,
+            currentQuestionIndex=len(answered_ids),
+            totalEligibleQuestions=len(answered_ids),
+            **state_kwargs,
+        )
+
+    # Next Question
+    prev_id = answered_ids[-1] if answered_ids else None
+    current_idx = len(answered_ids) + 1
+    total_est = len(resolved_gaps) + len(unresolved_gaps)
+
+    return IntakeSessionState(
+        state=IntakeState.QUESTION,
+        currentQuestion=next_question,
+        previousQuestionId=prev_id,
+        currentQuestionIndex=current_idx,
+        totalEligibleQuestions=total_est,
+        questionMeta={
+            "purpose": next_question.purpose if next_question else None,
+            "gapExplored": next_question.gapExplored if next_question else None,
+        },
+        **state_kwargs,
+    )
+

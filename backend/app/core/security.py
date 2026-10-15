@@ -18,16 +18,22 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days for prototype convenience
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/doctor/login")
 
+import uuid
+
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "jti": str(uuid.uuid4())})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
+import logging
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from app.core.database import get_db
 from app.models.user import TokenBlocklist
+
+logger = logging.getLogger(__name__)
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> Dict[str, Any]:
     credentials_exception = HTTPException(
@@ -35,11 +41,6 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
-    # Check if token is blocked
-    is_blocked = db.query(TokenBlocklist).filter(TokenBlocklist.token == token).first()
-    if is_blocked:
-        raise credentials_exception
 
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -49,10 +50,24 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
             
         if role == "patient" and not payload.get("case_id"):
             raise credentials_exception
-            
-        return payload
     except jwt.PyJWTError:
         raise credentials_exception
+
+    # Check if token is blocked
+    try:
+        is_blocked = db.query(TokenBlocklist).filter(TokenBlocklist.token == token).first()
+        if is_blocked:
+            raise credentials_exception
+    except HTTPException:
+        raise
+    except SQLAlchemyError as exc:
+        logger.error("Database error while checking token blocklist: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error occurred during token revocation check"
+        ) from exc
+
+    return payload
 
 def require_doctor(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     if current_user.get("role") != "doctor":

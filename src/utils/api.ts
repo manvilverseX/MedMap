@@ -35,9 +35,10 @@ export const getCase = async (caseId: string): Promise<ClinicalCase> => {
       ...getAuthHeaders(),
     },
   });
+  let errorDetail = 'Unknown Error';
 
   if (!response.ok) {
-    let errorDetail = 'Unknown Error';
+
     try {
       const errorData = await response.clone().json();
       if (errorData.detail) {
@@ -53,7 +54,7 @@ export const getCase = async (caseId: string): Promise<ClinicalCase> => {
     throw new Error('Unauthorized');
   }
   if (!response.ok) {
-    throw new Error('Failed to load case');
+    throw new Error(errorDetail !== 'Unknown Error' ? errorDetail : 'Failed to load case');
   }
 
   return response.json();

@@ -125,3 +125,39 @@ def test_create_case_requires_consent():
     response = client.post("/api/v1/cases", json={"patientId": "p-123", "consentGranted": True})
     assert response.status_code == 201
     assert response.json()["case"]["consentGranted"] is True
+
+
+def test_invalid_token_format_returns_401():
+    response = client.get("/api/v1/cases", headers={"Authorization": "Bearer invalid.jwt.token"})
+    assert response.status_code == 401
+
+
+def test_nonexistent_case_returns_not_found_or_forbidden():
+    # Login doctor to query any case
+    res = client.post("/api/v1/auth/doctor/login", data={"username": "testdoc", "password": "pass123"})
+    doc_token = res.json()["access_token"]
+    response = client.get("/api/v1/cases/nonexistent-case-id-12345", headers={"Authorization": f"Bearer {doc_token}"})
+    assert response.status_code == 404
+
+
+def test_blocklist_db_error_returns_500(monkeypatch):
+    from sqlalchemy.exc import OperationalError
+    from app.models.user import TokenBlocklist
+
+    # Login doctor to get a valid token
+    res = client.post("/api/v1/auth/doctor/login", data={"username": "testdoc", "password": "pass123"})
+    doc_token = res.json()["access_token"]
+
+    from app.core.database import get_db
+    from sqlalchemy.orm import Session
+
+    original_query = Session.query
+    def mock_query(self, *entities, **kwargs):
+        if TokenBlocklist in entities:
+            raise OperationalError("SELECT * FROM token_blocklist", {}, Exception("relation does not exist"))
+        return original_query(self, *entities, **kwargs)
+
+    monkeypatch.setattr(Session, "query", mock_query)
+    response = client.get("/api/v1/cases", headers={"Authorization": f"Bearer {doc_token}"})
+    assert response.status_code == 500
+    assert "Database error occurred during token revocation check" in response.json()["detail"]

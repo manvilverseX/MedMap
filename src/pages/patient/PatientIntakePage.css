@@ -509,6 +509,18 @@
   color: var(--color-navy);
 }
 
+.verification-badge-uncertain {
+  background-color: rgba(245, 158, 11, 0.12);
+  border-color: var(--color-warning);
+  color: #b45309;
+}
+
+.verification-badge-clarified {
+  background-color: rgba(16, 185, 129, 0.12);
+  border-color: var(--color-verify);
+  color: #059669;
+}
+
 /* Edit action button */
 .verification-edit-btn {
   background-color: transparent;
@@ -657,4 +669,281 @@
   background-color: var(--color-accent);
   color: white;
 }
+
+/* ---------- Questionnaire Progression & Option Controls ---------- */
+.intake-nav-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.intake-btn-nav-back {
+  background: transparent;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 6px;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-navy);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.15s ease;
+}
+
+.intake-btn-nav-back:hover:not(:disabled) {
+  background-color: rgba(15, 23, 42, 0.05);
+  border-color: var(--color-navy);
+}
+
+.intake-btn-nav-back:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.intake-options-group {
+  margin: 1.25rem 0;
+}
+
+.intake-options-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-navy);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.intake-pills-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.intake-option-pill {
+  background-color: var(--color-bg);
+  border: 1.5px solid rgba(15, 23, 42, 0.2);
+  border-radius: 9999px;
+  padding: 0.45rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-navy);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: var(--font-sans);
+}
+
+.intake-option-pill:hover {
+  border-color: var(--color-accent);
+  background-color: rgba(6, 182, 212, 0.08);
+  color: var(--color-accent);
+}
+
+.intake-option-pill--selected {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #ffffff;
+}
+
+.intake-original-box {
+  background-color: rgba(245, 158, 11, 0.08);
+  border: 1px dashed var(--color-warning);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.intake-original-box-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #b45309;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.25rem;
+}
+
+.intake-original-box-val {
+  color: var(--color-navy);
+  font-style: italic;
+}
+
+.intake-btn-uncertain {
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  border: 1px dashed rgba(15, 23, 42, 0.3);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: var(--font-sans);
+}
+
+.intake-btn-uncertain:hover {
+  background-color: rgba(15, 23, 42, 0.05);
+  color: var(--color-navy);
+  border-style: solid;
+}
+
+/* ---------- Safety Escalation (Red Flags) ---------- */
+.intake-safety-card {
+  background-color: var(--color-surface);
+  border: 2px solid #dc2626;
+  border-left: 6px solid #dc2626;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 4px 4px 0px rgba(220, 38, 38, 0.15);
+  margin-bottom: 2rem;
+  animation: intake-fadeIn 0.3s ease;
+}
+
+.intake-safety-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.intake-safety-header h2 {
+  font-family: var(--font-hand);
+  font-size: 1.6rem;
+  color: #991b1b;
+  margin: 0;
+}
+
+.intake-safety-icon {
+  font-size: 1.8rem;
+}
+
+.intake-safety-message {
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--color-navy);
+  line-height: 1.5;
+  margin-bottom: 1.25rem;
+}
+
+.intake-safety-instructions {
+  background-color: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+  color: #991b1b;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.intake-safety-instructions strong {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+}
+
+.intake-safety-instructions p {
+  margin: 0;
+}
+
+.intake-safety-flags {
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 1rem;
+  background-color: var(--color-bg);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.intake-safety-flags strong {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: var(--color-navy);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.intake-safety-flags ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--color-text-secondary);
+}
+
+.intake-safety-disclaimer {
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  font-style: italic;
+  margin-bottom: 1.5rem;
+  line-height: 1.4;
+}
+
+.intake-safety-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.intake-btn-emergency {
+  background-color: #dc2626;
+  color: #ffffff;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 0.8rem 1.5rem;
+  border-radius: 8px;
+  text-decoration: none;
+  box-shadow: 2px 2px 0px rgba(220, 38, 38, 0.4);
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.intake-btn-emergency:hover {
+  background-color: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: 3px 3px 0px rgba(220, 38, 38, 0.4);
+}
+
+/* ---------- Clinical Progress Chips ---------- */
+.intake-progress-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.intake-chip {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  background-color: var(--color-bg);
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.intake-chip--active {
+  background-color: rgba(6, 182, 212, 0.12);
+  border-color: var(--color-accent);
+  color: #0891b2;
+}
+
+.intake-chip--done {
+  background-color: rgba(16, 185, 129, 0.1);
+  border-color: var(--color-verify);
+  color: #059669;
+}
+
+
 

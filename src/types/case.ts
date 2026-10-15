@@ -8,7 +8,7 @@ export interface ClinicalCase {
   language?: string;
   consentGranted?: boolean;
   status: CaseStatus;
-  intakeAnswers?: Record<string, string>;
+  intakeAnswers?: Record<string, any>;
   clinicalAssessment?: Record<string, any>;
   aiSummary?: {
     chiefComplaint: string;
@@ -22,4 +22,21 @@ export interface ClinicalCase {
   };
   derivedClinicalData?: Record<string, any>;
   reviewerId?: string;
+}
+
+export interface SafetyEscalation {
+  isEscalated: boolean;
+  severity?: string;
+  title?: string;
+  message?: string;
+  instructions?: string;
+  redFlags?: string[];
+}
+
+export interface ClinicalProgress {
+  domainsExplored: string[];
+  activeDomain?: string;
+  questionsAnswered: number;
+  coverageStatus?: string;
+  unresolvedGapsCount?: number;
 }

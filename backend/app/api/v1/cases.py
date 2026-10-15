@@ -103,7 +103,7 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
         valid_transitions = {
             CaseStatus.INTAKE: [CaseStatus.PATIENT_VERIFYING],
             CaseStatus.PATIENT_VERIFYING: [CaseStatus.DOCTOR_REVIEW],
-            CaseStatus.DOCTOR_REVIEW: [CaseStatus.COMPLETED],
+            CaseStatus.DOCTOR_REVIEW: [CaseStatus.COMPLETED, CaseStatus.PATIENT_VERIFYING],
             CaseStatus.COMPLETED: []
         }
 
@@ -117,32 +117,116 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
     was_intake_completion = (
         current_case.status == CaseStatus.INTAKE.value and case_in.status == CaseStatus.PATIENT_VERIFYING
     )
+    was_patient_verification = (
+        case_in.status == CaseStatus.DOCTOR_REVIEW and current_case.status == CaseStatus.PATIENT_VERIFYING.value
+    )
 
     if case_in.intakeAnswers is not None:
         from app.services.ai_service import validate_answer_with_llm
-        from app.services.adaptive_intake import INTAKE_QUESTIONS
+        from app.services.adaptive_intake import (
+            INTAKE_QUESTIONS,
+            sanitize_active_answers,
+            validate_clinical_answer,
+        )
         by_id = {q.id: q for q in INTAKE_QUESTIONS}
+
+        # Invalidate / exclude dependent answers that are no longer eligible
+        sanitized_answers, _ = sanitize_active_answers(case_in.intakeAnswers)
+        case_in.intakeAnswers = sanitized_answers
         
         for q_id, answer in list(case_in.intakeAnswers.items()):
             if not isinstance(answer, str) or not answer.strip():
                 continue
                 
-            old_answer = current_case.intakeAnswers.get(q_id) if current_case.intakeAnswers else None
-            if isinstance(old_answer, dict):
-                old_answer = old_answer.get("value")
-                
+            old_record = current_case.intakeAnswers.get(q_id) if current_case.intakeAnswers else None
+            old_answer = old_record.get("value") if isinstance(old_record, dict) else old_record
+            attempts = int(old_record.get("clarification_attempts", 0)) if isinstance(old_record, dict) else 0
+
             if old_answer == answer:
                 continue
-                
-            q_prompt = by_id[q_id].prompt if q_id in by_id else "Patient answer:"
-            val = validate_answer_with_llm(q_prompt, answer)
-            if val.needs_clarification:
+
+            # Deterministic clinical validation
+            needs_clar, clar_prompt = validate_clinical_answer(
+                q_id,
+                answer,
+                previous_attempts=attempts,
+            )
+
+            # Optional LLM validation if deterministic passed on first attempt
+            if not needs_clar and attempts == 0:
+                try:
+                    from app.services.interview_engine import CURATED_GAP_QUESTIONS
+                    if q_id in by_id:
+                        q_prompt = by_id[q_id].prompt
+                    elif q_id in CURATED_GAP_QUESTIONS:
+                        q_prompt = CURATED_GAP_QUESTIONS[q_id]["prompt"]
+                    else:
+                        q_prompt = "Patient answer:"
+                    val = validate_answer_with_llm(q_prompt, answer)
+                    if val.needs_clarification:
+                        needs_clar = True
+                        clar_prompt = val.clarifying_question or "Please clarify this answer."
+                except Exception:
+                    pass
+
+            if needs_clar:
                 case_in.intakeAnswers[q_id] = {
                     "value": answer,
-                    "clarification_needed": val.clarifying_question or "Please clarify this answer."
+                    "originalValue": answer,
+                    "clarification_needed": clar_prompt or "Please clarify this answer.",
+                    "clarification_attempts": attempts + 1,
                 }
 
     case = case_service.update_case(db, case_id, case_in)
+
+    # Feature Four: Structured medical history and human-in-the-loop provenance
+    from app.services.adaptive_intake import build_structured_intake
+    is_verified = (case.status in [CaseStatus.DOCTOR_REVIEW.value, CaseStatus.COMPLETED.value])
+    structured = build_structured_intake(case.intakeAnswers or {}, verified=is_verified)
+
+    derived = dict(current_case.derivedClinicalData or {})
+    derived["structuredIntake"] = structured
+
+    # Persist interview state and safety metadata
+    from app.services.interview_engine import evaluate_emergency_safety
+    from app.services.adaptive_intake import select_intake_state
+
+    safety_check = evaluate_emergency_safety(case.intakeAnswers or {})
+    if safety_check.is_escalated:
+        from datetime import datetime, timezone
+        derived["safetyEscalation"] = {
+            "isEscalated": True,
+            "severity": safety_check.severity,
+            "title": safety_check.title,
+            "message": safety_check.message,
+            "instructions": safety_check.instructions,
+            "redFlags": safety_check.red_flags,
+            "escalatedAt": datetime.now(timezone.utc).isoformat(),
+        }
+
+    interview_session = select_intake_state(case.intakeAnswers or {}, enable_ai=False)
+    derived["interviewState"] = {
+        "status": interview_session.state.value,
+        "completionReason": interview_session.completionReason,
+        "questionsAnswered": len(interview_session.answeredQuestionIds),
+        "clinicalProgress": interview_session.clinicalProgress.model_dump() if interview_session.clinicalProgress else None,
+    }
+
+    if was_patient_verification:
+        from datetime import datetime, timezone
+        derived["patientVerification"] = {
+            "verified": True,
+            "verifiedAt": datetime.now(timezone.utc).isoformat(),
+            "patientId": current_case.patientId,
+            "statement": "Patient confirmed self-reported intake responses."
+        }
+    elif case_in.intakeAnswers is not None and not is_verified:
+        if "patientVerification" in derived:
+            derived["patientVerification"]["verified"] = False
+            derived["patientVerification"]["reverificationRequired"] = True
+
+    case_service.update_derived_clinical_data(db, case_id, derived)
+    case.derivedClinicalData = derived
 
     # Automatically generate AI summary on intake completion
     if was_intake_completion and not case.aiSummary and case.intakeAnswers:

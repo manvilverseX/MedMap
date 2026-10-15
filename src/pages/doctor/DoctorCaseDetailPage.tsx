@@ -233,13 +233,76 @@ export function DoctorCaseDetailPage() {
         <div className="detail-content-column">
           {caseDetail.intakeAnswers && Object.keys(caseDetail.intakeAnswers).length > 0 ? (
             <DoctorSectionCard title="Patient Intake Responses" tag="Self-Reported">
+              {caseDetail.derivedClinicalData?.patientVerification?.verified && (
+                <div style={{ padding: '0.75rem 1rem', marginBottom: '1.25rem', backgroundColor: 'rgba(16, 185, 129, 0.08)', border: '1px solid var(--color-verify)', borderRadius: '8px' }}>
+                  <strong style={{ color: 'var(--color-verify)', display: 'block', fontSize: '0.85rem' }}>
+                    ✓ Patient Verification Confirmed
+                  </strong>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                    {caseDetail.derivedClinicalData.patientVerification.statement || 'Patient verified self-reported responses.'}
+                    {caseDetail.derivedClinicalData.patientVerification.verifiedAt && ` • ${new Date(caseDetail.derivedClinicalData.patientVerification.verifiedAt).toLocaleString()}`}
+                  </span>
+                </div>
+              )}
+
               <div className="history-subsection">
-                {Object.entries(caseDetail.intakeAnswers).map(([question, answer], i) => (
-                  <div key={i} style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--color-border-subtle)' }}>
-                    <h3 className="history-subheading" style={{ color: 'var(--color-text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>{question}</h3>
-                    <p className="clinical-list-item" style={{ margin: 0 }}>{answer}</p>
-                  </div>
-                ))}
+                {Object.entries(caseDetail.intakeAnswers).map(([question, answer], i) => {
+                  const structuredInfo = (caseDetail.derivedClinicalData?.structuredIntake || {})[question] || {};
+                  const answerText = typeof answer === 'string' ? answer : (answer?.value || answer?.originalValue || '');
+                  const isSkipped = !answerText || answerText.trim().length === 0;
+                  const isInactive = structuredInfo.active === false;
+                  const isUncertain = structuredInfo.isUncertain || answerText.toLowerCase().includes('not sure') || answerText.toLowerCase().includes('unknown');
+
+                  return (
+                    <div key={i} style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--color-border-subtle)', opacity: isInactive ? 0.65 : 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
+                        <h3 className="history-subheading" style={{ color: 'var(--color-text-secondary)', margin: 0, fontWeight: 600, flex: 1, minWidth: '200px' }}>
+                          {structuredInfo.prompt || question.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        </h3>
+
+                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                          {isInactive && (
+                            <span className="verification-badge" style={{ backgroundColor: 'rgba(15, 23, 42, 0.08)', color: 'var(--color-text-secondary)', border: '1px solid rgba(15, 23, 42, 0.2)', fontSize: '0.75rem', padding: '0.15rem 0.5rem' }}>
+                              Branch Inactive
+                            </span>
+                          )}
+                          {isSkipped ? (
+                            <span className="verification-badge" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#b45309', border: '1px solid var(--color-warning)', fontSize: '0.75rem', padding: '0.15rem 0.5rem' }}>
+                              Skipped
+                            </span>
+                          ) : (
+                            <span className="verification-badge" style={{ backgroundColor: 'rgba(6, 182, 212, 0.1)', color: '#0891b2', border: '1px solid var(--color-accent)', fontSize: '0.75rem', padding: '0.15rem 0.5rem' }}>
+                              Self-Reported
+                            </span>
+                          )}
+                          {structuredInfo.isClarified && (
+                            <span className="verification-badge" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#059669', border: '1px solid var(--color-verify)', fontSize: '0.75rem', padding: '0.15rem 0.5rem' }}>
+                              Clarified
+                            </span>
+                          )}
+                          {structuredInfo.isCorrected && (
+                            <span className="verification-badge" style={{ backgroundColor: 'rgba(15, 23, 42, 0.08)', color: 'var(--color-navy)', border: '1px solid var(--color-navy)', fontSize: '0.75rem', padding: '0.15rem 0.5rem' }}>
+                              Corrected
+                            </span>
+                          )}
+                          {isUncertain && (
+                            <span className="verification-badge" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#b45309', border: '1px solid var(--color-warning)', fontSize: '0.75rem', padding: '0.15rem 0.5rem' }}>
+                              Uncertain
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <p className="clinical-list-item" style={{ margin: 0, wordBreak: 'break-word' }}>
+                        {isSkipped ? (
+                          <em style={{ color: 'var(--color-text-secondary)', opacity: 0.7 }}>(No answer provided)</em>
+                        ) : (
+                          answerText
+                        )}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             </DoctorSectionCard>
           ) : (

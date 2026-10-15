@@ -194,11 +194,28 @@ export function PatientVerificationPage() {
 
   const isConfirmed = clinicalCase.status === 'doctor_review' || clinicalCase.status === 'completed';
   const intakeAnswersMap = clinicalCase.intakeAnswers || {};
-  const answerEntries = Object.entries(intakeAnswersMap);
+  const structuredMap: Record<string, any> = clinicalCase.derivedClinicalData?.structuredIntake || {};
+
+  const safeExtract = (val: any): string => {
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'string') return val;
+    if (typeof val === 'object') return val.value || val.originalValue || '';
+    return String(val);
+  };
+
+  // Separate active answers from answers that were invalidated by branch changes
+  const activeEntries = Object.entries(intakeAnswersMap).filter(([k]) => {
+    if (structuredMap[k] && structuredMap[k].active === false) return false;
+    return true;
+  });
+
+  const inactiveEntries = Object.entries(intakeAnswersMap).filter(([k]) => {
+    return structuredMap[k] && structuredMap[k].active === false;
+  });
 
   // Compute counts for summary
-  const providedCount = answerEntries.filter(([, ans]) => Boolean(ans && ans.trim().length > 0)).length;
-  const skippedCount = answerEntries.filter(([, ans]) => !ans || ans.trim().length === 0).length;
+  const providedCount = activeEntries.filter(([, ans]) => Boolean(safeExtract(ans).trim().length > 0)).length;
+  const skippedCount = activeEntries.filter(([, ans]) => safeExtract(ans).trim().length === 0).length;
   const editedCount = Object.keys(editedQuestionKeys).length;
   const documentCount = documents ? documents.length : 0;
 
@@ -247,16 +264,21 @@ export function PatientVerificationPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
             <h2 className="intake-question-category" style={{ margin: 0 }}>Your Responses</h2>
             <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-              {answerEntries.length} question{answerEntries.length === 1 ? '' : 's'} recorded
+              {activeEntries.length} active question{activeEntries.length === 1 ? '' : 's'} recorded
             </span>
           </div>
 
-          {answerEntries.length > 0 ? (
+          {activeEntries.length > 0 ? (
             <ul style={{ listStyleType: 'none', padding: 0, margin: 0 }}>
-              {answerEntries.map(([question, answer], index) => {
+              {activeEntries.map(([question, answer], index) => {
+                const answerText = safeExtract(answer);
                 const isEditingThis = editingQuestionKey === question;
-                const isProvided = Boolean(answer && answer.trim().length > 0);
+                const isProvided = Boolean(answerText.trim().length > 0);
                 const wasEditedInSession = Boolean(editedQuestionKeys[question]);
+                const meta = structuredMap[question] || {};
+                const isUncertain = meta.isUncertain || answerText.toLowerCase().includes('not sure') || answerText.toLowerCase().includes('unknown');
+                const isClarified = meta.isClarified;
+                const isCorrected = meta.isCorrected || wasEditedInSession;
 
                 return (
                   <li
@@ -264,12 +286,12 @@ export function PatientVerificationPage() {
                     style={{
                       marginBottom: '1.5rem',
                       paddingBottom: '1.25rem',
-                      borderBottom: index === answerEntries.length - 1 ? 'none' : '1px solid var(--color-border-subtle, rgba(15, 23, 42, 0.1))',
+                      borderBottom: index === activeEntries.length - 1 ? 'none' : '1px solid var(--color-border-subtle, rgba(15, 23, 42, 0.1))',
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
                       <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--color-navy)', margin: 0, flex: 1, minWidth: '200px', wordBreak: 'break-word' }}>
-                        {question}
+                        {meta.prompt || question.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                       </h3>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
@@ -284,10 +306,24 @@ export function PatientVerificationPage() {
                           </span>
                         )}
 
-                        {/* Edited Session Badge */}
-                        {wasEditedInSession && (
+                        {/* Clarified Badge */}
+                        {isClarified && (
+                          <span className="verification-badge verification-badge-clarified">
+                            Clarified
+                          </span>
+                        )}
+
+                        {/* Corrected Badge */}
+                        {isCorrected && (
                           <span className="verification-badge verification-badge-edited">
-                            Edited
+                            Corrected
+                          </span>
+                        )}
+
+                        {/* Uncertain Badge */}
+                        {isUncertain && (
+                          <span className="verification-badge verification-badge-uncertain">
+                            Uncertain
                           </span>
                         )}
 
@@ -295,7 +331,7 @@ export function PatientVerificationPage() {
                         {!isConfirmed && !isEditingThis && (
                           <button
                             type="button"
-                            onClick={() => handleStartEdit(question, answer || '')}
+                            onClick={() => handleStartEdit(question, answerText)}
                             disabled={isSavingAnswer || isUpdating}
                             aria-label={`Edit response for "${question}"`}
                             className="verification-edit-btn"
@@ -353,7 +389,7 @@ export function PatientVerificationPage() {
                     ) : (
                       <p style={{ margin: '0.25rem 0 0', color: 'var(--color-text-secondary)', fontSize: '0.95rem', lineHeight: '1.6', wordBreak: 'break-word' }}>
                         {isProvided ? (
-                          answer
+                          answerText
                         ) : (
                           <em style={{ color: 'var(--color-text-secondary)', opacity: 0.7 }}>(No answer provided)</em>
                         )}
@@ -365,6 +401,18 @@ export function PatientVerificationPage() {
             </ul>
           ) : (
             <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>No responses recorded.</p>
+          )}
+
+          {/* Inactive audit trail note if branch conditions changed */}
+          {inactiveEntries.length > 0 && (
+            <div style={{ marginTop: '1.5rem', padding: '0.75rem 1rem', backgroundColor: 'rgba(15, 23, 42, 0.04)', borderRadius: '8px', border: '1px dashed rgba(15, 23, 42, 0.15)' }}>
+              <strong style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Inactive Branch History (Audit Trail)
+              </strong>
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                {inactiveEntries.map(([k]) => k.replace(/_/g, ' ')).join(', ')} were previously answered but excluded because earlier answers (such as allergy status) were changed.
+              </p>
+            </div>
           )}
         </div>
 

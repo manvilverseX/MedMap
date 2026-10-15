@@ -8,6 +8,7 @@ import os
 origins = [
     "http://localhost:5173",
     "http://localhost:5174",
+    "http://localhost:5175",
 ]
 frontend_origin = os.getenv("FRONTEND_ORIGIN")
 if frontend_origin:
