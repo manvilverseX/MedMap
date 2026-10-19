@@ -32,3 +32,18 @@ dist-ssr
 
 # Local Blob mock — dev-only file storage, never committed
 .vercel-blob-local/
+
+# Scratch, temporary test databases and artifacts
+__pycache__/
+*.pyc
+*.db
+scratch_*.py
+check_*.py
+run_prod_e2e_*.py
+test_flow.py
+test_validate.py
+update_api.cjs
+vercel_blob_client.txt
+dashboard_retry.png
+synthetic_*.jpg
+test_doc.jpg
