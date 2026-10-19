@@ -69,8 +69,21 @@ export function PatientIntakePage() {
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+
+  /**
+   * Returns true when a freetext answer consists entirely of non-alphanumeric
+   * characters (e.g. ".", "...", "!?!") and is therefore meaningless.
+   * Mirrors the server-side check in validate_clinical_answer.
+   * Only applied to text / textarea inputs; option-pill selections are always valid.
+   */
+  const isMeaninglessTextAnswer = (value: string): boolean => {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return false; // empty is handled by the existing disabled check
+    return !/[a-zA-Z0-9]/.test(trimmed);
+  };
 
   const refreshAdaptiveState = useCallback(async (currentAnswers: Record<string, any>, mode?: string, questionId?: string) => {
     try {
@@ -172,7 +185,17 @@ export function PatientIntakePage() {
     }
   };
 
-  const handleContinue = () => handleAnswerSubmit(currentAnswer);
+  const handleContinue = () => {
+    if (sessionState?.currentQuestion?.options?.length === 0 || !sessionState?.currentQuestion?.options) {
+      // Freetext path — run client-side meaningful-answer check
+      if (isMeaninglessTextAnswer(currentAnswer)) {
+        setValidationError('Please describe your answer using words or numbers so your care team can understand.');
+        return;
+      }
+    }
+    setValidationError(null);
+    handleAnswerSubmit(currentAnswer);
+  };
   const handleSkip = () => handleAnswerSubmit('');
 
   const handlePrevious = async () => {
@@ -193,6 +216,7 @@ export function PatientIntakePage() {
   };
 
   const handleSelectOption = (option: string) => {
+    setValidationError(null);
     setCurrentAnswer(option);
     handleAnswerSubmit(option);
   };
@@ -283,30 +307,40 @@ export function PatientIntakePage() {
             <p className="intake-question-helper">Please tell us about any new symptoms, worsened conditions, or changes in your medications. If nothing has changed for a particular issue, you don't need to re-enter it.</p>
             
             <textarea
-              className="intake-textarea"
+              className={`intake-textarea${validationError ? ' intake-input--error' : ''}`}
               placeholder="e.g. My fever is gone but I have a new cough. I started taking cough syrup."
               value={currentAnswer}
-              onChange={(e) => setCurrentAnswer(e.target.value)}
+              onChange={(e) => { setCurrentAnswer(e.target.value); setValidationError(null); }}
               rows={4}
               style={{ width: '100%', marginTop: '1rem' }}
             />
+            {validationError && (
+              <p className="intake-validation-error" role="alert" aria-live="polite">
+                {validationError}
+              </p>
+            )}
             
             <div className="intake-actions" style={{marginTop: '2rem'}}>
               {error && <ErrorMessage message={error} />}
-              <Button variant="outline" onClick={() => { setShowLongitudinalPrompt(false); setCurrentAnswer(''); }} className="intake-btn intake-btn-skip">
+              <Button variant="outline" onClick={() => { setShowLongitudinalPrompt(false); setCurrentAnswer(''); setValidationError(null); }} className="intake-btn intake-btn-skip">
                 Skip / Start Fresh
               </Button>
               <Button
                 variant="primary"
                 onClick={async () => {
+                  if (isMeaninglessTextAnswer(currentAnswer)) {
+                    setValidationError('Please describe your answer using words or numbers so your care team can understand.');
+                    return;
+                  }
                   if (currentAnswer.trim().length > 0) {
                     await handleAnswerSubmit(currentAnswer);
                   }
                   setShowLongitudinalPrompt(false);
                   setCurrentAnswer('');
+                  setValidationError(null);
                 }}
                 className="intake-btn-continue"
-                disabled={isSubmitting || currentAnswer.trim().length === 0}
+                disabled={isSubmitting || currentAnswer.trim().length === 0 || isMeaninglessTextAnswer(currentAnswer)}
               >
                 {isSubmitting ? 'Saving...' : 'Save & Continue →'}
               </Button>
@@ -617,12 +651,13 @@ export function PatientIntakePage() {
             <textarea
               ref={inputRef as React.RefObject<HTMLTextAreaElement>}
               id={`intake-${currentQuestion.id}`}
-              className="intake-textarea"
+              className={`intake-textarea${validationError ? ' intake-input--error' : ''}`}
               value={currentAnswer}
-              onChange={(e) => setCurrentAnswer(e.target.value)}
+              onChange={(e) => { setCurrentAnswer(e.target.value); setValidationError(null); }}
               onKeyDown={handleKeyDown}
               aria-describedby={currentQuestion.helperText ? `helper-${currentQuestion.id}` : undefined}
               aria-label={currentQuestion.prompt}
+              aria-invalid={!!validationError}
               placeholder="Type your response here..."
             />
           ) : (
@@ -630,12 +665,13 @@ export function PatientIntakePage() {
               ref={inputRef as React.RefObject<HTMLInputElement>}
               type="text"
               id={`intake-${currentQuestion.id}`}
-              className="intake-input"
+              className={`intake-input${validationError ? ' intake-input--error' : ''}`}
               value={currentAnswer}
-              onChange={(e) => setCurrentAnswer(e.target.value)}
+              onChange={(e) => { setCurrentAnswer(e.target.value); setValidationError(null); }}
               onKeyDown={handleKeyDown}
               aria-describedby={currentQuestion.helperText ? `helper-${currentQuestion.id}` : undefined}
               aria-label={currentQuestion.prompt}
+              aria-invalid={!!validationError}
               placeholder="Type your response here..."
             />
           )}
@@ -662,10 +698,15 @@ export function PatientIntakePage() {
                 </button>
               )}
             </div>
+            {validationError && (
+              <p className="intake-validation-error" role="alert" aria-live="polite">
+                {validationError}
+              </p>
+            )}
             <Button
               variant="primary"
               onClick={handleContinue}
-              disabled={currentAnswer.trim().length === 0 || isSubmitting}
+              disabled={currentAnswer.trim().length === 0 || isSubmitting || isMeaninglessTextAnswer(currentAnswer)}
               id="intake-btn-continue"
               className="intake-btn intake-btn-continue"
             >

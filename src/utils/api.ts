@@ -63,7 +63,7 @@ export const getCase = async (caseId: string): Promise<ClinicalCase> => {
 export const getAdaptiveIntakeState = async (caseId: string, mode?: string, questionId?: string): Promise<any> => {
   const params = new URLSearchParams();
   if (mode) params.append('mode', mode);
-  if (questionId) params.append('questionId', questionId);
+  if (questionId) params.append('question_id', questionId);
   const qs = params.toString() ? `?${params.toString()}` : '';
 
   const response = await fetch(`${API_BASE_URL}/cases/${caseId}/adaptive-intake${qs}`, {

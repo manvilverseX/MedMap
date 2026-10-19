@@ -216,6 +216,13 @@ def validate_clinical_answer(
     if not cleaned:
         return False, None
 
+    # Reject answers that contain no alphanumeric characters (e.g. ".", "...", "!?!").
+    # These are meaningless inputs that cannot convey any clinical information.
+    # This check runs before uncertainty/valid-response whitelists because those
+    # responses always contain at least one letter.
+    if not re.search(r"[a-z0-9]", cleaned):
+        return True, "Please describe your answer using words or numbers so your care team can understand."
+
     # Never penalize uncertainty: if patient says they don't know, accept it without clarification
     if is_uncertain_answer(cleaned):
         return False, None
