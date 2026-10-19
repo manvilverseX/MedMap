@@ -71,7 +71,136 @@ export function PatientIntakePage() {
   const [isReviewing, setIsReviewing] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
+  // ── Voice & Audio state (Web Speech API) ────────────────────────────────
+  const [voiceMode, setVoiceMode] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speechTranscript, setSpeechTranscript] = useState('');
+  const [speechError, setSpeechError] = useState<string | null>(null);
+  const [pendingCriticalConfirmation, setPendingCriticalConfirmation] = useState<{
+    answer: string;
+    questionId: string;
+    category: string;
+  } | null>(null);
+
+  const recognitionRef = useRef<any>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+
+  // Browser speech language mapping (en-IN, hi-IN, kn-IN)
+  const speechLang = clinicalCase?.language?.toLowerCase().startsWith('hi')
+    ? 'hi-IN'
+    : clinicalCase?.language?.toLowerCase().startsWith('kn')
+    ? 'kn-IN'
+    : 'en-IN';
+  const speechLangName = speechLang === 'hi-IN' ? 'Hindi' : speechLang === 'kn-IN' ? 'Kannada' : 'English';
+
+  const SpeechRecognitionAPI =
+    typeof window !== 'undefined'
+      ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      : null;
+  const hasSpeechRecognition = !!SpeechRecognitionAPI;
+  const hasSpeechSynthesis = typeof window !== 'undefined' && 'speechSynthesis' in window;
+
+  const stopSpeaking = useCallback(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    }
+  }, []);
+
+  const speakQuestion = useCallback((customText?: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    stopSpeaking();
+    const text = customText || (sessionState?.currentQuestion
+      ? `${sessionState.currentQuestion.prompt}. ${sessionState.currentQuestion.helperText || ''}`
+      : '');
+    if (!text) return;
+    try {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = speechLang;
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      setIsSpeaking(false);
+    }
+  }, [sessionState?.currentQuestion, speechLang, stopSpeaking]);
+
+  const startListening = () => {
+    if (!SpeechRecognitionAPI) {
+      setSpeechError('Speech recognition is not supported in this browser. Please use touch/typing.');
+      return;
+    }
+    setSpeechError(null);
+    try {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch {}
+      }
+      const recognition = new SpeechRecognitionAPI();
+      recognition.lang = speechLang;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+      recognition.continuous = false;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        setSpeechError(null);
+      };
+
+      recognition.onresult = (event: any) => {
+        let interim = '';
+        let final = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            final += event.results[i][0].transcript;
+          } else {
+            interim += event.results[i][0].transcript;
+          }
+        }
+        const recognized = (final || interim).trim();
+        if (recognized) {
+          setSpeechTranscript(recognized);
+          setCurrentAnswer(recognized);
+          setValidationError(null);
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        setIsListening(false);
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          setSpeechError('Microphone permission denied. You can continue by typing or choosing options below.');
+        } else if (event.error === 'no-speech') {
+          setSpeechError('No speech was detected. Please tap the mic and try speaking again.');
+        } else {
+          setSpeechError(`Speech recognition notice (${event.error}). Please use touch or typing.`);
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch {
+      setIsListening(false);
+      setSpeechError('Unable to start microphone. Please check your browser audio settings.');
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch {}
+      setIsListening(false);
+    }
+  };
+
+  const isCriticalQuestion = (questionId?: string) => {
+    if (!questionId) return false;
+    const q = questionId.toLowerCase();
+    return q.includes('allerg') || q.includes('medicat') || q.includes('medicine');
+  };
 
   /**
    * Returns true when a freetext answer consists entirely of non-alphanumeric
@@ -159,6 +288,25 @@ export function PatientIntakePage() {
     loadCase();
   }, [caseId, navigate, loadCase]);
 
+  // ── Stop speaking/listening on unmount ────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch {}
+      }
+    };
+  }, []);
+
+  // ── Auto-read question if voice mode is ON ────────────────────────────
+  useEffect(() => {
+    if (voiceMode && sessionState?.currentQuestion) {
+      speakQuestion();
+    }
+  }, [sessionState?.currentQuestion?.id, voiceMode, speakQuestion]);
+
   // ── Focus input on question change ────────────────────────────────────
   useEffect(() => {
     if (!isLoading && !error && sessionState?.state !== 'complete' && !isReviewing && inputRef.current) {
@@ -170,6 +318,11 @@ export function PatientIntakePage() {
   const handleAnswerSubmit = async (answerValue: string) => {
     if (!sessionState?.currentQuestion || !caseId) return;
     
+    stopSpeaking();
+    stopListening();
+    setSpeechTranscript('');
+    setPendingCriticalConfirmation(null);
+
     setIsSubmitting(true);
     setError(null);
     try {
@@ -194,12 +347,30 @@ export function PatientIntakePage() {
       }
     }
     setValidationError(null);
+
+    // Stronger confirmation step for allergies and medicines
+    if (sessionState?.currentQuestion && isCriticalQuestion(sessionState.currentQuestion.id)) {
+      setPendingCriticalConfirmation({
+        answer: currentAnswer,
+        questionId: sessionState.currentQuestion.id,
+        category: sessionState.currentQuestion.category,
+      });
+      return;
+    }
+
     handleAnswerSubmit(currentAnswer);
   };
-  const handleSkip = () => handleAnswerSubmit('');
+  const handleSkip = () => {
+    setPendingCriticalConfirmation(null);
+    handleAnswerSubmit('');
+  };
 
   const handlePrevious = async () => {
     if (!caseId || !sessionState?.previousQuestionId) return;
+    stopSpeaking();
+    stopListening();
+    setSpeechTranscript('');
+    setPendingCriticalConfirmation(null);
     setIsSubmitting(true);
     setError(null);
     try {
@@ -212,12 +383,24 @@ export function PatientIntakePage() {
   };
 
   const handleUncertain = () => {
+    setPendingCriticalConfirmation(null);
     handleAnswerSubmit("I'm not sure / Unknown");
   };
 
   const handleSelectOption = (option: string) => {
     setValidationError(null);
     setCurrentAnswer(option);
+
+    // Stronger confirmation step for allergies and medicines
+    if (sessionState?.currentQuestion && isCriticalQuestion(sessionState.currentQuestion.id)) {
+      setPendingCriticalConfirmation({
+        answer: option,
+        questionId: sessionState.currentQuestion.id,
+        category: sessionState.currentQuestion.category,
+      });
+      return;
+    }
+
     handleAnswerSubmit(option);
   };
 
@@ -560,6 +743,36 @@ export function PatientIntakePage() {
           </p>
         </div>
 
+        {/* Voice Mode Toggle Bar (Web Speech API) */}
+        <div className="intake-voice-bar">
+          <div className="intake-voice-toggle-group">
+            <div>
+              <span className="intake-voice-label">Voice & Audio Mode</span>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                Browser-based speech (Web Speech API) &middot; {speechLangName}
+              </p>
+            </div>
+            <button
+              type="button"
+              className={`intake-voice-toggle-btn ${voiceMode ? 'intake-voice-toggle-btn--active' : ''}`}
+              onClick={() => {
+                const nextMode = !voiceMode;
+                setVoiceMode(nextMode);
+                if (!nextMode) stopSpeaking();
+              }}
+              aria-pressed={voiceMode}
+              id="btn-toggle-voice-mode"
+            >
+              {voiceMode ? '🔊 Voice Mode: ON' : '🔈 Voice Mode: OFF'}
+            </button>
+          </div>
+          {speechError && (
+            <div className="intake-speech-fallback-banner" role="alert">
+              <span>ℹ️</span> {speechError}
+            </div>
+          )}
+        </div>
+
         <div className="intake-progress">
           <div className="intake-progress-header">
             <span className="intake-progress-label">{currentQuestion.category}</span>
@@ -599,7 +812,21 @@ export function PatientIntakePage() {
           )}
           
           <h2 className="intake-question-category">{currentQuestion.category}</h2>
-          <p className="intake-question-prompt">{currentQuestion.prompt}</p>
+          <div className="intake-prompt-row">
+            <p className="intake-question-prompt">{currentQuestion.prompt}</p>
+            {hasSpeechSynthesis && (
+              <button
+                type="button"
+                className={`intake-btn-read-aloud ${isSpeaking ? 'intake-btn-read-aloud--speaking' : ''}`}
+                onClick={() => (isSpeaking ? stopSpeaking() : speakQuestion())}
+                title="Read question aloud or replay"
+                aria-label="Read question aloud"
+                id="btn-read-aloud-question"
+              >
+                {isSpeaking ? '⏹ Stop' : '🔊 Read Aloud'}
+              </button>
+            )}
+          </div>
           
           {currentQuestion.helperText && (
             <p className="intake-question-helper" id={`helper-${currentQuestion.id}`}>
@@ -643,6 +870,83 @@ export function PatientIntakePage() {
                     {opt}
                   </button>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Microphone Voice Input (Web Speech API) */}
+          {hasSpeechRecognition ? (
+            <div className="intake-mic-container">
+              <button
+                type="button"
+                className={`intake-mic-btn ${isListening ? 'intake-mic-btn--listening' : ''}`}
+                onClick={isListening ? stopListening : startListening}
+                disabled={isSubmitting}
+                aria-label={isListening ? "Stop listening" : "Tap to speak answer"}
+                id="btn-mic-input"
+              >
+                <span aria-hidden="true">{isListening ? '⏹️' : '🎙️'}</span>
+                <span>{isListening ? 'Listening... Tap to Stop' : `Tap to Speak (${speechLangName})`}</span>
+              </button>
+              {isListening && (
+                <p className="intake-listening-hint" aria-live="polite">
+                  Listening in {speechLangName}... Speak clearly, then review your transcript below.
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="intake-speech-unsupported-note">
+              🎙️ Speech recognition not supported in this browser. Please use touch or typing below.
+            </p>
+          )}
+
+          {/* Editable Speech Transcript Banner */}
+          {speechTranscript && (
+            <div className="intake-transcript-banner" aria-live="polite">
+              <div className="intake-transcript-header">
+                <span className="intake-transcript-tag">Recognized Voice Answer</span>
+                <span className="intake-transcript-hint">Edit in the box below if needed</span>
+              </div>
+              <div className="intake-transcript-content">"{speechTranscript}"</div>
+            </div>
+          )}
+
+          {/* Safety Confirmation Step for Allergies & Medications */}
+          {pendingCriticalConfirmation && (
+            <div className="intake-critical-confirmation-card" role="dialog" aria-modal="true">
+              <div className="intake-critical-header">
+                <span aria-hidden="true">⚠️</span>
+                <h3>Confirm {pendingCriticalConfirmation.category}</h3>
+              </div>
+              <p className="intake-critical-desc">
+                Medicines and allergies are critical to your safety. Please verify what was understood before proceeding:
+              </p>
+              <div className="intake-critical-value-box">
+                <strong>Understood Answer:</strong> "{pendingCriticalConfirmation.answer}"
+              </div>
+              <div className="intake-critical-actions">
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    const ans = pendingCriticalConfirmation.answer;
+                    handleAnswerSubmit(ans);
+                  }}
+                  className="intake-btn-confirm-critical"
+                  id="intake-btn-confirm-critical"
+                >
+                  ✓ Confirm This Is Correct
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setPendingCriticalConfirmation(null);
+                    if (inputRef.current) inputRef.current.focus();
+                  }}
+                  className="intake-btn-edit-critical"
+                  id="intake-btn-edit-critical"
+                >
+                  ✏️ Correct / Edit Answer
+                </Button>
               </div>
             </div>
           )}

@@ -973,5 +973,272 @@
   color: #059669;
 }
 
+/* ==========================================================================
+   Voice & Touch Interaction (Web Speech API) Styles
+   ========================================================================== */
+
+.intake-voice-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.intake-voice-toggle-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.intake-voice-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-navy);
+}
+
+.intake-voice-toggle-btn {
+  min-height: 44px;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 2px solid var(--color-navy);
+  background-color: #f1f5f9;
+  color: var(--color-navy);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.intake-voice-toggle-btn--active {
+  background-color: var(--color-navy);
+  color: #ffffff;
+  border-color: var(--color-navy);
+  box-shadow: 2px 2px 0px rgba(15, 23, 42, 0.2);
+}
+
+.intake-speech-fallback-banner {
+  background-color: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.intake-prompt-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.intake-prompt-row .intake-question-prompt {
+  margin: 0;
+  flex: 1;
+}
+
+.intake-btn-read-aloud {
+  min-height: 44px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1.5px solid var(--color-navy);
+  background-color: #f8fafc;
+  color: var(--color-navy);
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.15s ease;
+}
+
+.intake-btn-read-aloud:hover {
+  background-color: #e2e8f0;
+}
+
+.intake-btn-read-aloud--speaking {
+  background-color: #fee2e2;
+  border-color: #ef4444;
+  color: #b91c1c;
+}
+
+/* Mic Button & Touch Interaction */
+.intake-mic-container {
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.intake-mic-btn {
+  width: 100%;
+  min-height: 52px;
+  padding: 0.75rem 1.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 2px solid var(--color-navy);
+  background-color: #ecfeff;
+  color: #0e7490;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  transition: all 0.2s ease;
+  box-shadow: 2px 2px 0px rgba(15, 23, 42, 0.1);
+}
+
+.intake-mic-btn:hover:not(:disabled) {
+  background-color: #cffafe;
+  transform: translateY(-1px);
+  box-shadow: 3px 3px 0px rgba(15, 23, 42, 0.15);
+}
+
+.intake-mic-btn--listening {
+  background-color: #fef2f2 !important;
+  border-color: #ef4444 !important;
+  color: #dc2626 !important;
+  animation: mic-pulse 1.5s infinite;
+}
+
+@keyframes mic-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.intake-listening-hint {
+  font-size: 0.85rem;
+  color: #0e7490;
+  text-align: center;
+  margin: 0;
+  font-weight: 500;
+}
+
+.intake-speech-unsupported-note {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  background-color: #f8fafc;
+  padding: 0.6rem 0.85rem;
+  border-radius: 6px;
+  border: 1px dashed var(--color-border);
+  margin: 0.75rem 0;
+}
+
+/* Transcript Box */
+.intake-transcript-banner {
+  background-color: #f0fdf4;
+  border: 1.5px solid #22c55e;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  margin: 1rem 0;
+}
+
+.intake-transcript-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+
+.intake-transcript-tag {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #166534;
+}
+
+.intake-transcript-hint {
+  font-size: 0.75rem;
+  color: #15803d;
+  font-style: italic;
+}
+
+.intake-transcript-content {
+  font-size: 0.95rem;
+  color: #14532d;
+  font-weight: 500;
+}
+
+/* Critical Medication & Allergy Confirmation Card */
+.intake-critical-confirmation-card {
+  background-color: #fffbeb;
+  border: 2px solid #d97706;
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin: 1.25rem 0;
+  animation: intake-fadeIn 0.25s ease;
+}
+
+.intake-critical-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.intake-critical-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #92400e;
+  font-weight: 700;
+}
+
+.intake-critical-desc {
+  font-size: 0.85rem;
+  color: #78350f;
+  margin: 0 0 0.75rem 0;
+}
+
+.intake-critical-value-box {
+  background-color: #ffffff;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  color: #1e293b;
+  margin-bottom: 1rem;
+}
+
+.intake-critical-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.intake-btn-confirm-critical {
+  min-height: 44px;
+  font-weight: 600;
+  background-color: #059669 !important;
+  border-color: #047857 !important;
+}
+
+.intake-btn-edit-critical {
+  min-height: 44px;
+  font-weight: 600;
+}
+
 
 
