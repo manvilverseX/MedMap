@@ -1,10 +1,12 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Dict, Optional, Any
 from datetime import datetime
 from enum import Enum
 
 
 class AISummary(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     chiefComplaint: str
     historyOfPresentIllness: str
     pastMedicalHistory: str

@@ -2,7 +2,7 @@ import pytest
 import os
 import json
 from datetime import datetime, timezone
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 from app.main import app
 from app.models.base import Base
@@ -215,3 +215,40 @@ def test_generate_ai_summary_validation_error(mock_generate, db_session, test_ca
 
     db_session.refresh(test_case)
     assert test_case.aiSummary is None
+
+
+def test_generate_clinical_brief_missing_key_fallback():
+    from app.services.ai_service import generate_clinical_brief
+    answers = {
+        "chief_complaint": "Persistent headache",
+        "present_illness": "Started 3 days ago",
+        "past_medical": "Hypertension",
+        "medications": "Amlodipine 5mg",
+        "allergies": "Penicillin",
+        "allergy_reaction": "Hives",
+    }
+    with patch.dict(os.environ, {}, clear=True):
+        summary = generate_clinical_brief(answers)
+        assert summary is not None
+        assert summary["source"] == "offline_demo_fallback"
+        assert summary["chiefComplaint"] == "Persistent headache"
+        assert "Hypertension" in summary["pastMedicalHistory"]
+        assert "Amlodipine" in summary["medications"]
+        assert "Penicillin" in summary["allergies"]
+
+
+def test_generate_clinical_brief_api_error_fallback():
+    from app.services.ai_service import generate_clinical_brief
+    answers = {
+        "chief_complaint": "Chest tightness",
+        "present_illness": "After exercise",
+    }
+    with patch.dict(os.environ, {"GROQ_API_KEY": "dummy_key"}):
+        with patch("groq.Groq") as mock_groq_class:
+            mock_client = MagicMock()
+            mock_client.chat.completions.create.side_effect = Exception("API connection error")
+            mock_groq_class.return_value = mock_client
+            summary = generate_clinical_brief(answers)
+            assert summary is not None
+            assert summary["source"] == "offline_demo_fallback"
+            assert summary["chiefComplaint"] == "Chest tightness"

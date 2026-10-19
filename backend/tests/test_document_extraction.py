@@ -273,3 +273,63 @@ def test_pillow_exif_orientation(tmp_path):
 
         # Verify it was called
         mock_transpose.assert_called_once()
+
+
+def test_document_extraction_missing_key_fallback(db, tmp_path):
+    from PIL import Image
+    from app.services.document_extraction import process_document
+
+    img = Image.new("RGB", (200, 200), color="white")
+    img_path = str(tmp_path / "rx_prescription.jpg")
+    img.save(img_path)
+
+    doc = PatientDocument(
+        id=str(uuid.uuid4()),
+        caseId="test-case-doc-fallback-1",
+        filename="sample_prescription.jpg",
+        storagePath=img_path,
+        mimeType="image/jpeg",
+        sizeBytes=1024,
+        createdAt=datetime.now(timezone.utc),
+    )
+    db.add(doc)
+    db.commit()
+
+    with patch.dict(os.environ, {}, clear=True):
+        processed = process_document(db, "test-case-doc-fallback-1", doc.id)
+        assert processed.extractionStatus == "completed"
+        assert processed.medicalEntities is not None
+        assert processed.medicalEntities.get("source") == "offline_demo_fallback"
+        assert len(processed.medicalEntities.get("medications", [])) > 0
+
+
+def test_document_extraction_api_error_fallback(db, tmp_path):
+    from PIL import Image
+    from app.services.document_extraction import process_document
+
+    img = Image.new("RGB", (200, 200), color="white")
+    img_path = str(tmp_path / "lab_report.jpg")
+    img.save(img_path)
+
+    doc = PatientDocument(
+        id=str(uuid.uuid4()),
+        caseId="test-case-doc-fallback-2",
+        filename="blood_lab_report.jpg",
+        storagePath=img_path,
+        mimeType="image/jpeg",
+        sizeBytes=1024,
+        createdAt=datetime.now(timezone.utc),
+    )
+    db.add(doc)
+    db.commit()
+
+    with patch.dict(os.environ, {"GROQ_API_KEY": "dummy_key"}):
+        with patch("groq.Groq") as mock_groq:
+            mock_client = MagicMock()
+            mock_client.chat.completions.create.side_effect = Exception("Groq Timeout")
+            mock_groq.return_value = mock_client
+            processed = process_document(db, "test-case-doc-fallback-2", doc.id)
+            assert processed.extractionStatus == "completed"
+            assert processed.medicalEntities is not None
+            assert processed.medicalEntities.get("source") == "offline_demo_fallback"
+            assert len(processed.medicalEntities.get("investigations", [])) > 0

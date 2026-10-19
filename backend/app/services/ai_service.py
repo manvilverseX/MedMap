@@ -7,18 +7,57 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+def generate_clinical_brief_fallback(intake_answers: dict) -> dict:
+    """Deterministic, safety-compliant clinical brief fallback when AI is offline or key is missing."""
+    def extract_val(key: str, default: str | None = None) -> str | None:
+        raw = intake_answers.get(key)
+        if isinstance(raw, dict):
+            val = raw.get("value") or raw.get("originalValue")
+            if val and str(val).strip():
+                return str(val).strip()
+            return default
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+        return default
+
+    cc = extract_val("chief_complaint", "Patient presents for consultation.")
+    hpi = extract_val("present_illness") or extract_val("hpi_timing") or "Patient provided symptom history during intake."
+    pmh = extract_val("past_medical", "No prior medical conditions reported.")
+    psh = extract_val("past_surgical")
+    meds = extract_val("medications")
+    allergies = extract_val("allergies")
+    allergy_reaction = extract_val("allergy_reaction")
+    if allergies and allergy_reaction:
+        allergies = f"{allergies} (Reaction: {allergy_reaction})"
+    fam = extract_val("family_history")
+    ros = extract_val("review_of_systems")
+
+    return {
+        "chiefComplaint": cc,
+        "historyOfPresentIllness": hpi,
+        "pastMedicalHistory": pmh,
+        "pastSurgicalHistory": psh,
+        "medications": meds,
+        "allergies": allergies,
+        "familyHistory": fam,
+        "reviewOfSystems": ros,
+        "source": "offline_demo_fallback",
+    }
+
 def generate_clinical_brief(intake_answers: dict) -> dict:
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        raise ValueError("GROQ_API_KEY environment variable is not set")
+        logger.info("GROQ_API_KEY is not set. Using deterministic offline demo fallback for clinical brief.")
+        return generate_clinical_brief_fallback(intake_answers)
     
     model_name = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
     
-    client = Groq(api_key=api_key)
-    
     schema_dict = AISummary.model_json_schema()
     schema_dict["additionalProperties"] = False
-    schema_dict["required"] = list(schema_dict["properties"].keys())
     
     prompt = f"""
     You are a medical summarization assistant. Review the following patient intake answers and generate a comprehensive clinical brief.
@@ -47,6 +86,7 @@ def generate_clinical_brief(intake_answers: dict) -> dict:
     """
     
     try:
+        client = Groq(api_key=api_key)
         response = client.chat.completions.create(
             model=model_name,
             messages=[
@@ -59,7 +99,8 @@ def generate_clinical_brief(intake_answers: dict) -> dict:
                     "strict": True,
                     "schema": schema_dict,
                 },
-            }
+            },
+            timeout=15.0
         )
         
         result_text = response.choices[0].message.content
@@ -67,10 +108,13 @@ def generate_clinical_brief(intake_answers: dict) -> dict:
             raise ValueError("Provider returned empty response")
             
         validated_summary = AISummary.model_validate_json(result_text)
-        return validated_summary.model_dump()
+        data = validated_summary.model_dump()
+        data["source"] = "groq"
+        return data
         
     except Exception as e:
-        raise RuntimeError(f"AI Generation Failed: {str(e)}")
+        logger.warning(f"Groq AI Generation failed ({type(e).__name__}: {str(e)}). Using offline demo fallback.")
+        return generate_clinical_brief_fallback(intake_answers)
 
 class AnswerValidation(BaseModel):
     needs_clarification: bool
@@ -85,7 +129,7 @@ def validate_answer_with_llm(question_prompt: str, answer_text: str) -> AnswerVa
         
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        raise ValueError("GROQ_API_KEY environment variable is not set")
+        return AnswerValidation(needs_clarification=False, clarifying_question=None)
     
     model_name = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
     client = Groq(api_key=api_key)
