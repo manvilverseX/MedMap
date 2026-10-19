@@ -46,9 +46,9 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         role: str = payload.get("role")
-        if role not in ["patient", "doctor"]:
+        if role not in ["patient", "doctor", "admin"]:
             raise credentials_exception
-            
+
         if role == "patient" and not payload.get("case_id"):
             raise credentials_exception
     except jwt.PyJWTError:

@@ -452,3 +452,72 @@ export const linkCareContext = async (abhaId: string, caseId: string): Promise<A
 
   return response.json();
 };
+
+export interface AdminQueueResponse {
+  statusCounts: {
+    intake: number;
+    patient_verifying: number;
+    doctor_review: number;
+    completed: number;
+    total: number;
+  };
+  cases: Array<{
+    caseId: string;
+    patientId: string;
+    language: string;
+    consultationType: string;
+    status: string;
+    hasRedFlags: boolean;
+    redFlagCount: number;
+    chiefComplaint: string;
+    redFlags: Array<{
+      category: string;
+      severity: string;
+      explanation: string;
+      evidence: string;
+      acknowledged: boolean;
+    }>;
+    lastUpdated: string | null;
+  }>;
+  redFlagAlerts: Array<{
+    caseId: string;
+    patientId: string;
+    category: string;
+    severity: string;
+    explanation: string;
+    evidence: string;
+    acknowledged: boolean;
+    caseStatus: string;
+    updatedAt: string | null;
+  }>;
+}
+
+export const getAdminQueue = async (): Promise<AdminQueueResponse> => {
+  const response = await fetch(`${API_BASE_URL}/admin/queue`, {
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
+  if (response.status === 401 || response.status === 403) {
+    throw new Error('Unauthorized');
+  }
+  if (!response.ok) {
+    throw new Error('Failed to load admin queue');
+  }
+  return response.json();
+};
+
+export const acknowledgeAdminAlert = async (caseId: string, category: string, explanation?: string): Promise<any> => {
+  const response = await fetch(`${API_BASE_URL}/admin/alerts/acknowledge`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({ caseId, category, explanation }),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to acknowledge alert');
+  }
+  return response.json();
+};

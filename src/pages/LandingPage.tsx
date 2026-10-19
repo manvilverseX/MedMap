@@ -26,6 +26,19 @@ export function LandingPage() {
           >
             Doctor Login
           </Link>
+          <div style={{ textAlign: 'center', marginTop: '0.25rem' }}>
+            <Link
+              to="/admin/login"
+              style={{
+                fontSize: '0.85rem',
+                color: 'var(--color-text-secondary)',
+                textDecoration: 'none',
+                fontWeight: 500,
+              }}
+            >
+              🏥 Hospital Admin / Triage Login →
+            </Link>
+          </div>
         </main>
       </div>
     </>

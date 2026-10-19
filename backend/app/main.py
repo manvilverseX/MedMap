@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1 import cases, auth, abdm
+from app.api.v1 import cases, auth, abdm, admin
 app = FastAPI(title="MedMap API", version="1.0.0")
 
 import os
@@ -30,3 +30,4 @@ def health_check():
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(cases.router, prefix="/api/v1/cases", tags=["cases"])
 app.include_router(abdm.router, prefix="/api/v1/abdm", tags=["abdm"])
+app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])

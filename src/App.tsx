@@ -7,6 +7,8 @@ import { PatientVerificationPage } from './pages/patient/PatientVerificationPage
 import { DoctorCasesPage } from './pages/doctor/DoctorCasesPage';
 import { DoctorCaseDetailPage } from './pages/doctor/DoctorCaseDetailPage';
 import { DoctorLoginPage } from './pages/doctor/DoctorLoginPage';
+import { AdminLoginPage } from './pages/admin/AdminLoginPage';
+import { AdminQueuePage } from './pages/admin/AdminQueuePage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import './index.css';
 
@@ -21,6 +23,8 @@ function App() {
       <Route path="/doctor/login" element={<DoctorLoginPage />} />
       <Route path="/doctor/cases" element={<DoctorCasesPage />} />
       <Route path="/doctor/cases/:caseId" element={<DoctorCaseDetailPage />} />
+      <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route path="/admin/queue" element={<AdminQueuePage />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
