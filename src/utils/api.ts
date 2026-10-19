@@ -302,3 +302,23 @@ export const getUnifiedCase = async (caseId: string): Promise<any> => {
   }
   return response.json();
 };
+
+export const getFhirBundle = async (caseId: string): Promise<any> => {
+  const response = await fetch(`${API_BASE_URL}/cases/${caseId}/fhir`, {
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
+  if (response.status === 401 || response.status === 403) {
+    throw new Error('Unauthorized');
+  }
+  if (!response.ok) {
+    let msg = 'Failed to load FHIR bundle';
+    try {
+      const err = await response.json();
+      if (err.detail) msg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+    } catch {}
+    throw new Error(msg);
+  }
+  return response.json();
+};

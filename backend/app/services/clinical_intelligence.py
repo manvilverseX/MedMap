@@ -1,6 +1,6 @@
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 class ClinicalRuleEngine:
     @staticmethod
@@ -18,7 +18,7 @@ class ClinicalRuleEngine:
                 "evidence": allergies,
                 "explanation": "History of severe allergic reaction (Anaphylaxis)",
                 "source": "patient_reported",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "status": "requires_review"
             })
             
@@ -32,7 +32,7 @@ class ClinicalRuleEngine:
                 "evidence": cc,
                 "explanation": "Reported chest pain requires immediate clinical assessment",
                 "source": "patient_reported",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "status": "requires_review"
             })
 

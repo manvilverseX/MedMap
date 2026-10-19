@@ -1,7 +1,7 @@
 from typing import Dict, Any, Optional
 import httpx
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 class AbdmSandboxService:
     def __init__(self):
@@ -45,7 +45,7 @@ class AbdmSandboxService:
                     "abhaId": abha_id,
                     "caseId": case_id,
                     "status": "linked",
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 }
             }
             

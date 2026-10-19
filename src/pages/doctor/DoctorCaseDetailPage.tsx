@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { DoctorCaseStatusBadge } from '../../components/doctor/DoctorCaseStatusBadge';
 import { DoctorSectionCard } from '../../components/doctor/DoctorSectionCard';
-import { getCase, getCaseDocuments, updateCase, generateAISummary, getClinicalIntelligence, getUnifiedCase, getDocumentFileUrl } from '../../utils/api';
+import { getCase, getCaseDocuments, updateCase, generateAISummary, getClinicalIntelligence, getUnifiedCase, getDocumentFileUrl, getFhirBundle } from '../../utils/api';
 import type { ClinicalCase } from '../../types/case';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { Button } from '../../components/Button';
@@ -30,6 +30,14 @@ export function DoctorCaseDetailPage() {
     followUp: ''
   });
   const [isSaving, setIsSaving] = useState(false);
+
+  // FHIR Bundle state
+  const [isFhirModalOpen, setIsFhirModalOpen] = useState(false);
+  const [fhirBundle, setFhirBundle] = useState<any>(null);
+  const [isFhirLoading, setIsFhirLoading] = useState(false);
+  const [fhirError, setFhirError] = useState<string | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
+  const [isJsonExpanded, setIsJsonExpanded] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -128,6 +136,59 @@ export function DoctorCaseDetailPage() {
     }
   };
 
+  const handleOpenFhirModal = async () => {
+    if (!caseId) return;
+    if (caseDetail?.status !== 'completed') {
+      setActionError('FHIR export is only available after the clinical case is finalized and marked completed.');
+      return;
+    }
+    setIsFhirModalOpen(true);
+    setIsFhirLoading(true);
+    setFhirError(null);
+    try {
+      const bundle = await getFhirBundle(caseId);
+      setFhirBundle(bundle);
+    } catch (err: any) {
+      setFhirError(err.message || 'Failed to generate FHIR Bundle.');
+    } finally {
+      setIsFhirLoading(false);
+    }
+  };
+
+  const handleCopyFhir = async () => {
+    if (!fhirBundle) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(fhirBundle, null, 2));
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleDownloadFhir = () => {
+    if (!fhirBundle || !caseDetail) return;
+    const blob = new Blob([JSON.stringify(fhirBundle, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fhir-bundle-${caseDetail.caseId}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const getResourceCounts = (bundle: any) => {
+    if (!bundle || !bundle.entry) return {};
+    const counts: Record<string, number> = {};
+    for (const entry of bundle.entry) {
+      const type = entry.resource?.resourceType || 'Unknown';
+      counts[type] = (counts[type] || 0) + 1;
+    }
+    return counts;
+  };
+
   if (loading) {
     return (
       <div className="doctor-detail-container" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -193,6 +254,24 @@ export function DoctorCaseDetailPage() {
             ← Back to Cases List
           </Link>
           <span className="detail-case-badge">{caseDetail.caseId}</span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            id="btn-fhir-bundle"
+            className={`btn-fhir-bundle ${caseDetail.status === 'completed' ? 'active' : 'disabled'}`}
+            onClick={handleOpenFhirModal}
+            disabled={caseDetail.status !== 'completed'}
+            title={caseDetail.status === 'completed' ? 'View and export FHIR R4 Bundle' : 'FHIR Bundle is only available after case is finalized'}
+          >
+            📦 FHIR Bundle
+          </button>
+          {caseDetail.status !== 'completed' && (
+            <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>
+              (Only enabled after finalization)
+            </span>
+          )}
         </div>
       </nav>
 
@@ -703,6 +782,24 @@ export function DoctorCaseDetailPage() {
             </div>
           )}
 
+          {caseDetail.status === 'completed' && (
+            <div className="clinical-section-card" style={{ padding: '1.25rem', marginBottom: '1.5rem', borderLeft: '4px solid var(--color-verify)' }}>
+              <h3 style={{ fontFamily: 'var(--font-hand)', fontSize: '1.25rem', margin: '0 0 0.5rem', color: 'var(--color-navy)' }}>
+                Case Finalized
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.85rem', lineHeight: 1.4 }}>
+                This clinical case has been completed. The standard HL7 FHIR R4 Bundle is ready for review and export.
+              </p>
+              <Button
+                variant="outline"
+                style={{ width: '100%', borderColor: 'var(--color-navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontWeight: 600 }}
+                onClick={handleOpenFhirModal}
+              >
+                📦 View FHIR Bundle
+              </Button>
+            </div>
+          )}
+
           {/* Case Metadata Panel */}
           <div className="clinical-section-card" style={{ padding: '1.25rem' }}>
             <h3 style={{ fontFamily: 'var(--font-hand)', fontSize: '1.25rem', margin: '0 0 0.75rem' }}>
@@ -727,6 +824,121 @@ export function DoctorCaseDetailPage() {
           </div>
         </aside>
       </main>
+
+      {/* FHIR Bundle Viewer Modal */}
+      {isFhirModalOpen && (
+        <div className="fhir-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="fhir-modal-title">
+          <div className="fhir-modal-content">
+            <div className="fhir-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <h2 id="fhir-modal-title" style={{ margin: 0, fontSize: '1.25rem', color: 'var(--color-navy)' }}>
+                  HL7 FHIR R4 Clinical Bundle
+                </h2>
+                <span className="fhir-chip" style={{ backgroundColor: '#e0f2fe', color: '#0369a1' }}>
+                  Standard R4
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFhirModalOpen(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '1.5rem',
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                  color: 'var(--color-text-secondary)',
+                  padding: '0.25rem 0.5rem',
+                }}
+                aria-label="Close FHIR Modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="fhir-modal-body">
+              {isFhirLoading ? (
+                <div style={{ padding: '3rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                  <span className="spinner" style={{ borderTopColor: 'var(--color-primary)' }}></span>
+                  <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>Assembling FHIR R4 Bundle from case entities...</p>
+                </div>
+              ) : fhirError ? (
+                <div style={{ padding: '1.5rem', backgroundColor: '#fee2e2', borderRadius: '8px', color: '#991b1b' }}>
+                  <strong>Error loading FHIR Bundle:</strong> {fhirError}
+                </div>
+              ) : fhirBundle ? (
+                <>
+                  {/* Summary Chips */}
+                  <div>
+                    <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Bundle Resources ({fhirBundle.entry?.length || 0} Total)
+                    </h4>
+                    <div className="fhir-chips-container">
+                      {Object.entries(getResourceCounts(fhirBundle)).map(([type, count]) => (
+                        <span key={type} className={`fhir-chip fhir-chip-${type}`}>
+                          <strong>{type}</strong>: {count}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Actions Bar */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsJsonExpanded(!isJsonExpanded)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--color-navy)',
+                        fontWeight: 600,
+                        fontSize: '0.85rem',
+                        cursor: 'pointer',
+                        padding: 0,
+                      }}
+                    >
+                      {isJsonExpanded ? '▼ Collapse Pretty JSON' : '▶ Expand Pretty JSON'}
+                    </button>
+
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <Button
+                        variant="outline"
+                        onClick={handleCopyFhir}
+                        style={{ fontSize: '0.82rem', padding: '0.35rem 0.75rem' }}
+                      >
+                        {isCopied ? '✓ Copied!' : '📋 Copy JSON'}
+                      </Button>
+                      <Button
+                        variant="primary"
+                        onClick={handleDownloadFhir}
+                        style={{ fontSize: '0.82rem', padding: '0.35rem 0.75rem', backgroundColor: '#0d9488', borderColor: '#0d9488' }}
+                      >
+                        ⬇ Download .json
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Collapsible Pretty JSON View */}
+                  {isJsonExpanded && (
+                    <pre className="fhir-json-viewer" aria-label="FHIR R4 JSON Payload">
+                      <code>{JSON.stringify(fhirBundle, null, 2)}</code>
+                    </pre>
+                  )}
+                </>
+              ) : null}
+            </div>
+
+            <div className="fhir-modal-footer">
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                FHIR R4 bundle compiled from verified clinical case, conditions, medications, and investigations.
+              </span>
+              <Button variant="outline" onClick={() => setIsFhirModalOpen(false)}>
+                Done
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
