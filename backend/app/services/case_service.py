@@ -16,7 +16,8 @@ def create_case(db: Session, data: CaseCreate) -> CaseResponse:
         updatedAt=now,
         language=data.language,
         consentGranted=data.consentGranted,
-        status="intake"
+        status="intake",
+        intakeAnswers=data.intakeAnswers
     )
     db.add(db_case)
     db.commit()

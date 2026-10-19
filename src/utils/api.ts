@@ -8,14 +8,24 @@ const getAuthHeaders = (): Record<string, string> => {
   return token ? { 'Authorization': `Bearer ${token}` } : {};
 };
 
-export const createCase = async (patientId: string, language?: string, consentGranted?: boolean): Promise<ClinicalCase> => {
+export const createCase = async (
+  patientId: string,
+  language?: string,
+  consentGranted?: boolean,
+  consultationType?: string
+): Promise<ClinicalCase> => {
+  const bodyPayload: Record<string, any> = { patientId, language, consentGranted };
+  if (consultationType) {
+    bodyPayload.intakeAnswers = { consultation_type: consultationType };
+  }
+
   const response = await fetch(`${API_BASE_URL}/cases`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...getAuthHeaders(),
     },
-    body: JSON.stringify({ patientId, language, consentGranted }),
+    body: JSON.stringify(bodyPayload),
   });
 
   if (!response.ok) {

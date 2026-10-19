@@ -28,6 +28,7 @@ class CaseCreate(BaseModel):
     patientId: str
     language: Optional[str] = None
     consentGranted: bool = False
+    intakeAnswers: Optional[Dict[str, Any]] = None
 
 
 class CaseUpdate(BaseModel):

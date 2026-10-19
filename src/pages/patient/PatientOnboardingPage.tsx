@@ -8,6 +8,7 @@ import { ErrorMessage } from '../../components/ErrorMessage';
 export function PatientOnboardingPage() {
   const [patientId, setPatientId] = useState('');
   const [language, setLanguage] = useState('English');
+  const [consultationType, setConsultationType] = useState('general');
   const [hasConsent, setHasConsent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +27,7 @@ export function PatientOnboardingPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const newCase = await createCase(patientId, language, hasConsent);
+      const newCase = await createCase(patientId, language, hasConsent, consultationType);
       setCaseId(newCase.caseId);
       navigate('/patient/intake');
     } catch (err) {
@@ -41,15 +42,15 @@ export function PatientOnboardingPage() {
       <header>
         <div className="logo">Patient Onboarding</div>
       </header>
-      <main style={{ marginTop: '2rem', maxWidth: '400px' }}>
+      <main style={{ marginTop: '2rem', maxWidth: '440px' }}>
         <h2>Welcome to MedMap</h2>
         <p>Please enter your details to start.</p>
         
         <ErrorMessage message={error} />
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <div>
-            <label htmlFor="patientId" style={{ display: 'block', marginBottom: '0.5rem' }}>Patient ID:</label>
+            <label htmlFor="patientId" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Patient ID:</label>
             <input 
               id="patientId"
               type="text" 
@@ -57,21 +58,38 @@ export function PatientOnboardingPage() {
               onChange={(e) => setPatientId(e.target.value)}
               placeholder="e.g. p-12345"
               required
-              style={{ width: '100%', padding: '0.5rem' }}
+              style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
             />
           </div>
           <div>
-            <label htmlFor="language" style={{ display: 'block', marginBottom: '0.5rem' }}>Preferred Language:</label>
+            <label htmlFor="language" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Preferred Language:</label>
             <select 
               id="language"
               value={language} 
               onChange={(e) => setLanguage(e.target.value)}
-              style={{ width: '100%', padding: '0.5rem' }}
+              style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
             >
               <option value="English">English</option>
               <option value="Hindi">Hindi</option>
               <option value="Kannada">Kannada</option>
             </select>
+          </div>
+          <div>
+            <label htmlFor="consultationType" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Consultation Type:</label>
+            <select
+              id="consultationType"
+              value={consultationType}
+              onChange={(e) => setConsultationType(e.target.value)}
+              style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
+            >
+              <option value="general">General Clinical History</option>
+              <option value="ayush">AYUSH / Ayurveda History</option>
+            </select>
+            <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+              {consultationType === 'ayush'
+                ? 'AYUSH includes general clinical history first, followed by Ayurvedic Dashavidha Pariksha questionnaire.'
+                : 'Standard clinical history: symptoms, medications, allergies, and health background.'}
+            </p>
           </div>
           <div>
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer' }}>

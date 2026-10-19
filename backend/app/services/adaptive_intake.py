@@ -25,6 +25,14 @@ from app.services.interview_engine.safety_evaluator import (
     SafetyCheckResult,
     evaluate_emergency_safety,
 )
+from app.services.interview_engine.ayush_questions import (
+    AYUSH_QUESTIONS,
+    AYUSH_QUESTION_MAP,
+    is_ayush_consultation,
+    get_ayush_question,
+    get_next_ayush_question,
+    sync_ayush_answers,
+)
 
 
 INTAKE_QUESTIONS: tuple[IntakeQuestion, ...] = (
@@ -164,6 +172,65 @@ INTAKE_QUESTIONS: tuple[IntakeQuestion, ...] = (
             "Dizziness or lightheadedness",
             "Unexplained weight change",
             "Nausea or appetite loss",
+        ),
+    ),
+    IntakeQuestion(
+        id="personal_diet",
+        category="Personal History: Diet",
+        prompt="What best describes your usual daily diet?",
+        helperText="Include whether your diet is vegetarian, non-vegetarian, or vegan.",
+        inputType="textarea",
+        options=(
+            "Vegetarian",
+            "Non-vegetarian",
+            "Vegan / Plant-based",
+            "Mixed / Flexitarian",
+            "Not sure",
+        ),
+    ),
+    IntakeQuestion(
+        id="personal_sleep",
+        category="Personal History: Sleep",
+        prompt="How would you describe your sleep pattern and quality?",
+        helperText="Hours of sleep and whether you wake up feeling rested.",
+        inputType="textarea",
+        options=(
+            "Normal (6-8 hours restful sleep)",
+            "Disturbed / Frequent waking",
+            "Difficulty falling asleep (Insomnia)",
+            "Excessive sleepiness / Daytime fatigue",
+            "Not sure",
+        ),
+    ),
+    IntakeQuestion(
+        id="personal_habits",
+        category="Personal History: Habits",
+        prompt="Do you consume tobacco, nicotine products, or alcohol?",
+        helperText="This helps your clinician evaluate cardiovascular and metabolic risks.",
+        inputType="textarea",
+        options=(
+            "None / Never used",
+            "Occasional alcohol",
+            "Regular alcohol",
+            "Smoker / Tobacco user",
+            "Past user (now quit)",
+            "Prefer not to say",
+        ),
+    ),
+    IntakeQuestion(
+        id="personal_occupation",
+        category="Personal History: Occupation",
+        prompt="What is your current occupation or daily routine environment?",
+        helperText="Physical demands or environment of your daily routine.",
+        inputType="textarea",
+        options=(
+            "Desk / Sedentary work",
+            "Active / Field work",
+            "Manual labor / Physical",
+            "Student",
+            "Homemaker / Caregiver",
+            "Retired / Not currently working",
+            "Not sure",
         ),
     ),
 )
@@ -409,7 +476,12 @@ def select_intake_state(
     deterministic policy validation, and defensible stopping conditions.
     """
     answer_map = _normalized_answers(answers)
+    answer_map = sync_ayush_answers(answer_map)
     by_id = {q.id: q for q in questions}
+    # Index AYUSH questions
+    for ay_q in AYUSH_QUESTIONS:
+        if ay_q.id not in by_id:
+            by_id[ay_q.id] = ay_q
     # Also index curated gap questions
     for gap_id, q_data in CURATED_GAP_QUESTIONS.items():
         if q_data["id"] not in by_id:
@@ -450,6 +522,8 @@ def select_intake_state(
     malformed_ids: list[str] = []
 
     for q_key, raw_val in answer_map.items():
+        if q_key in ("ayush", "consultation_type", "consultationType"):
+            continue
         if isinstance(raw_val, str):
             answered_ids.append(q_key)
             if not raw_val.strip():
@@ -602,6 +676,25 @@ def select_intake_state(
         )
 
     if next_state in (IntakeState.COMPLETE, IntakeState.INCOMPLETE):
+        if next_state == IntakeState.COMPLETE and is_ayush_consultation(answer_map):
+            next_ayush = get_next_ayush_question(answer_map)
+            if next_ayush:
+                prev_id = answered_ids[-1] if answered_ids else None
+                current_idx = len(answered_ids) + 1
+                total_est = len(answered_ids) + len(AYUSH_QUESTIONS)
+                return IntakeSessionState(
+                    state=IntakeState.QUESTION,
+                    currentQuestion=next_ayush,
+                    previousQuestionId=prev_id,
+                    currentQuestionIndex=current_idx,
+                    totalEligibleQuestions=total_est,
+                    questionMeta={
+                        "purpose": next_ayush.category,
+                        "gapExplored": "ayush",
+                    },
+                    **state_kwargs,
+                )
+
         return IntakeSessionState(
             state=next_state,
             currentQuestion=None,

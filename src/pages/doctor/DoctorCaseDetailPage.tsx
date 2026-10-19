@@ -246,7 +246,9 @@ export function DoctorCaseDetailPage() {
               )}
 
               <div className="history-subsection">
-                {Object.entries(caseDetail.intakeAnswers).map(([question, answer], i) => {
+                {Object.entries(caseDetail.intakeAnswers)
+                  .filter(([question]) => question !== 'ayush' && question !== 'consultation_type' && !question.startsWith('ayush_'))
+                  .map(([question, answer], i) => {
                   const structuredInfo = (caseDetail.derivedClinicalData?.structuredIntake || {})[question] || {};
                   const answerText = typeof answer === 'string' ? answer : (answer?.value || answer?.originalValue || '');
                   const isSkipped = !answerText || answerText.trim().length === 0;
@@ -310,6 +312,64 @@ export function DoctorCaseDetailPage() {
               <span className="empty-icon">📝</span>
               <h3 className="empty-title">No Intake Responses</h3>
               <p className="empty-desc">The patient has not completed the intake questionnaire.</p>
+            </div>
+          )}
+
+          {/* AYUSH / Ayurveda History Section (Dashavidha Pariksha) */}
+          {(caseDetail.intakeAnswers?.ayush || caseDetail.intakeAnswers?.consultation_type === 'ayush' || Object.keys(caseDetail.intakeAnswers || {}).some(k => k.startsWith('ayush_'))) && (
+            <div style={{ marginTop: '2rem' }}>
+              <DoctorSectionCard title="Ayurveda History (Dashavidha Pariksha)" tag="AYUSH Pathway">
+                <div style={{ padding: '0.75rem 1rem', marginBottom: '1.25rem', backgroundColor: '#fef3c7', border: '1px solid #f59e0b', borderRadius: '8px' }}>
+                  <strong style={{ color: '#92400e', display: 'block', fontSize: '0.85rem' }}>
+                    ⚠️ Draft Questionnaire: Requires Review by a Qualified Ayurvedic Practitioner
+                  </strong>
+                  <span style={{ fontSize: '0.8rem', color: '#78350f' }}>
+                    Patient-reported Ayurvedic observations only. AI does not produce a Prakriti or Ayurvedic diagnosis.
+                  </span>
+                </div>
+
+                <div className="history-subsection">
+                  {Object.entries({
+                    prakriti: "Prakriti (Natural Constitution)",
+                    vikriti: "Vikriti (Current Imbalance)",
+                    sara: "Sara (Tissue Excellence / Vitality)",
+                    samhanana: "Samhanana (Body Compactness)",
+                    pramana: "Pramana (Anthropometric Proportions)",
+                    satmya: "Satmya (Dietary & Environmental Adaptability)",
+                    sattva: "Sattva (Mental Strength & Resilience)",
+                    ahara_shakti: "Ahara Shakti (Food Intake & Digestion Capacity)",
+                    vyayama_shakti: "Vyayama Shakti (Physical Endurance)",
+                    vaya: "Vaya (Age & Life Stage)",
+                    agni: "Agni (Digestive & Metabolic Fire)",
+                    koshtha: "Koshtha (Bowel Habit & Gastrointestinal Tendency)",
+                    ahara_vihara: "Ahara-Vihara (Dietary & Lifestyle Habits)",
+                    nidana: "Nidana (Perceived Causes & Triggers)",
+                  }).map(([key, label]) => {
+                    const ayushAnswers = (caseDetail.intakeAnswers?.ayush as Record<string, any>) || {};
+                    const rawVal = ayushAnswers[key] || caseDetail.intakeAnswers?.[`ayush_${key}`];
+                    const valText = typeof rawVal === 'string' ? rawVal : (rawVal?.value || rawVal?.originalValue || '');
+                    return (
+                      <div key={key} style={{ marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--color-border-subtle)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-navy)', fontWeight: 600 }}>{label}</h4>
+                          <span className="verification-badge" style={{ backgroundColor: valText ? 'rgba(6, 182, 212, 0.1)' : 'rgba(15, 23, 42, 0.05)', color: valText ? '#0891b2' : 'var(--color-text-secondary)', border: '1px solid var(--color-border)', fontSize: '0.75rem' }}>
+                            {valText ? 'Patient-Reported' : 'Not Provided'}
+                          </span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: valText ? 'var(--color-text)' : 'var(--color-text-secondary)', fontStyle: valText ? 'normal' : 'italic' }}>
+                          {valText || '(Not reported)'}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{ marginTop: '1.25rem', paddingTop: '0.75rem', borderTop: '1px solid var(--color-border-subtle)', textAlign: 'center' }}>
+                  <small style={{ color: 'var(--color-text-secondary)', fontSize: '0.75rem' }}>
+                    Draft questionnaire: requires review by a qualified Ayurvedic practitioner.
+                  </small>
+                </div>
+              </DoctorSectionCard>
             </div>
           )}
 

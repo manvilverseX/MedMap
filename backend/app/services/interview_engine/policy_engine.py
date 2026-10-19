@@ -217,6 +217,65 @@ CURATED_GAP_QUESTIONS: dict[str, dict[str, Any]] = {
             "Trouble sleeping",
         ),
     },
+    ClinicalGap.PERSONAL_DIET: {
+        "id": "personal_diet",
+        "category": "Personal History: Diet",
+        "prompt": "What best describes your usual daily diet?",
+        "helperText": "Include whether your diet is vegetarian, non-vegetarian, or vegan.",
+        "inputType": "textarea",
+        "options": (
+            "Vegetarian",
+            "Non-vegetarian",
+            "Vegan / Plant-based",
+            "Mixed / Flexitarian",
+            "Not sure",
+        ),
+    },
+    ClinicalGap.PERSONAL_SLEEP: {
+        "id": "personal_sleep",
+        "category": "Personal History: Sleep",
+        "prompt": "How would you describe your sleep pattern and quality?",
+        "helperText": "Hours of sleep and whether you wake up feeling rested.",
+        "inputType": "textarea",
+        "options": (
+            "Normal (6-8 hours restful sleep)",
+            "Disturbed / Frequent waking",
+            "Difficulty falling asleep (Insomnia)",
+            "Excessive sleepiness / Daytime fatigue",
+            "Not sure",
+        ),
+    },
+    ClinicalGap.PERSONAL_HABITS: {
+        "id": "personal_habits",
+        "category": "Personal History: Habits",
+        "prompt": "Do you consume tobacco, nicotine products, or alcohol?",
+        "helperText": "This helps your clinician evaluate cardiovascular and metabolic risks.",
+        "inputType": "textarea",
+        "options": (
+            "None / Never used",
+            "Occasional alcohol",
+            "Regular alcohol",
+            "Smoker / Tobacco user",
+            "Past user (now quit)",
+            "Prefer not to say",
+        ),
+    },
+    ClinicalGap.PERSONAL_OCCUPATION: {
+        "id": "personal_occupation",
+        "category": "Personal History: Occupation",
+        "prompt": "What is your current occupation or daily routine environment?",
+        "helperText": "Physical demands or environment of your daily routine.",
+        "inputType": "textarea",
+        "options": (
+            "Desk / Sedentary work",
+            "Active / Field work",
+            "Manual labor / Physical",
+            "Student",
+            "Homemaker / Caregiver",
+            "Retired / Not currently working",
+            "Not sure",
+        ),
+    },
 }
 
 
@@ -263,25 +322,31 @@ class InterviewPolicyEngine:
             )
             return IntakeState.QUESTION, question, None, None
 
-        # 3. Emergency Question Ceiling Check (Prevent runaway cost / looping)
-        answered_keys = [k for k, v in answers.items() if extract_answer_text(v).strip()]
-        if len(answered_keys) >= cls.EMERGENCY_QUESTION_CEILING:
-            return IntakeState.INCOMPLETE, None, None, "emergency_ceiling_reached"
+        # 3. Filter clinical answer keys (excluding metadata and specialized AYUSH branch keys)
+        answered_keys = [
+            k for k, v in answers.items()
+            if not k.startswith("ayush_")
+            and k not in ("ayush", "consultation_type", "consultationType")
+            and extract_answer_text(v).strip()
+        ]
 
         # 4. Identify Resolved and Unresolved Gaps
         resolved_gaps, unresolved_gaps = identify_unresolved_gaps(answers, cc_text)
 
         # 5. Check Defensible Stopping Conditions
-        # Core requirements: Chief complaint, HPI timing, medications, allergies must be answered or marked unknown
+        if not unresolved_gaps:
+            return IntakeState.COMPLETE, None, None, "all_clinical_gaps_resolved"
+
+        # Emergency Question Ceiling Check (Prevent runaway cost / looping when gaps remain unresolved)
+        if len(answered_keys) >= cls.EMERGENCY_QUESTION_CEILING:
+            return IntakeState.INCOMPLETE, None, None, "emergency_ceiling_reached"
+
         has_core_coverage = (
             ClinicalGap.CHIEF_COMPLAINT in resolved_gaps
             and (ClinicalGap.HPI_TIMING in resolved_gaps or len(resolved_gaps) >= 3)
             and ClinicalGap.MEDICATIONS in resolved_gaps
             and ClinicalGap.ALLERGIES in resolved_gaps
         )
-
-        if not unresolved_gaps:
-            return IntakeState.COMPLETE, None, None, "all_clinical_gaps_resolved"
 
         # 6. Select the Highest-Priority Unresolved Gap
         target_gap = unresolved_gaps[0]

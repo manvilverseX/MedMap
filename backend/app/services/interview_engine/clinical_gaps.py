@@ -18,6 +18,10 @@ class ClinicalGap:
     PAST_SURGICAL = "past_surgical"  # previous procedures
     FAMILY_HISTORY = "family_history"  # family risk factors
     REVIEW_OF_SYSTEMS = "review_of_systems"  # systemic review
+    PERSONAL_DIET = "personal_diet"  # dietary pattern
+    PERSONAL_SLEEP = "personal_sleep"  # sleep quality & pattern
+    PERSONAL_HABITS = "personal_habits"  # tobacco, nicotine, alcohol
+    PERSONAL_OCCUPATION = "personal_occupation"  # occupation & daily environment
 
 
 # Mapping of question ID to the gap it addresses
@@ -37,6 +41,10 @@ QUESTION_ID_TO_GAP: dict[str, str] = {
     "past_surgical": ClinicalGap.PAST_SURGICAL,
     "family_history": ClinicalGap.FAMILY_HISTORY,
     "review_of_systems": ClinicalGap.REVIEW_OF_SYSTEMS,
+    "personal_diet": ClinicalGap.PERSONAL_DIET,
+    "personal_sleep": ClinicalGap.PERSONAL_SLEEP,
+    "personal_habits": ClinicalGap.PERSONAL_HABITS,
+    "personal_occupation": ClinicalGap.PERSONAL_OCCUPATION,
 }
 
 
@@ -107,6 +115,23 @@ def determine_required_gaps(
 
     syndrome = classify_chief_complaint(complaint_text)
 
+    consult_type = ""
+    if current_answers:
+        consult_type = str(current_answers.get("consultation_type") or current_answers.get("consultationType") or "").lower()
+
+    include_personal_history = bool(
+        consult_type in ("general", "ayush")
+        or any(
+            k in (current_answers or {})
+            for k in (
+                ClinicalGap.PERSONAL_DIET,
+                ClinicalGap.PERSONAL_SLEEP,
+                ClinicalGap.PERSONAL_HABITS,
+                ClinicalGap.PERSONAL_OCCUPATION,
+            )
+        )
+    )
+
     # Core background and contextual domains
     background_gaps = [
         ClinicalGap.PAST_MEDICAL,
@@ -116,6 +141,13 @@ def determine_required_gaps(
         ClinicalGap.FAMILY_HISTORY,
         ClinicalGap.REVIEW_OF_SYSTEMS,
     ]
+    if include_personal_history:
+        background_gaps.extend([
+            ClinicalGap.PERSONAL_DIET,
+            ClinicalGap.PERSONAL_SLEEP,
+            ClinicalGap.PERSONAL_HABITS,
+            ClinicalGap.PERSONAL_OCCUPATION,
+        ])
 
     # Check if the interview has already advanced into the medical background stage
     has_background_answers = False
