@@ -1113,3 +1113,120 @@
 .audit-chip-case_finalized { background: #fce7f3; color: #9d174d; }
 .audit-chip-fhir_exported { background: #ccfbf1; color: #115e59; }
 .audit-chip-abdm_mock_action { background: #ffedd5; color: #9a3412; }
+
+/* ==========================================================================
+   Mobile & Responsive Layout Enhancements (< 900px and < 600px)
+   ========================================================================== */
+
+@media (max-width: 900px) {
+  .detail-main-layout {
+    grid-template-columns: 1fr;
+  }
+  .detail-sidebar-column {
+    position: static;
+  }
+}
+
+@media (max-width: 600px) {
+  .doctor-detail-container {
+    padding: 1rem 0.75rem 3rem;
+  }
+
+  .detail-top-nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .detail-nav-left {
+    justify-content: space-between;
+  }
+
+  .detail-case-header {
+    padding: 1rem;
+  }
+
+  .detail-patient-name {
+    font-size: 1.6rem;
+  }
+
+  .detail-demographics-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+
+  .detail-main-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  .detail-content-column,
+  .detail-sidebar-column {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Table and wide element scrolling inside their own container */
+  .doctor-table-wrapper,
+  table,
+  .fhir-json-viewer,
+  pre {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .clinical-section-card {
+    padding: 1rem;
+  }
+
+  /* Ensure touch targets are at least 44px */
+  button,
+  .btn-back-link,
+  .btn-item-ctrl,
+  .view-tab-btn,
+  .btn-fhir-bundle {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .item-review-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .item-actions-group {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .item-actions-group .btn-item-ctrl {
+    flex: 1 1 auto;
+  }
+
+  .view-tabs-container {
+    flex-direction: column;
+  }
+
+  .view-tab-btn {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* Accessible focus states and minimum touch target size */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--color-primary, #0284c7);
+  outline-offset: 2px;
+}
