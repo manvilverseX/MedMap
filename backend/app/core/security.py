@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from dotenv import load_dotenv
 
@@ -17,6 +17,7 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days for prototype convenience
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/doctor/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/doctor/login", auto_error=False)
 
 import uuid
 
@@ -68,6 +69,21 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         ) from exc
 
     return payload
+
+def get_optional_current_user(token: Optional[str] = Depends(oauth2_scheme_optional), db: Session = Depends(get_db)) -> Optional[Dict[str, Any]]:
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        role: str = payload.get("role")
+        if role not in ["patient", "doctor", "admin"]:
+            return None
+        is_blocked = db.query(TokenBlocklist).filter(TokenBlocklist.token == token).first()
+        if is_blocked:
+            return None
+        return payload
+    except Exception:
+        return None
 
 def require_doctor(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     if current_user.get("role") != "doctor":

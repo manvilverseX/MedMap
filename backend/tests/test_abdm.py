@@ -100,3 +100,37 @@ def test_abdm_sandbox_link_unauthorized():
     )
     assert link_res.status_code == 403
     assert link_res.json()["detail"] == "Not authorized to link this case"
+
+
+def test_abdm_sandbox_verify_without_auth_token():
+    # An onboarding patient who does not have an active session yet can verify their ABHA ID
+    response = client.post(
+        "/api/v1/abdm/verify",
+        json={"abhaId": "test-1234-5678"}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert data["mode"] == "simulation"
+    assert data["data"]["abhaId"] == "test-1234-5678"
+
+
+def test_abdm_sandbox_link_by_doctor():
+    from app.core.security import create_access_token
+    # Create a case as patient
+    res = client.post("/api/v1/cases", json={"patientId": "pat-1", "consentGranted": True})
+    case_id = res.json()["case"]["caseId"]
+
+    # Generate doctor token
+    doctor_token = create_access_token(data={"role": "doctor", "sub": "doc-test"})
+
+    link_res = client.post(
+        "/api/v1/abdm/link-context",
+        headers={"Authorization": f"Bearer {doctor_token}"},
+        json={"abhaId": "doctor-verified-abha-9999", "caseId": case_id}
+    )
+    assert link_res.status_code == 200
+    data = link_res.json()
+    assert data["success"] is True
+    assert data["data"]["status"] == "linked"
+    assert data["data"]["caseId"] == case_id

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { DoctorCaseStatusBadge } from '../../components/doctor/DoctorCaseStatusBadge';
 import { DoctorSectionCard } from '../../components/doctor/DoctorSectionCard';
-import { getCase, getCaseDocuments, updateCase, generateAISummary, getClinicalIntelligence, getUnifiedCase, getDocumentFileUrl, getFhirBundle, reviewClinicalItem, getCaseAuditTrail } from '../../utils/api';
+import { getCase, getCaseDocuments, updateCase, generateAISummary, getClinicalIntelligence, getUnifiedCase, getDocumentFileUrl, getFhirBundle, reviewClinicalItem, getCaseAuditTrail, linkCareContext } from '../../utils/api';
 import type { ClinicalCase } from '../../types/case';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { Button } from '../../components/Button';
@@ -52,7 +52,53 @@ export function DoctorCaseDetailPage() {
     documentId?: string;
     originalAnswer?: string;
   } | null>(null);
+
+  // Phase 7: ABDM Simulation Modal state
+  const [isAbdmModalOpen, setIsAbdmModalOpen] = useState(false);
+  const [abdmAbhaId, setAbdmAbhaId] = useState('');
+  const [abdmConsentLink, setAbdmConsentLink] = useState(true);
+  const [abdmConsentExchange, setAbdmConsentExchange] = useState(true);
+  const [isSharingAbdm, setIsSharingAbdm] = useState(false);
+  const [abdmShareError, setAbdmShareError] = useState<string | null>(null);
+  const [abdmShareSuccess, setAbdmShareSuccess] = useState(false);
+  const [abdmShareResult, setAbdmShareResult] = useState<any>(null);
+
   const navigate = useNavigate();
+
+  const handleOpenAbdmModal = () => {
+    if (!caseDetail) return;
+    const defaultAbha = caseDetail.intakeAnswers?.abha_id || `abha-${caseDetail.patientId}`;
+    setAbdmAbhaId(defaultAbha);
+    setAbdmShareError(null);
+    setAbdmShareSuccess(false);
+    setAbdmShareResult(null);
+    setIsAbdmModalOpen(true);
+  };
+
+  const handleShareToAbdm = async () => {
+    if (!caseDetail || !abdmAbhaId.trim()) {
+      setAbdmShareError('Please enter a valid ABHA ID');
+      return;
+    }
+    if (!abdmConsentLink || !abdmConsentExchange) {
+      setAbdmShareError('Both consent authorizations are required for ABDM Care Context Exchange.');
+      return;
+    }
+    setIsSharingAbdm(true);
+    setAbdmShareError(null);
+    try {
+      const result = await linkCareContext(abdmAbhaId.trim(), caseDetail.caseId);
+      setAbdmShareResult(result);
+      setAbdmShareSuccess(true);
+      if (caseId) {
+        getCaseAuditTrail(caseId).then(setAuditEvents).catch(() => {});
+      }
+    } catch (err: any) {
+      setAbdmShareError(err.message || 'Failed to complete simulated ABDM share.');
+    } finally {
+      setIsSharingAbdm(false);
+    }
+  };
 
   useEffect(() => {
     if (!caseId) {
@@ -1175,11 +1221,32 @@ export function DoctorCaseDetailPage() {
               </p>
               <Button
                 variant="outline"
-                style={{ width: '100%', borderColor: 'var(--color-navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontWeight: 600 }}
+                style={{ width: '100%', borderColor: 'var(--color-navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontWeight: 600, marginBottom: '0.6rem' }}
                 onClick={handleOpenFhirModal}
               >
                 📦 View FHIR Bundle
               </Button>
+              <Button
+                variant="primary"
+                style={{
+                  width: '100%',
+                  backgroundColor: '#0284c7',
+                  borderColor: '#0284c7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  fontWeight: 600,
+                }}
+                onClick={handleOpenAbdmModal}
+              >
+                🔗 Share to ABDM (simulation)
+              </Button>
+              <div style={{ marginTop: '0.4rem', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.72rem', backgroundColor: '#fef3c7', color: '#92400e', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #fde68a', fontWeight: 600, display: 'inline-block' }}>
+                  Simulation: not connected to ABDM
+                </span>
+              </div>
             </div>
           )}
 
@@ -1418,6 +1485,184 @@ export function DoctorCaseDetailPage() {
               <Button variant="outline" onClick={() => setEvidenceModalItem(null)}>
                 Close
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Phase 7: ABDM Simulation Modal */}
+      {isAbdmModalOpen && caseDetail && (
+        <div className="fhir-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="abdm-modal-title">
+          <div className="fhir-modal-content" style={{ maxWidth: '650px' }}>
+            <div className="fhir-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                <h2 id="abdm-modal-title" style={{ margin: 0, fontSize: '1.2rem', color: 'var(--color-navy)' }}>
+                  Share to ABDM (Simulation)
+                </h2>
+                <span style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  padding: '0.15rem 0.45rem',
+                  borderRadius: '4px',
+                  backgroundColor: '#fef3c7',
+                  color: '#92400e',
+                  border: '1px solid #fde68a',
+                }}>
+                  Simulation: not connected to ABDM
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAbdmModalOpen(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '1.5rem',
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                  color: 'var(--color-text-secondary)',
+                  padding: '0.25rem 0.5rem',
+                }}
+                aria-label="Close ABDM Modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="fhir-modal-body">
+              {abdmShareError && (
+                <div style={{ padding: '0.75rem 1rem', backgroundColor: '#fee2e2', borderRadius: '6px', color: '#991b1b', fontSize: '0.85rem' }}>
+                  {abdmShareError}
+                </div>
+              )}
+
+              {!abdmShareSuccess ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ padding: '0.85rem', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-navy)' }}>
+                        Patient ABHA Identifier
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: '#0369a1', backgroundColor: '#e0f2fe', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                        Simulated Sandbox
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      value={abdmAbhaId}
+                      onChange={(e) => setAbdmAbhaId(e.target.value)}
+                      placeholder="e.g. 14-digit ABHA number or patient@abdm"
+                      style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--color-border)', fontSize: '0.9rem' }}
+                    />
+                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '0.35rem', display: 'block' }}>
+                      Care Context Reference: <strong>{caseDetail.caseId}</strong>
+                    </span>
+                  </div>
+
+                  {/* Granular Revocable Consent Step */}
+                  <div style={{ padding: '1rem', backgroundColor: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                    <h4 style={{ margin: '0 0 0.65rem', fontSize: '0.92rem', color: '#166534', fontWeight: 700 }}>
+                      Granular Patient Data Sharing Consent
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.85rem', color: '#14532d', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={abdmConsentLink}
+                          onChange={(e) => setAbdmConsentLink(e.target.checked)}
+                          style={{ marginTop: '0.2rem' }}
+                        />
+                        <span>
+                          <strong>Care Context Linking:</strong> Authorize linking MedMap Case <code>{caseDetail.caseId}</code> to patient's Ayushman Bharat Health Account profile.
+                        </span>
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.85rem', color: '#14532d', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={abdmConsentExchange}
+                          onChange={(e) => setAbdmConsentExchange(e.target.checked)}
+                          style={{ marginTop: '0.2rem' }}
+                        />
+                        <span>
+                          <strong>Clinical FHIR Bundle Exchange:</strong> Authorize exchanging verified doctor assessment and FHIR Observation resources with ABDM network.
+                        </span>
+                      </label>
+                    </div>
+
+                    <p style={{ margin: '0.85rem 0 0', fontSize: '0.78rem', color: '#166534', fontStyle: 'italic', borderTop: '1px solid #bbf7d0', paddingTop: '0.5rem' }}>
+                      <strong>Revocation Notice:</strong> Consent is revocable at any time by the patient via the ABHA / PHR app. All simulated data exchanges are logged to the clinical audit trail.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                /* Status Timeline: Finalized -> FHIR mapped -> ABHA-linked -> Consent -> Exchange (simulated) -> Retrievable at next visit */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <div style={{ padding: '0.85rem 1rem', backgroundColor: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong style={{ color: '#065f46', fontSize: '0.95rem' }}>✓ Care Context Linked & Exchanged (Simulation)</strong>
+                      <span style={{ fontSize: '0.72rem', backgroundColor: '#fef3c7', color: '#92400e', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #fde68a', fontWeight: 600 }}>
+                        Simulation: not connected to ABDM
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '0.82rem', color: '#047857', display: 'block', marginTop: '0.25rem' }}>
+                      Care context <code>{caseDetail.caseId}</code> successfully linked to ABHA ID <strong>{abdmAbhaId}</strong>
+                      {abdmShareResult?.data?.timestamp ? ` • Transaction logged: ${new Date(abdmShareResult.data.timestamp).toLocaleTimeString()}` : ''}.
+                    </span>
+                  </div>
+
+                  <div>
+                    <h4 style={{ margin: '0 0 0.85rem', fontSize: '0.9rem', color: 'var(--color-navy)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      ABDM Care Context Exchange Lifecycle Timeline
+                    </h4>
+                    <div className="abdm-timeline-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {[
+                        { step: '1', title: 'Finalized', desc: 'Clinical intake, documents, and doctor verification completed and locked.', done: true },
+                        { step: '2', title: 'FHIR Mapped', desc: 'Standard HL7 FHIR R4 clinical bundle assembled from verified entities.', done: true },
+                        { step: '3', title: 'ABHA-Linked', desc: `Care Context successfully linked to ABHA profile ${abdmAbhaId}.`, done: true },
+                        { step: '4', title: 'Consent', desc: 'Granular, revocable patient authorization recorded and sealed.', done: true },
+                        { step: '5', title: 'Exchange (Simulated)', desc: 'Encrypted clinical package transmitted to simulated ABDM Gateway.', done: true },
+                        { step: '6', title: 'Retrievable at Next Visit', desc: 'Longitudinal record available for retrieval in simulated ABDM HIP/HIU registry.', done: true },
+                      ].map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.65rem 0.85rem', backgroundColor: '#f8fafc', borderRadius: '6px', borderLeft: '4px solid #10b981' }}>
+                          <span style={{ backgroundColor: '#10b981', color: '#fff', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0, marginTop: '0.1rem' }}>
+                            ✓
+                          </span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--color-navy)' }}>
+                              {item.title}
+                            </div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '0.15rem' }}>
+                              {item.desc}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="fhir-modal-footer">
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                ABDM integration is currently running in local/sandbox mock simulation mode.
+              </span>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <Button variant="outline" onClick={() => setIsAbdmModalOpen(false)}>
+                  {abdmShareSuccess ? 'Close' : 'Cancel'}
+                </Button>
+                {!abdmShareSuccess && (
+                  <Button
+                    variant="primary"
+                    onClick={handleShareToAbdm}
+                    isLoading={isSharingAbdm}
+                    disabled={isSharingAbdm || !abdmAbhaId.trim() || !abdmConsentLink || !abdmConsentExchange}
+                    style={{ backgroundColor: '#0284c7', borderColor: '#0284c7' }}
+                  >
+                    Simulate ABDM Share
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>

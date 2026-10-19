@@ -12,11 +12,20 @@ export const createCase = async (
   patientId: string,
   language?: string,
   consentGranted?: boolean,
-  consultationType?: string
+  consultationType?: string,
+  abhaId?: string
 ): Promise<ClinicalCase> => {
   const bodyPayload: Record<string, any> = { patientId, language, consentGranted };
+  const answers: Record<string, any> = {};
   if (consultationType) {
-    bodyPayload.intakeAnswers = { consultation_type: consultationType };
+    answers.consultation_type = consultationType;
+  }
+  if (abhaId) {
+    answers.abha_id = abhaId;
+    answers.abha_verified = true;
+  }
+  if (Object.keys(answers).length > 0) {
+    bodyPayload.intakeAnswers = answers;
   }
 
   const response = await fetch(`${API_BASE_URL}/cases`, {
@@ -375,5 +384,71 @@ export const getCaseAuditTrail = async (caseId: string): Promise<any[]> => {
     } catch {}
     throw new Error(msg);
   }
+  return response.json();
+};
+
+export interface AbdmVerificationResult {
+  success: boolean;
+  mode: string;
+  data: {
+    abhaId: string;
+    kycStatus: string;
+    name: string;
+    message: string;
+  };
+}
+
+export const verifyAbha = async (abhaId: string): Promise<AbdmVerificationResult> => {
+  const response = await fetch(`${API_BASE_URL}/abdm/verify`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({ abhaId }),
+  });
+
+  if (!response.ok) {
+    let msg = 'ABHA verification failed';
+    try {
+      const err = await response.json();
+      if (err.detail) msg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+    } catch {}
+    throw new Error(msg);
+  }
+
+  return response.json();
+};
+
+export interface AbdmLinkResult {
+  success: boolean;
+  mode: string;
+  data: {
+    abhaId: string;
+    caseId: string;
+    status: string;
+    timestamp: string;
+  };
+}
+
+export const linkCareContext = async (abhaId: string, caseId: string): Promise<AbdmLinkResult> => {
+  const response = await fetch(`${API_BASE_URL}/abdm/link-context`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({ abhaId, caseId }),
+  });
+
+  if (!response.ok) {
+    let msg = 'Failed to link care context to ABDM profile';
+    try {
+      const err = await response.json();
+      if (err.detail) msg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+    } catch {}
+    throw new Error(msg);
+  }
+
   return response.json();
 };

@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from app.core.database import get_db
-from app.core.security import require_patient_or_doctor
+from app.core.security import require_patient_or_doctor, get_optional_current_user
 from app.services.abdm_sandbox import abdm_sandbox
 
 router = APIRouter()
@@ -10,7 +10,7 @@ router = APIRouter()
 @router.post("/verify")
 async def verify_abha_endpoint(
     payload: Dict[str, str],
-    current_user: Dict[str, Any] = Depends(require_patient_or_doctor)
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)
 ):
     abha_id = payload.get("abhaId")
     if not abha_id:
