@@ -521,3 +521,17 @@ export const acknowledgeAdminAlert = async (caseId: string, category: string, ex
   }
   return response.json();
 };
+
+export const logout = async (): Promise<void> => {
+  try {
+    await fetch(`${API_BASE_URL}/auth/logout`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+  } catch {}
+  localStorage.removeItem('medmap_token');
+  localStorage.removeItem('medmap_role');
+  sessionStorage.clear();
+};

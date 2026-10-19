@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCase } from '../../context/CaseContext';
-import { getCase, updateCase, updateCaseStatus, getCaseDocuments, getDocumentFileUrl } from '../../utils/api';
+import { getCase, updateCase, updateCaseStatus, getCaseDocuments, getDocumentFileUrl, logout } from '../../utils/api';
 import type { ClinicalCase } from '../../types/case';
 import { Button } from '../../components/Button';
+import { InactivityCountdownBanner } from '../../components/patient/InactivityCountdownBanner';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { LoadingIndicator } from '../../components/LoadingIndicator';
 import { StatusBadge } from '../../components/StatusBadge';
@@ -159,6 +160,14 @@ export function PatientVerificationPage() {
     }
   };
 
+  const { setCaseId } = useCase();
+
+  const handleFinishAndClear = async () => {
+    await logout();
+    setCaseId(null);
+    navigate('/');
+  };
+
   if (!caseId) return null;
 
   if (isLoading) {
@@ -257,6 +266,23 @@ export function PatientVerificationPage() {
               </span>
             </div>
           </div>
+        </div>
+
+        {/* AI Assists Notice */}
+        <div style={{
+          padding: '0.85rem 1.15rem',
+          backgroundColor: '#f0fdf4',
+          border: '1px solid #bbf7d0',
+          borderRadius: '8px',
+          marginBottom: '1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.65rem',
+        }}>
+          <span style={{ fontSize: '1.25rem' }}>🛡️</span>
+          <span style={{ fontSize: '0.88rem', color: '#166534', lineHeight: 1.4 }}>
+            <strong>AI assists, your doctor decides:</strong> MedMap organizes your reported symptoms and records to assist the physician. AI does not produce diagnoses. Your doctor makes all clinical decisions.
+          </span>
         </div>
 
         {/* Questionnaire Responses Section */}
@@ -546,9 +572,32 @@ export function PatientVerificationPage() {
             <div className="intake-complete-icon" aria-hidden="true">✓</div>
             <h2>Information Verified</h2>
             <p>Your responses have been confirmed and sent to the doctor for review.</p>
-            <Link to="/doctor/cases" className="intake-btn-complete">
-              View Doctor Dashboard (Demo) →
-            </Link>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.25rem', width: '100%', maxWidth: '360px', margin: '1.25rem auto 0' }}>
+              <Button
+                variant="primary"
+                onClick={handleFinishAndClear}
+                style={{
+                  width: '100%',
+                  padding: '0.85rem',
+                  fontSize: '0.95rem',
+                  backgroundColor: '#0f172a',
+                  borderColor: '#0f172a',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  fontWeight: 600,
+                }}
+              >
+                🛡️ Finish & Clear This Device
+              </Button>
+              <Link to="/doctor/cases" className="intake-btn-complete" style={{ padding: '0.65rem', fontSize: '0.88rem' }}>
+                View Doctor Dashboard (Demo) →
+              </Link>
+            </div>
+            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.75rem', display: 'block' }}>
+              Clearing the device safely logs out, revokes the active token, and removes local data for the next patient.
+            </span>
           </div>
         ) : (
           <div className="intake-question-card" style={{ textAlign: 'center', backgroundColor: 'var(--color-surface)' }}>
@@ -578,6 +627,9 @@ export function PatientVerificationPage() {
           </div>
         )}
       </div>
+
+      {/* Auto-clear inactivity countdown timer */}
+      <InactivityCountdownBanner onClearDevice={handleFinishAndClear} />
     </div>
   );
 }

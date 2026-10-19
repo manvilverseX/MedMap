@@ -5,13 +5,52 @@ import { createCase, verifyAbha } from '../../utils/api';
 import { Button } from '../../components/Button';
 import { ErrorMessage } from '../../components/ErrorMessage';
 
+const CONSENT_TRANSLATIONS: Record<string, {
+  title: string;
+  isDraft: boolean;
+  collect: string;
+  doctor: string;
+  abdm: string;
+  revocable: string;
+}> = {
+  English: {
+    title: 'Granular Data Sharing Consent',
+    isDraft: false,
+    collect: 'I consent to MedMap collecting my health responses and medical documents to prepare my clinical history.',
+    doctor: 'I consent to sharing my organized clinical history with treating physicians for medical consultation.',
+    abdm: 'I consent to simulated ABDM care-context exchange (optional, mock mode).',
+    revocable: 'You may revoke your consent or request your session data to be cleared at any time.'
+  },
+  Hindi: {
+    title: 'डेटा साझाकरण सहमति (सटीक सहमति)',
+    isDraft: true,
+    collect: 'मैं मेदमैप द्वारा मेरा स्वास्थ्य इतिहास और दस्तावेज़ एकत्र करने की सहमति देता/देती हूँ।',
+    doctor: 'मैं यह स्वास्थ्य जानकारी परामर्श हेतु डॉक्टर के साथ साझा करने की सहमति देता/देती हूँ।',
+    abdm: 'मैं आयुष्मान भारत डिजिटल मिशन (ABDM) सिमुलेशन में भाग लेने की सहमति देता/देती हूँ (वैकल्पिक)।',
+    revocable: 'आप किसी भी समय अपनी सहमति वापस ले सकते हैं या डिवाइस से डेटा मिटा सकते हैं।'
+  },
+  Kannada: {
+    title: 'ಡೇಟಾ ಹಂಚಿಕೆ ಸಮ್ಮತಿ',
+    isDraft: true,
+    collect: 'ವೈದ್ಯಕೀಯ ಇತಿಹಾಸ ಸಿದ್ಧಪಡಿಸಲು ಮೆಡ್‌ಮ್ಯಾಪ್ ನನ್ನ ಆರೋಗ್ಯ ವಿವರಗಳನ್ನು ಸಂಗ್ರಹಿಸಲು ಸಮ್ಮತಿಸುತ್ತೇನೆ.',
+    doctor: 'ಈ ಮಾಹಿತಿಯನ್ನು ಚಿಕಿತ್ಸೆ ನೀಡುವ ವೈದ್ಯರೊಂದಿಗೆ ಹಂಚಿಕೊಳ್ಳಲು ಸಮ್ಮತಿಸುತ್ತೇನೆ.',
+    abdm: 'ಆಯುಷ್ಮಾನ್ ಭಾರತ್ ಡಿಜಿಟಲ್ ಮಿಷನ್ ಸಿಮ್ಯುಲೇಶನ್ ಡೇಟಾ ಹಂಚಿಕೆಗೆ ಸಮ್ಮತಿಸುತ್ತೇನೆ (ಐಚ್ಛಿಕ).',
+    revocable: 'ನಿಮ್ಮ ಸಮ್ಮತಿಯನ್ನು ನೀವು ಯಾವುದೇ ಸಮಯದಲ್ಲಿ ಹಿಂಪಡೆಯಬಹುದು ಅಥವಾ ಡೇಟಾವನ್ನು ಅಳಿಸಬಹುದು.'
+  }
+};
+
 export function PatientOnboardingPage() {
   const [patientId, setPatientId] = useState('');
   const [language, setLanguage] = useState('English');
   const [consultationType, setConsultationType] = useState('general');
-  const [hasConsent, setHasConsent] = useState(false);
+  const [consentCollect, setConsentCollect] = useState(false);
+  const [consentShareDoctor, setConsentShareDoctor] = useState(false);
+  const [consentSimulateAbdm, setConsentSimulateAbdm] = useState(false);
+  const hasConsent = consentCollect && consentShareDoctor;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const consentCopy = CONSENT_TRANSLATIONS[language] || CONSENT_TRANSLATIONS.English;
 
   // ABDM Simulation State
   const [hasAbha, setHasAbha] = useState(false);
@@ -305,20 +344,69 @@ export function PatientOnboardingPage() {
                 : 'Standard clinical history: symptoms, medications, allergies, and health background.'}
             </p>
           </div>
-          <div>
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer' }}>
-              <input 
-                type="checkbox" 
-                checked={hasConsent}
-                onChange={(e) => setHasConsent(e.target.checked)}
-                required
-                style={{ marginTop: '0.25rem' }}
-              />
-              <span style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
-                I understand that MedMap will collect my health information during this intake process to prepare my case for clinical consultation. I agree to proceed.
+          {/* Granular & Revocable Patient Consent Section */}
+          <div style={{
+            border: '1px solid var(--color-border)',
+            borderRadius: '8px',
+            padding: '1rem',
+            backgroundColor: '#f8fafc',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.4rem' }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--color-navy)' }}>
+                {consentCopy.title}
               </span>
-            </label>
+              {consentCopy.isDraft && (
+                <span style={{ fontSize: '0.7rem', backgroundColor: '#fef3c7', color: '#92400e', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #fde68a', fontWeight: 600 }}>
+                  Draft translation
+                </span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', fontSize: '0.86rem', color: 'var(--color-text)' }}>
+                <input
+                  type="checkbox"
+                  checked={consentCollect}
+                  onChange={(e) => setConsentCollect(e.target.checked)}
+                  required
+                  style={{ marginTop: '0.2rem' }}
+                />
+                <span>
+                  <strong>1. Data Collection:</strong> {consentCopy.collect}
+                </span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', fontSize: '0.86rem', color: 'var(--color-text)' }}>
+                <input
+                  type="checkbox"
+                  checked={consentShareDoctor}
+                  onChange={(e) => setConsentShareDoctor(e.target.checked)}
+                  required
+                  style={{ marginTop: '0.2rem' }}
+                />
+                <span>
+                  <strong>2. Doctor Sharing:</strong> {consentCopy.doctor}
+                </span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', fontSize: '0.86rem', color: 'var(--color-text-secondary)' }}>
+                <input
+                  type="checkbox"
+                  checked={consentSimulateAbdm}
+                  onChange={(e) => setConsentSimulateAbdm(e.target.checked)}
+                  style={{ marginTop: '0.2rem' }}
+                />
+                <span>
+                  <strong>3. ABDM Simulation (Optional):</strong> {consentCopy.abdm}
+                </span>
+              </label>
+            </div>
+
+            <p style={{ margin: '0.75rem 0 0', fontSize: '0.78rem', color: 'var(--color-text-secondary)', borderTop: '1px solid var(--color-border)', paddingTop: '0.5rem', fontStyle: 'italic' }}>
+              <strong>Revocability:</strong> {consentCopy.revocable}
+            </p>
           </div>
+
           <Button
             type="submit" 
             isLoading={isLoading}

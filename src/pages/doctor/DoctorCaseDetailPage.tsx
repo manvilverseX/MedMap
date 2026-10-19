@@ -589,6 +589,23 @@ export function DoctorCaseDetailPage() {
       <main className="detail-main-layout">
         {/* Left Column: Structured Clinical Content */}
         <div className="detail-content-column">
+          {/* AI assists, your doctor decides notice */}
+          <div style={{
+            padding: '0.75rem 1rem',
+            backgroundColor: '#f0fdf4',
+            border: '1px solid #bbf7d0',
+            borderRadius: '8px',
+            marginBottom: '1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.65rem',
+          }}>
+            <span style={{ fontSize: '1.2rem' }}>🛡️</span>
+            <span style={{ fontSize: '0.84rem', color: '#166534', lineHeight: 1.4 }}>
+              <strong>AI assists, your doctor decides:</strong> Unified intake responses and document entities are collected to assist your clinical assessment. AI does not diagnose. Doctor review, verification, and finalization required.
+            </span>
+          </div>
+
           {/* View Mode Navigation Tabs */}
           <div className="view-tabs-container" role="tablist">
             <button
