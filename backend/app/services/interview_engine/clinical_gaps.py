@@ -286,9 +286,9 @@ def identify_unresolved_gaps(
 
     # Allergy reaction is dependent on allergies being present
     allergy_val = extract_answer_text(answers.get("allergies", ""))
-    has_allergy = allergy_val and allergy_val.lower() not in (
-        "no", "none", "no known allergies", "no allergies", "n/a", "na", "nil", "nothing", "denies"
-    )
+    has_allergy = bool(allergy_val) and not any(
+        neg in allergy_val.lower() for neg in ("no known allergies", "no allergies", "no allergy", "denies allergies", "none", "nil", "n/a")
+    ) and allergy_val.lower().strip() not in ("no", "na", "denies", "nothing")
 
     resolved_gaps: list[str] = []
     unresolved_gaps: list[str] = []

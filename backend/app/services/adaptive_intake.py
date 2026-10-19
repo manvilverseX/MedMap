@@ -541,9 +541,9 @@ def select_intake_state(
 
     # Check allergy branch relevance
     allergy_ans = extract_answer_text(answer_map.get("allergies", ""))
-    has_allergy = allergy_ans and allergy_ans.lower() not in (
-        "no", "none", "no known allergies", "no allergies", "n/a", "na", "nil", "nothing", "denies"
-    )
+    has_allergy = bool(allergy_ans) and not any(
+        neg in allergy_ans.lower() for neg in ("no known allergies", "no allergies", "no allergy", "denies allergies", "none", "nil", "n/a")
+    ) and allergy_ans.lower().strip() not in ("no", "na", "denies", "nothing")
     irrelevant_ids = ["allergy_reaction"] if ("allergies" in answer_map and not has_allergy) else []
 
     # Calculate clinical progress

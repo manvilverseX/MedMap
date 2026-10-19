@@ -39,6 +39,12 @@ class IntakeQuestion(BaseModel):
     isOptional: bool = False
     purpose: Optional[str] = None
     gapExplored: Optional[str] = None
+    # Localized display fields (populated by translation layer; absent for English)
+    promptLocalized: Optional[str] = None
+    helperTextLocalized: Optional[str] = None
+    optionsLocalized: Optional[tuple[str, ...]] = None
+    clarificationOptionsLocalized: Optional[tuple[str, ...]] = None
+    categoryLocalized: Optional[str] = None
 
 
 class SafetyEscalation(BaseModel):
@@ -66,6 +72,7 @@ class IntakeSessionState(BaseModel):
     irrelevantQuestionIds: List[str]
     malformedAnswerQuestionIds: List[str]
     issue: Optional[str] = None
+    issueLocalized: Optional[str] = None
     previousQuestionId: Optional[str] = None
     originalAnswer: Optional[str] = None
     clarificationAttempts: int = 0
@@ -76,3 +83,8 @@ class IntakeSessionState(BaseModel):
     clinicalProgress: Optional[ClinicalProgress] = None
     questionMeta: Optional[Dict[str, Any]] = None
     completionReason: Optional[str] = None
+    # Translation metadata
+    translated: bool = False
+    translationLang: Optional[str] = None
+    translationFallbackNotice: Optional[str] = None
+    aiTranslationTag: Optional[str] = None

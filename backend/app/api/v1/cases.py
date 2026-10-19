@@ -63,15 +63,96 @@ def get_adaptive_intake_state(
         raise HTTPException(status_code=404, detail="Case not found")
 
     from app.services.adaptive_intake import select_intake_state
+    from app.services.translation_service import (
+        normalise_lang, translate_texts, FALLBACK_NOTICE, AI_TRANSLATION_TAG
+    )
 
     try:
-        return select_intake_state(
+        session_state = select_intake_state(
             case.intakeAnswers,
             mode=mode,
             question_id=question_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # ── Localise the current question for non-English cases ──────────────
+    lang = normalise_lang(getattr(case, 'language', None))
+    if lang != "en" and session_state.currentQuestion is not None:
+        q = session_state.currentQuestion
+
+        # Collect all English strings that need translating in one batch call
+        texts_to_translate: list[str] = []
+        field_index: dict[str, int] = {}
+
+        def _enqueue(key: str, text: Optional[str]) -> None:
+            if text:
+                field_index[key] = len(texts_to_translate)
+                texts_to_translate.append(text)
+
+        _enqueue("category", q.category)
+        _enqueue("prompt", q.prompt)
+        _enqueue("helperText", q.helperText)
+        option_start = len(texts_to_translate)
+        for opt in (q.options or []):
+            texts_to_translate.append(opt)
+        option_end = len(texts_to_translate)
+        clarif_start = len(texts_to_translate)
+        for opt in (q.clarificationOptions or []):
+            texts_to_translate.append(opt)
+        clarif_end = len(texts_to_translate)
+
+        # Translate issue text if present
+        issue_start = len(texts_to_translate)
+        if session_state.issue:
+            texts_to_translate.append(session_state.issue)
+        issue_end = len(texts_to_translate)
+
+        translated_list, was_translated = translate_texts(
+            texts_to_translate, lang, db=db
+        )
+
+        fallback_notice = None if was_translated else FALLBACK_NOTICE.get(lang)
+        ai_tag = AI_TRANSLATION_TAG.get(lang) if was_translated else None
+
+        def _get(key: str, default: Optional[str] = None) -> Optional[str]:
+            idx = field_index.get(key)
+            if idx is None:
+                return default
+            return translated_list[idx] if was_translated else default
+
+        localized_options = (
+            tuple(translated_list[option_start:option_end])
+            if was_translated and option_end > option_start
+            else None
+        )
+        localized_clarif = (
+            tuple(translated_list[clarif_start:clarif_end])
+            if was_translated and clarif_end > clarif_start
+            else None
+        )
+        localized_issue = (
+            translated_list[issue_start] if was_translated and issue_end > issue_start else None
+        )
+
+        localized_q = q.model_copy(update={
+            "categoryLocalized": _get("category"),
+            "promptLocalized": _get("prompt"),
+            "helperTextLocalized": _get("helperText"),
+            "optionsLocalized": localized_options,
+            "clarificationOptionsLocalized": localized_clarif,
+        })
+
+        session_state = session_state.model_copy(update={
+            "currentQuestion": localized_q,
+            "translated": was_translated,
+            "translationLang": lang,
+            "translationFallbackNotice": fallback_notice,
+            "aiTranslationTag": ai_tag,
+            "issueLocalized": localized_issue,
+        })
+
+    return session_state
 
 @router.put("/{case_id}", response_model=CaseResponse)
 def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(require_patient_or_doctor)):
@@ -136,16 +217,20 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
             sanitize_active_answers,
             validate_clinical_answer,
         )
+        from app.services.translation_service import normalise_lang, translate_to_english
         by_id = {q.id: q for q in INTAKE_QUESTIONS}
+
+        # Determine case language for answer translation
+        case_lang = normalise_lang(getattr(current_case, 'language', None))
 
         # Invalidate / exclude dependent answers that are no longer eligible
         sanitized_answers, _ = sanitize_active_answers(case_in.intakeAnswers)
         case_in.intakeAnswers = sanitized_answers
-        
+
         for q_id, answer in list(case_in.intakeAnswers.items()):
             if not isinstance(answer, str) or not answer.strip():
                 continue
-                
+
             old_record = current_case.intakeAnswers.get(q_id) if current_case.intakeAnswers else None
             old_answer = old_record.get("value") if isinstance(old_record, dict) else old_record
             attempts = int(old_record.get("clarification_attempts", 0)) if isinstance(old_record, dict) else 0
@@ -153,7 +238,32 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
             if old_answer == answer:
                 continue
 
-            # Deterministic clinical validation
+            # ── Translate non-English free-text answers to English ──────────
+            # Safety rules, LLM validation and all clinical logic run on english_answer.
+            # The patient's original language answer is preserved as original_lang_answer.
+            original_lang_answer = answer
+            english_answer = answer
+            translation_was_successful = True
+
+            if case_lang != "en":
+                english_answer, translation_was_successful = translate_to_english(
+                    answer, case_lang, db=db
+                )
+                # If translation failed, english_answer == original; safety still runs on original
+                # (best effort; cannot translate = treat as english-ish)
+
+            # Store bilingual answer if successfully translated
+            if case_lang != "en":
+                case_in.intakeAnswers[q_id] = {
+                    "value": english_answer,         # English for clinical logic
+                    "original": original_lang_answer, # Patient's language
+                    "lang": case_lang,
+                    "translated": translation_was_successful,
+                }
+                # Use english_answer for all subsequent validation
+                answer = english_answer
+
+            # Deterministic clinical validation (always on English)
             needs_clar, clar_prompt = validate_clinical_answer(
                 q_id,
                 answer,
@@ -178,12 +288,28 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
                     pass
 
             if needs_clar:
-                case_in.intakeAnswers[q_id] = {
-                    "value": answer,
-                    "originalValue": answer,
-                    "clarification_needed": clar_prompt or "Please clarify this answer.",
-                    "clarification_attempts": attempts + 1,
-                }
+                if case_lang != "en":
+                    # Keep original-language structure, add clarification
+                    existing = case_in.intakeAnswers.get(q_id, {})
+                    if isinstance(existing, dict):
+                        existing["clarification_needed"] = clar_prompt or "Please clarify this answer."
+                        existing["clarification_attempts"] = attempts + 1
+                        case_in.intakeAnswers[q_id] = existing
+                    else:
+                        case_in.intakeAnswers[q_id] = {
+                            "value": answer,
+                            "originalValue": original_lang_answer,
+                            "clarification_needed": clar_prompt or "Please clarify this answer.",
+                            "clarification_attempts": attempts + 1,
+                        }
+                else:
+                    case_in.intakeAnswers[q_id] = {
+                        "value": answer,
+                        "originalValue": answer,
+                        "clarification_needed": clar_prompt or "Please clarify this answer.",
+                        "clarification_attempts": attempts + 1,
+                    }
+
 
     case = case_service.update_case(db, case_id, case_in)
 

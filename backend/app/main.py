@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1 import cases, auth, abdm, admin
+from app.api.v1 import cases, auth, abdm, admin, translate
 app = FastAPI(title="MedMap API", version="1.0.0")
 
 import os
@@ -31,3 +31,4 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(cases.router, prefix="/api/v1/cases", tags=["cases"])
 app.include_router(abdm.router, prefix="/api/v1/abdm", tags=["abdm"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
+app.include_router(translate.router, prefix="/api/v1/translate/ui", tags=["translate"])
