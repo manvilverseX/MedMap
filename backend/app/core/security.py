@@ -81,7 +81,24 @@ def require_patient_or_doctor(current_user: Dict[str, Any] = Depends(get_current
     # Validates that the user is either a patient or a doctor.
     # The actual case_id check for patients happens in the route handler.
     role = current_user.get("role")
-    if role not in ["patient", "doctor"]:
+    if role not in ["patient", "doctor", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operation not permitted"
+        )
+    return current_user
+
+def require_doctor_or_admin(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+    role = current_user.get("role")
+    if role not in ["doctor", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operation not permitted"
+        )
+    return current_user
+
+def require_admin(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+    if current_user.get("role") != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Operation not permitted"

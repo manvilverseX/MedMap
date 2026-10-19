@@ -75,10 +75,20 @@ def generate_fhir_bundle(case: Any) -> Dict[str, Any]:
             }
             entries.append(condition_resource)
         
-    # 4. Conditions & Medications & Observations (from medical entities if available)
+    # 4. Conditions & Medications & Observations (from medical entities if available, filtered/adjusted by doctor review)
     if case.derivedClinicalData and "medicalEntities" in case.derivedClinicalData:
+        doctor_reviews = {}
+        if isinstance(case.derivedClinicalData, dict):
+            doctor_reviews = case.derivedClinicalData.get("doctorReviews") or {}
+
         diagnoses = case.derivedClinicalData["medicalEntities"].get("diagnoses", [])
         for i, dx in enumerate(diagnoses):
+            # Check if doctor rejected or edited this diagnosis
+            review = doctor_reviews.get(f"diagnoses.{i}") or doctor_reviews.get(f"diagnoses:{i}")
+            if review and review.get("action") == "rejected":
+                continue
+            dx_text = review.get("reviewedValue") if (review and review.get("action") == "edited" and review.get("reviewedValue")) else str(dx)
+
             cond = {
                 "fullUrl": f"urn:uuid:cond-{case.caseId}-dx{i}",
                 "resource": {
@@ -88,7 +98,7 @@ def generate_fhir_bundle(case: Any) -> Dict[str, Any]:
                         "coding": [{"system": "http://terminology.hl7.org/CodeSystem/condition-clinical", "code": "active"}]
                     },
                     "code": {
-                        "text": str(dx)
+                        "text": str(dx_text)
                     },
                     "subject": {
                         "reference": f"urn:uuid:{case.patientId}"
@@ -99,6 +109,19 @@ def generate_fhir_bundle(case: Any) -> Dict[str, Any]:
             
         medications = case.derivedClinicalData["medicalEntities"].get("medications", [])
         for i, med in enumerate(medications):
+            # Check if doctor rejected or edited this medication
+            review = doctor_reviews.get(f"medications.{i}") or doctor_reviews.get(f"medications:{i}")
+            if review and review.get("action") == "rejected":
+                continue
+            eff_med = review.get("reviewedValue") if (review and review.get("action") == "edited" and review.get("reviewedValue")) else med
+
+            med_name = eff_med.get("name", "Unknown Medication") if isinstance(eff_med, dict) else getattr(eff_med, "name", "Unknown Medication")
+            dosage_text = (
+                f"{eff_med.get('dose', '')} {eff_med.get('frequency', '')} {eff_med.get('route', '')}".strip()
+                if isinstance(eff_med, dict)
+                else f"{getattr(eff_med, 'dose', '') or ''} {getattr(eff_med, 'frequency', '') or ''} {getattr(eff_med, 'route', '') or ''}".strip()
+            )
+
             med_req = {
                 "fullUrl": f"urn:uuid:med-{case.caseId}-{i}",
                 "resource": {
@@ -107,17 +130,13 @@ def generate_fhir_bundle(case: Any) -> Dict[str, Any]:
                     "status": "active",
                     "intent": "order",
                     "medicationCodeableConcept": {
-                        "text": med.get("name", "Unknown Medication") if isinstance(med, dict) else getattr(med, "name", "Unknown Medication")
+                        "text": med_name
                     },
                     "subject": {
                         "reference": f"urn:uuid:{case.patientId}"
                     },
                     "dosageInstruction": [{
-                        "text": (
-                            f"{med.get('dose', '')} {med.get('frequency', '')} {med.get('route', '')}".strip()
-                            if isinstance(med, dict)
-                            else f"{getattr(med, 'dose', '') or ''} {getattr(med, 'frequency', '') or ''} {getattr(med, 'route', '') or ''}".strip()
-                        )
+                        "text": dosage_text
                     }]
                 }
             }
@@ -129,24 +148,29 @@ def generate_fhir_bundle(case: Any) -> Dict[str, Any]:
         default_date = dates[0] if dates else None
 
         for i, inv in enumerate(investigations):
-            if isinstance(inv, str):
-                test_name = inv.strip()
+            review = doctor_reviews.get(f"investigations.{i}") or doctor_reviews.get(f"investigations:{i}")
+            if review and review.get("action") == "rejected":
+                continue
+            eff_inv = review.get("reviewedValue") if (review and review.get("action") == "edited" and review.get("reviewedValue")) else inv
+
+            if isinstance(eff_inv, str):
+                test_name = eff_inv.strip()
                 val_str = ""
                 unit_str = ""
                 ref_range = None
                 abnormal = None
-            elif hasattr(inv, "testName"):
-                test_name = getattr(inv, "testName", "Investigation")
-                val_str = str(getattr(inv, "value", "") or "").strip()
-                unit_str = getattr(inv, "unit", "") or ""
-                ref_range = getattr(inv, "referenceRange", None)
-                abnormal = getattr(inv, "abnormalFlag", None)
-            elif isinstance(inv, dict):
-                test_name = inv.get("testName") or inv.get("name") or "Investigation"
-                val_str = str(inv.get("value") or "").strip()
-                unit_str = inv.get("unit") or ""
-                ref_range = inv.get("referenceRange")
-                abnormal = inv.get("abnormalFlag")
+            elif hasattr(eff_inv, "testName"):
+                test_name = getattr(eff_inv, "testName", "Investigation")
+                val_str = str(getattr(eff_inv, "value", "") or "").strip()
+                unit_str = getattr(eff_inv, "unit", "") or ""
+                ref_range = getattr(eff_inv, "referenceRange", None)
+                abnormal = getattr(eff_inv, "abnormalFlag", None)
+            elif isinstance(eff_inv, dict):
+                test_name = eff_inv.get("testName") or eff_inv.get("name") or "Investigation"
+                val_str = str(eff_inv.get("value") or "").strip()
+                unit_str = eff_inv.get("unit") or ""
+                ref_range = eff_inv.get("referenceRange")
+                abnormal = eff_inv.get("abnormalFlag")
             else:
                 continue
 

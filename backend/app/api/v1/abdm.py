@@ -25,6 +25,7 @@ async def verify_abha_endpoint(
 @router.post("/link-context")
 async def link_care_context_endpoint(
     payload: Dict[str, str],
+    db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(require_patient_or_doctor)
 ):
     abha_id = payload.get("abhaId")
@@ -39,5 +40,19 @@ async def link_care_context_endpoint(
     result = await abdm_sandbox.link_care_context(abha_id, case_id)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail="Failed to link context")
-        
+
+    # Record ABDM simulation audit event
+    from app.services.audit_service import log_clinical_event
+    log_clinical_event(
+        db,
+        case_id,
+        "abdm_mock_action",
+        {
+            "action": "link_care_context",
+            "abhaId": abha_id,
+            "simulation": True,
+            "badge": "Simulation: not connected to ABDM",
+            "actor": current_user.get("role", "doctor"),
+        },
+    )
     return result

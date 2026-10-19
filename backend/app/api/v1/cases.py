@@ -7,11 +7,13 @@ from sqlalchemy.orm import Session
 from app.schemas.case import CaseCreate, CaseUpdate, CaseResponse, CaseStatus
 from app.schemas.intake import IntakeRequestMode, IntakeSessionState
 from app.services import case_service
+from pydantic import BaseModel
 from app.core.database import get_db
 from app.schemas.document import DocumentResponse
 from app.services import document_service
 from app.models.document import PatientDocument
-from app.core.security import require_doctor, require_patient_or_doctor, create_access_token
+from app.core.security import require_doctor, require_patient_or_doctor, require_doctor_or_admin, create_access_token
+from app.services.audit_service import log_clinical_event, get_case_audit_trail, record_evidence_decision
 
 router = APIRouter()
 
@@ -22,6 +24,11 @@ def create_case(case_in: CaseCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Explicit consent is required to create a case")
     case_response = case_service.create_case(db, case_in)
     access_token = create_access_token(data={"role": "patient", "case_id": case_response.caseId})
+
+    # Record case creation & consent audit events
+    log_clinical_event(db, case_response.caseId, "case_created", {"patientId": case_in.patientId, "consentGranted": True, "actor": "patient"})
+    log_clinical_event(db, case_response.caseId, "consent_granted", {"consentGranted": True, "actor": "patient"})
+
     return {"case": case_response, "token": access_token}
 
 @router.get("", response_model=List[CaseResponse])
@@ -239,7 +246,13 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
                 case = updated_case
         except Exception as e:
             logging.error(f"Automatic AI summary generation failed: {e}")
-            # We explicitly swallow the error so patient intake remains successfully saved
+    # Audit logging for case update events
+    if case_in.intakeAnswers is not None:
+        log_clinical_event(db, case_id, "answers_updated", {"answeredCount": len(case_in.intakeAnswers), "actor": current_user.get("role", "patient")})
+    if was_patient_verification:
+        log_clinical_event(db, case_id, "patient_verified", {"patientId": current_case.patientId, "actor": "patient"})
+    if case_in.status == CaseStatus.COMPLETED and current_case.status != CaseStatus.COMPLETED.value:
+        log_clinical_event(db, case_id, "case_finalized", {"reviewerId": current_user.get("sub"), "doctor": current_user.get("username", "doctor"), "actor": "doctor"})
 
     return case
 
@@ -454,7 +467,12 @@ def export_fhir_prototype(
         raise HTTPException(status_code=404, detail="Case not found")
 
     from app.services.fhir_mapper import generate_fhir_bundle
-    return generate_fhir_bundle(case)
+    bundle = generate_fhir_bundle(case)
+
+    # Record audit event for FHIR export
+    log_clinical_event(db, case_id, "fhir_exported", {"role": current_user.get("role"), "actor": current_user.get("username", current_user.get("role", "unknown"))})
+
+    return bundle
 
 @router.get("/{case_id}/unified")
 def get_unified_case(
@@ -472,3 +490,95 @@ def get_unified_case(
         raise HTTPException(status_code=404, detail="Case not found")
         
     return unified
+
+class ItemReviewRequest(BaseModel):
+    itemType: str  # "medications", "allergies", "diagnoses", "investigations", "procedures", "intake"
+    itemId: str    # item index or key
+    action: str    # "accepted", "edited", "rejected"
+    reviewedValue: Optional[Any] = None
+    originalValue: Optional[Any] = None
+    sourceType: Optional[str] = "document"
+    sourceDocumentId: Optional[str] = None
+    snippet: Optional[str] = None
+    pageLocation: Optional[str] = None
+
+@router.post("/{case_id}/review-item")
+def review_clinical_item(
+    case_id: str,
+    review_in: ItemReviewRequest,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(require_doctor),
+):
+    from app.models.case import ClinicalCase
+    from sqlalchemy.orm.attributes import flag_modified
+
+    case = db.query(ClinicalCase).filter(ClinicalCase.caseId == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    field_path = f"{review_in.itemType}.{review_in.itemId}"
+
+    # Record evidence decision and audit trail entry
+    record_evidence_decision(
+        db=db,
+        case_id=case_id,
+        field_path=field_path,
+        action=review_in.action,
+        source_type=review_in.sourceType or "document",
+        source_document_id=review_in.sourceDocumentId,
+        snippet=review_in.snippet,
+        page_location=review_in.pageLocation,
+        actor=current_user.get("username", "doctor"),
+    )
+
+    # Persist review in case.derivedClinicalData["doctorReviews"]
+    from datetime import datetime, timezone
+    derived = dict(case.derivedClinicalData or {})
+    doctor_reviews = dict(derived.get("doctorReviews") or {})
+    doctor_reviews[field_path] = {
+        "itemType": review_in.itemType,
+        "itemId": review_in.itemId,
+        "action": review_in.action,
+        "originalValue": review_in.originalValue,
+        "reviewedValue": review_in.reviewedValue,
+        "sourceDocumentId": review_in.sourceDocumentId,
+        "snippet": review_in.snippet,
+        "pageLocation": review_in.pageLocation,
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+        "doctor": current_user.get("username", "doctor"),
+    }
+    derived["doctorReviews"] = doctor_reviews
+    case.derivedClinicalData = derived
+    flag_modified(case, "derivedClinicalData")
+    db.commit()
+    db.refresh(case)
+
+    return {
+        "success": True,
+        "fieldPath": field_path,
+        "review": doctor_reviews[field_path],
+        "doctorReviews": doctor_reviews,
+    }
+
+@router.get("/{case_id}/audit")
+def get_case_audit_log(
+    case_id: str,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(require_doctor_or_admin),
+):
+    case = case_service.get_case(db, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    events = get_case_audit_trail(db, case_id)
+    return [
+        {
+            "eventId": e.eventId,
+            "caseId": e.caseId,
+            "eventType": e.eventType,
+            "eventDate": e.eventDate.isoformat() if e.eventDate else None,
+            "details": e.details,
+            "status": e.status,
+        }
+        for e in events
+    ]

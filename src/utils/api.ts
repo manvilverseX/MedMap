@@ -322,3 +322,58 @@ export const getFhirBundle = async (caseId: string): Promise<any> => {
   }
   return response.json();
 };
+
+export interface ItemReviewPayload {
+  itemType: string;
+  itemId: string;
+  action: 'accepted' | 'edited' | 'rejected';
+  reviewedValue?: any;
+  originalValue?: any;
+  sourceType?: string;
+  sourceDocumentId?: string;
+  snippet?: string;
+  pageLocation?: string;
+}
+
+export const reviewClinicalItem = async (caseId: string, payload: ItemReviewPayload): Promise<any> => {
+  const response = await fetch(`${API_BASE_URL}/cases/${caseId}/review-item`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify(payload),
+  });
+  if (response.status === 401 || response.status === 403) {
+    throw new Error('Unauthorized');
+  }
+  if (!response.ok) {
+    let msg = 'Failed to record review decision';
+    try {
+      const err = await response.json();
+      if (err.detail) msg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+    } catch {}
+    throw new Error(msg);
+  }
+  return response.json();
+};
+
+export const getCaseAuditTrail = async (caseId: string): Promise<any[]> => {
+  const response = await fetch(`${API_BASE_URL}/cases/${caseId}/audit`, {
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
+  if (response.status === 401 || response.status === 403) {
+    throw new Error('Unauthorized');
+  }
+  if (!response.ok) {
+    let msg = 'Failed to load case audit trail';
+    try {
+      const err = await response.json();
+      if (err.detail) msg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+    } catch {}
+    throw new Error(msg);
+  }
+  return response.json();
+};

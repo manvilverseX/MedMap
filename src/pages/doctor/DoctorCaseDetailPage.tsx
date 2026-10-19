@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { DoctorCaseStatusBadge } from '../../components/doctor/DoctorCaseStatusBadge';
 import { DoctorSectionCard } from '../../components/doctor/DoctorSectionCard';
-import { getCase, getCaseDocuments, updateCase, generateAISummary, getClinicalIntelligence, getUnifiedCase, getDocumentFileUrl, getFhirBundle } from '../../utils/api';
+import { getCase, getCaseDocuments, updateCase, generateAISummary, getClinicalIntelligence, getUnifiedCase, getDocumentFileUrl, getFhirBundle, reviewClinicalItem, getCaseAuditTrail } from '../../utils/api';
 import type { ClinicalCase } from '../../types/case';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { Button } from '../../components/Button';
@@ -38,6 +38,20 @@ export function DoctorCaseDetailPage() {
   const [fhirError, setFhirError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [isJsonExpanded, setIsJsonExpanded] = useState(true);
+
+  // Phase 6: Doctor Controls, Evidence & Audit Trail state
+  const [activeTab, setActiveTab] = useState<'case' | 'audit'>('case');
+  const [auditEvents, setAuditEvents] = useState<any[]>([]);
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false);
+  const [editingItem, setEditingItem] = useState<{ itemType: string; itemId: string; value: string } | null>(null);
+  const [evidenceModalItem, setEvidenceModalItem] = useState<{
+    title: string;
+    sourceType: string;
+    snippet?: string;
+    pageLocation?: string;
+    documentId?: string;
+    originalAnswer?: string;
+  } | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -189,6 +203,225 @@ export function DoctorCaseDetailPage() {
     return counts;
   };
 
+  const getReviewState = (itemType: string, itemId: string | number) => {
+    const key1 = `${itemType}.${itemId}`;
+    const key2 = `${itemType}:${itemId}`;
+    const reviews = caseDetail?.derivedClinicalData?.doctorReviews || {};
+    return reviews[key1] || reviews[key2] || null;
+  };
+
+  const handleReviewItem = async (
+    itemType: string,
+    itemId: string | number,
+    action: 'accepted' | 'edited' | 'rejected',
+    originalValue: any,
+    reviewedValue?: any,
+    evidenceMeta?: { sourceType?: string; sourceDocumentId?: string; snippet?: string; pageLocation?: string }
+  ) => {
+    if (!caseId) return;
+    try {
+      const res = await reviewClinicalItem(caseId, {
+        itemType,
+        itemId: String(itemId),
+        action,
+        originalValue,
+        reviewedValue,
+        sourceType: evidenceMeta?.sourceType,
+        sourceDocumentId: evidenceMeta?.sourceDocumentId,
+        snippet: evidenceMeta?.snippet,
+        pageLocation: evidenceMeta?.pageLocation,
+      });
+      setCaseDetail(prev => prev ? {
+        ...prev,
+        derivedClinicalData: {
+          ...(prev.derivedClinicalData || {}),
+          doctorReviews: res.doctorReviews,
+        }
+      } : prev);
+      setEditingItem(null);
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to record review decision.');
+    }
+  };
+
+  const fetchAuditTrail = async () => {
+    if (!caseId) return;
+    setIsLoadingAudit(true);
+    try {
+      const trail = await getCaseAuditTrail(caseId);
+      setAuditEvents(trail);
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to load audit trail');
+    } finally {
+      setIsLoadingAudit(false);
+    }
+  };
+
+  const handleTabSwitch = (tab: 'case' | 'audit') => {
+    setActiveTab(tab);
+    if (tab === 'audit') {
+      fetchAuditTrail();
+    }
+  };
+
+  const getExtractedEntities = () => {
+    const derivedEntities = caseDetail?.derivedClinicalData?.medicalEntities || {};
+    const diagnoses: string[] = [...(derivedEntities.diagnoses || [])];
+    const medications: any[] = [...(derivedEntities.medications || [])];
+    const investigations: any[] = [...(derivedEntities.investigations || [])];
+    const procedures: string[] = [...(derivedEntities.procedures || [])];
+
+    if (diagnoses.length === 0 && medications.length === 0 && investigations.length === 0 && procedures.length === 0) {
+      for (const doc of documents) {
+        if (doc.medicalEntities) {
+          if (doc.medicalEntities.diagnoses) diagnoses.push(...doc.medicalEntities.diagnoses);
+          if (doc.medicalEntities.medications) medications.push(...doc.medicalEntities.medications);
+          if (doc.medicalEntities.investigations) investigations.push(...doc.medicalEntities.investigations);
+          if (doc.medicalEntities.procedures) procedures.push(...doc.medicalEntities.procedures);
+        }
+      }
+    }
+    return { diagnoses, medications, investigations, procedures };
+  };
+
+  const renderItemReviewControls = (
+    itemType: string,
+    itemId: string | number,
+    originalText: string,
+    evidenceMeta?: { sourceType?: string; sourceDocumentId?: string; snippet?: string; pageLocation?: string; originalAnswer?: string }
+  ) => {
+    const review = getReviewState(itemType, itemId);
+    const action = review?.action;
+    const isEditing = editingItem?.itemType === itemType && editingItem?.itemId === String(itemId);
+    const isCompleted = caseDetail?.status === 'completed';
+
+    return (
+      <div key={`${itemType}-${itemId}`} className={`reviewable-item-card status-${action || 'pending'}`}>
+        <div className="item-header-row">
+          <div style={{ flex: 1, minWidth: '180px' }}>
+            {isEditing ? (
+              <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  value={editingItem.value}
+                  onChange={(e) => setEditingItem({ ...editingItem, value: e.target.value })}
+                  style={{
+                    flex: 1,
+                    minWidth: '150px',
+                    padding: '0.3rem 0.5rem',
+                    borderRadius: '4px',
+                    border: '1.5px solid var(--color-navy)',
+                    fontSize: '0.85rem',
+                  }}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="btn-item-ctrl btn-item-accept"
+                  onClick={() => handleReviewItem(itemType, String(itemId), 'edited', originalText, editingItem.value, evidenceMeta)}
+                >
+                  ✓ Save
+                </button>
+                <button
+                  type="button"
+                  className="btn-item-ctrl"
+                  onClick={() => setEditingItem(null)}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="item-main-text" style={{ fontSize: '0.88rem', fontWeight: 500 }}>
+                {action === 'edited' && review?.reviewedValue ? (
+                  <span>
+                    <strong style={{ color: 'var(--color-navy)' }}>
+                      {typeof review.reviewedValue === 'object' ? JSON.stringify(review.reviewedValue) : String(review.reviewedValue)}
+                    </strong>{' '}
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', textDecoration: 'line-through' }}>
+                      ({originalText})
+                    </span>
+                  </span>
+                ) : (
+                  originalText
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="item-controls-group">
+            {action === 'accepted' && (
+              <span style={{ fontSize: '0.75rem', color: '#065f46', fontWeight: 700, padding: '0.15rem 0.45rem', backgroundColor: '#d1fae5', borderRadius: '4px' }}>
+                ✓ Accepted
+              </span>
+            )}
+            {action === 'rejected' && (
+              <span style={{ fontSize: '0.75rem', color: '#991b1b', fontWeight: 700, padding: '0.15rem 0.45rem', backgroundColor: '#fee2e2', borderRadius: '4px' }}>
+                ✕ Struck by Doctor
+              </span>
+            )}
+            {action === 'edited' && (
+              <span style={{ fontSize: '0.75rem', color: '#0369a1', fontWeight: 700, padding: '0.15rem 0.45rem', backgroundColor: '#e0f2fe', borderRadius: '4px' }}>
+                ✏️ Edited by Doctor
+              </span>
+            )}
+
+            {/* Evidence Link */}
+            <button
+              type="button"
+              className="btn-item-ctrl btn-item-evidence"
+              onClick={() => setEvidenceModalItem({
+                title: `${itemType.replace(/\b\w/g, l => l.toUpperCase())}: ${originalText}`,
+                sourceType: evidenceMeta?.sourceType || 'document',
+                snippet: evidenceMeta?.snippet || originalText,
+                pageLocation: evidenceMeta?.pageLocation,
+                documentId: evidenceMeta?.sourceDocumentId,
+                originalAnswer: evidenceMeta?.originalAnswer || originalText,
+              })}
+              title="Inspect source evidence"
+            >
+              🔍 Evidence
+            </button>
+
+            {!isCompleted && (
+              <>
+                {action !== 'accepted' && (
+                  <button
+                    type="button"
+                    className="btn-item-ctrl btn-item-accept"
+                    onClick={() => handleReviewItem(itemType, String(itemId), 'accepted', originalText, undefined, evidenceMeta)}
+                    title="Accept this clinical entity"
+                  >
+                    ✓ Accept
+                  </button>
+                )}
+                {action !== 'edited' && !isEditing && (
+                  <button
+                    type="button"
+                    className="btn-item-ctrl btn-item-edit"
+                    onClick={() => setEditingItem({ itemType, itemId: String(itemId), value: originalText })}
+                    title="Edit item value"
+                  >
+                    ✏️ Edit
+                  </button>
+                )}
+                {action !== 'rejected' && (
+                  <button
+                    type="button"
+                    className="btn-item-ctrl btn-item-reject"
+                    onClick={() => handleReviewItem(itemType, String(itemId), 'rejected', originalText, undefined, evidenceMeta)}
+                    title="Reject and exclude from clinical summary"
+                  >
+                    ✕ Reject
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="doctor-detail-container" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -310,8 +543,157 @@ export function DoctorCaseDetailPage() {
       <main className="detail-main-layout">
         {/* Left Column: Structured Clinical Content */}
         <div className="detail-content-column">
-          {caseDetail.intakeAnswers && Object.keys(caseDetail.intakeAnswers).length > 0 ? (
-            <DoctorSectionCard title="Patient Intake Responses" tag="Self-Reported">
+          {/* View Mode Navigation Tabs */}
+          <div className="view-tabs-container" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'case'}
+              className={`view-tab-btn ${activeTab === 'case' ? 'active' : ''}`}
+              onClick={() => handleTabSwitch('case')}
+            >
+              📋 Clinical Case Review
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'audit'}
+              className={`view-tab-btn ${activeTab === 'audit' ? 'active' : ''}`}
+              onClick={() => handleTabSwitch('audit')}
+            >
+              📜 Audit Trail {auditEvents.length > 0 && `(${auditEvents.length})`}
+            </button>
+          </div>
+
+          {activeTab === 'audit' ? (
+            <DoctorSectionCard title="Clinical Event Audit Trail" tag={`${auditEvents.length} Events Logged`}>
+              {isLoadingAudit ? (
+                <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <span className="spinner" style={{ borderTopColor: 'var(--color-primary)' }}></span>
+                  <p style={{ marginTop: '0.75rem', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>Loading immutable audit events...</p>
+                </div>
+              ) : auditEvents.length === 0 ? (
+                <div className="doctor-empty-state">
+                  <span className="empty-icon">📜</span>
+                  <h3 className="empty-title">No Audit Events</h3>
+                  <p className="empty-desc">No clinical events recorded for this case yet.</p>
+                </div>
+              ) : (
+                <div className="audit-timeline">
+                  {auditEvents.map((evt, idx) => (
+                    <div key={evt.eventId || idx} className="audit-card">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <span className={`audit-event-chip audit-chip-${evt.eventType}`}>
+                          {evt.eventType.replace(/_/g, ' ')}
+                        </span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                          {evt.eventDate ? new Date(evt.eventDate).toLocaleString() : 'Recent'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--color-navy)', fontWeight: 500 }}>
+                        {evt.details?.action ? `Action: ${evt.details.action} • Item: ${evt.details.fieldPath || evt.details.itemId || ''}` : ''}
+                        {evt.details?.statement || evt.details?.doctor || evt.details?.actor ? ` • Actor: ${evt.details.doctor || evt.details.actor || 'System'}` : ''}
+                      </div>
+                      <details style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>
+                        <summary>Event Details & Metadata</summary>
+                        <pre style={{ margin: '0.5rem 0 0', padding: '0.5rem', background: '#f8fafc', borderRadius: '4px', overflow: 'auto' }}>
+                          <code>{JSON.stringify(evt.details, null, 2)}</code>
+                        </pre>
+                      </details>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </DoctorSectionCard>
+          ) : (
+            <>
+              {/* Extracted Document Medical Entities (OCR / Multi-Modal AI) */}
+              {(() => {
+                const { diagnoses, medications, investigations, procedures } = getExtractedEntities();
+                const totalEntities = diagnoses.length + medications.length + investigations.length + procedures.length;
+                if (totalEntities === 0) return null;
+
+                return (
+                  <div style={{ marginBottom: '2rem' }}>
+                    <DoctorSectionCard title="Extracted Medical Entities" tag="Doctor Review & Verification">
+                      <div style={{ padding: '0.75rem 1rem', marginBottom: '1.25rem', backgroundColor: 'rgba(23, 92, 222, 0.05)', border: '1px solid rgba(23, 92, 222, 0.2)', borderRadius: '8px' }}>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--color-navy)' }}>
+                          ⚡ <strong>Doctor Review Required:</strong> Accept, edit, or reject each extracted medical fact. Rejected items are excluded from FHIR and the finalized record. Click 🔍 Evidence to verify source documents.
+                        </span>
+                      </div>
+
+                      {/* Diagnoses */}
+                      {diagnoses.length > 0 && (
+                        <div style={{ marginBottom: '1.25rem' }}>
+                          <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', color: 'var(--color-navy)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Diagnoses / Conditions ({diagnoses.length})
+                          </h4>
+                          {diagnoses.map((dx, i) => (
+                            renderItemReviewControls("diagnoses", i, typeof dx === 'string' ? dx : String(dx), {
+                              sourceType: "document",
+                              snippet: `Diagnosis identified from medical record: ${dx}`,
+                              pageLocation: "Medical Records",
+                            })
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Medications */}
+                      {medications.length > 0 && (
+                        <div style={{ marginBottom: '1.25rem' }}>
+                          <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', color: 'var(--color-navy)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Prescribed Medications ({medications.length})
+                          </h4>
+                          {medications.map((m, i) => {
+                            const medText = typeof m === 'string' ? m : [m.name, m.dose, m.frequency, m.route].filter(Boolean).join(' — ');
+                            return renderItemReviewControls("medications", i, medText, {
+                              sourceType: "document",
+                              snippet: `Prescription entry: ${medText}`,
+                              pageLocation: "Prescription",
+                            });
+                          })}
+                        </div>
+                      )}
+
+                      {/* Investigations */}
+                      {investigations.length > 0 && (
+                        <div style={{ marginBottom: '1.25rem' }}>
+                          <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', color: 'var(--color-navy)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Lab Investigations & Values ({investigations.length})
+                          </h4>
+                          {investigations.map((inv, i) => {
+                            const invText = typeof inv === 'string' ? inv : [inv.testName, [inv.value, inv.unit].filter(Boolean).join(' '), inv.referenceRange ? `(Ref: ${inv.referenceRange})` : ''].filter(Boolean).join(' — ');
+                            return renderItemReviewControls("investigations", i, invText, {
+                              sourceType: "document",
+                              snippet: `Laboratory investigation result: ${invText}`,
+                              pageLocation: "Lab Report",
+                            });
+                          })}
+                        </div>
+                      )}
+
+                      {/* Procedures */}
+                      {procedures.length > 0 && (
+                        <div style={{ marginBottom: '0.5rem' }}>
+                          <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', color: 'var(--color-navy)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Past Procedures ({procedures.length})
+                          </h4>
+                          {procedures.map((proc, i) => (
+                            renderItemReviewControls("procedures", i, typeof proc === 'string' ? proc : String(proc), {
+                              sourceType: "document",
+                              snippet: `Procedure recorded: ${proc}`,
+                              pageLocation: "Surgical / Procedure Note",
+                            })
+                          ))}
+                        </div>
+                      )}
+                    </DoctorSectionCard>
+                  </div>
+                );
+              })()}
+
+              {caseDetail.intakeAnswers && Object.keys(caseDetail.intakeAnswers).length > 0 ? (
+                <DoctorSectionCard title="Patient Intake Responses" tag="Self-Reported">
               {caseDetail.derivedClinicalData?.patientVerification?.verified && (
                 <div style={{ padding: '0.75rem 1rem', marginBottom: '1.25rem', backgroundColor: 'rgba(16, 185, 129, 0.08)', border: '1px solid var(--color-verify)', borderRadius: '8px' }}>
                   <strong style={{ color: 'var(--color-verify)', display: 'block', fontSize: '0.85rem' }}>
@@ -745,7 +1127,8 @@ export function DoctorCaseDetailPage() {
               </DoctorSectionCard>
             </div>
           )}
-          
+            </>
+          )}
         </div>
 
         {/* Right Column: Physician Review Panel & Sidebar Summary */}
@@ -934,6 +1317,106 @@ export function DoctorCaseDetailPage() {
               </span>
               <Button variant="outline" onClick={() => setIsFhirModalOpen(false)}>
                 Done
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Evidence Source Preview Modal */}
+      {evidenceModalItem && (
+        <div className="fhir-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="evidence-modal-title">
+          <div className="fhir-modal-content" style={{ maxWidth: '650px' }}>
+            <div className="fhir-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1.25rem' }}>🔍</span>
+                <h2 id="evidence-modal-title" style={{ margin: 0, fontSize: '1.15rem', color: 'var(--color-navy)' }}>
+                  Source Evidence & Provenance
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEvidenceModalItem(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '1.5rem',
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                  color: 'var(--color-text-secondary)',
+                  padding: '0.25rem 0.5rem',
+                }}
+                aria-label="Close Evidence Modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="fhir-modal-body">
+              <div>
+                <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Clinical Entity
+                </span>
+                <h3 style={{ margin: '0.25rem 0 0', fontSize: '1.05rem', color: 'var(--color-navy)' }}>
+                  {evidenceModalItem.title}
+                </h3>
+              </div>
+
+              <div style={{ padding: '0.85rem', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>
+                  Source Provenance
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span className="fhir-chip" style={{ backgroundColor: '#e0f2fe', color: '#0369a1' }}>
+                    {evidenceModalItem.sourceType === 'intake' ? 'Patient Self-Reported Intake' : 'Uploaded Medical Document'}
+                  </span>
+                  {evidenceModalItem.pageLocation && (
+                    <span className="fhir-chip">
+                      📍 {evidenceModalItem.pageLocation}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                  Extracted Context / Snippet
+                </span>
+                <blockquote style={{
+                  margin: 0,
+                  padding: '0.85rem 1rem',
+                  backgroundColor: '#fffbeb',
+                  borderLeft: '4px solid #f59e0b',
+                  borderRadius: '4px',
+                  fontFamily: 'inherit',
+                  fontSize: '0.9rem',
+                  lineHeight: 1.5,
+                  color: '#78350f',
+                }}>
+                  "{evidenceModalItem.snippet || evidenceModalItem.originalAnswer || 'No raw snippet recorded'}"
+                </blockquote>
+              </div>
+
+              {evidenceModalItem.documentId && caseDetail && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <a
+                    href={getDocumentFileUrl(caseDetail.caseId, evidenceModalItem.documentId)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-back-link"
+                    style={{ fontSize: '0.85rem' }}
+                  >
+                    📄 Open Original Document File ↗
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="fhir-modal-footer">
+              <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+                Every clinical fact links directly to verified source documentation or patient statement.
+              </span>
+              <Button variant="outline" onClick={() => setEvidenceModalItem(null)}>
+                Close
               </Button>
             </div>
           </div>
