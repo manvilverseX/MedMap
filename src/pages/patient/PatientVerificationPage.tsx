@@ -8,6 +8,7 @@ import { InactivityCountdownBanner } from '../../components/patient/InactivityCo
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { LoadingIndicator } from '../../components/LoadingIndicator';
 import { StatusBadge } from '../../components/StatusBadge';
+import { useT } from '../../i18n/useT';
 import './PatientIntakePage.css';
 
 interface CaseDocument {
@@ -37,6 +38,7 @@ export function PatientVerificationPage() {
 
   // Case state
   const [clinicalCase, setClinicalCase] = useState<ClinicalCase | null>(null);
+  const { t } = useT(clinicalCase?.language);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -208,7 +210,7 @@ export function PatientVerificationPage() {
   const safeExtract = (val: any): string => {
     if (val === null || val === undefined) return '';
     if (typeof val === 'string') return val;
-    if (typeof val === 'object') return val.value || val.originalValue || '';
+    if (typeof val === 'object') return val.original || val.originalValue || val.value || '';
     return String(val);
   };
 
@@ -236,7 +238,7 @@ export function PatientVerificationPage() {
         </Link>
 
         <div className="intake-header">
-          <h1>Verify Your Information</h1>
+          <h1>{t('verificationHeading') || 'Verify Your Information'}</h1>
           <div className="intake-case-id" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
             <span>Case {clinicalCase.caseId}</span>
             <StatusBadge status={clinicalCase.status} />
@@ -246,7 +248,7 @@ export function PatientVerificationPage() {
         {/* Case Demographics & Consent Overview */}
         <div style={{ marginBottom: '2rem', padding: '1.25rem', backgroundColor: 'var(--color-bg-alt)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(15, 23, 42, 0.1)' }}>
           <p style={{ margin: '0 0 0.75rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
-            Please review the information you provided below. You can correct any response before confirming. This information will be shared with the reviewing physician. This is not an automated diagnosis.
+            {t('verificationSubtitle') || 'Please review the information you provided below. You can correct any response before confirming. This information will be shared with the reviewing physician. This is not an automated diagnosis.'}
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(15, 23, 42, 0.08)' }}>
             <div>
@@ -362,7 +364,7 @@ export function PatientVerificationPage() {
                             aria-label={`Edit response for "${question}"`}
                             className="verification-edit-btn"
                           >
-                            Edit
+                            {t('verificationEdit') || 'Edit'}
                           </button>
                         )}
                       </div>
@@ -398,7 +400,7 @@ export function PatientVerificationPage() {
                             disabled={isSavingAnswer}
                             style={{ padding: '0.4rem 0.9rem', fontSize: '0.85rem' }}
                           >
-                            Cancel
+                            {t('verificationCancel') || 'Cancel'}
                           </Button>
                           <Button
                             type="button"
@@ -408,7 +410,7 @@ export function PatientVerificationPage() {
                             disabled={isSavingAnswer}
                             style={{ padding: '0.4rem 1.1rem', fontSize: '0.85rem' }}
                           >
-                            {isSavingAnswer ? 'Saving...' : 'Save Response'}
+                            {isSavingAnswer ? 'Saving...' : (t('verificationSave') || 'Save Response')}
                           </Button>
                         </div>
                       </div>

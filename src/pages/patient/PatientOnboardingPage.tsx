@@ -4,6 +4,7 @@ import { useCase } from '../../context/CaseContext';
 import { createCase, verifyAbha } from '../../utils/api';
 import { Button } from '../../components/Button';
 import { ErrorMessage } from '../../components/ErrorMessage';
+import { useT } from '../../i18n/useT';
 
 const CONSENT_TRANSLATIONS: Record<string, {
   title: string;
@@ -42,6 +43,7 @@ const CONSENT_TRANSLATIONS: Record<string, {
 export function PatientOnboardingPage() {
   const [patientId, setPatientId] = useState('');
   const [language, setLanguage] = useState('English');
+  const { t } = useT(language);
   const [consultationType, setConsultationType] = useState('general');
   const [consentCollect, setConsentCollect] = useState(false);
   const [consentShareDoctor, setConsentShareDoctor] = useState(false);
@@ -141,8 +143,8 @@ export function PatientOnboardingPage() {
         <div className="logo">Patient Onboarding</div>
       </header>
       <main style={{ marginTop: '2rem', maxWidth: '480px' }}>
-        <h2>Welcome to MedMap</h2>
-        <p>Please enter your details to start.</p>
+        <h2>{t('onboardingHeading') || 'Welcome to MedMap'}</h2>
+        <p>{t('onboardingSubtitle') || 'Please enter your details to start.'}</p>
         
         <ErrorMessage message={error} />
 
@@ -303,19 +305,23 @@ export function PatientOnboardingPage() {
           </div>
 
           <div>
-            <label htmlFor="patientId" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Patient ID:</label>
+            <label htmlFor="patientId" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+              {t('patientIdLabel') || 'Patient ID'}:
+            </label>
             <input 
               id="patientId"
               type="text" 
               value={patientId} 
               onChange={(e) => setPatientId(e.target.value)}
-              placeholder="e.g. p-12345"
+              placeholder={t('patientIdPlaceholder') || 'e.g. p-12345'}
               required
               style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
             />
           </div>
           <div>
-            <label htmlFor="language" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Preferred Language:</label>
+            <label htmlFor="language" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+              {t('languageLabel') || 'Preferred Language'}:
+            </label>
             <select 
               id="language"
               value={language} 
@@ -323,25 +329,27 @@ export function PatientOnboardingPage() {
               style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
             >
               <option value="English">English</option>
-              <option value="Hindi">Hindi</option>
-              <option value="Kannada">Kannada</option>
+              <option value="Hindi">हिंदी (Hindi)</option>
+              <option value="Kannada">ಕನ್ನಡ (Kannada)</option>
             </select>
           </div>
           <div>
-            <label htmlFor="consultationType" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Consultation Type:</label>
+            <label htmlFor="consultationType" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+              {t('consultationTypeLabel') || 'Consultation Type'}:
+            </label>
             <select
               id="consultationType"
               value={consultationType}
               onChange={(e) => setConsultationType(e.target.value)}
               style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
             >
-              <option value="general">General Clinical History</option>
-              <option value="ayush">AYUSH / Ayurveda History</option>
+              <option value="general">{t('consultationGeneral') || 'General Clinical History'}</option>
+              <option value="ayush">{t('consultationAyush') || 'AYUSH / Ayurveda History'}</option>
             </select>
             <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
               {consultationType === 'ayush'
-                ? 'AYUSH includes general clinical history first, followed by Ayurvedic Dashavidha Pariksha questionnaire.'
-                : 'Standard clinical history: symptoms, medications, allergies, and health background.'}
+                ? (t('consultationAyushHint') || 'AYUSH includes general clinical history first, followed by Ayurvedic Dashavidha Pariksha questionnaire.')
+                : (t('consultationGeneralHint') || 'Standard clinical history: symptoms, medications, allergies, and health background.')}
             </p>
           </div>
           {/* Granular & Revocable Patient Consent Section */}
@@ -357,7 +365,7 @@ export function PatientOnboardingPage() {
               </span>
               {consentCopy.isDraft && (
                 <span style={{ fontSize: '0.7rem', backgroundColor: '#fef3c7', color: '#92400e', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #fde68a', fontWeight: 600 }}>
-                  Draft translation
+                  {t('draftTranslationTag') || 'Draft translation'}
                 </span>
               )}
             </div>
@@ -372,7 +380,7 @@ export function PatientOnboardingPage() {
                   style={{ marginTop: '0.2rem' }}
                 />
                 <span>
-                  <strong>1. Data Collection:</strong> {consentCopy.collect}
+                  <strong>1. {t('consent1Label') || 'Data Collection:'}</strong> {consentCopy.collect}
                 </span>
               </label>
 
@@ -385,7 +393,7 @@ export function PatientOnboardingPage() {
                   style={{ marginTop: '0.2rem' }}
                 />
                 <span>
-                  <strong>2. Doctor Sharing:</strong> {consentCopy.doctor}
+                  <strong>2. {t('consent2Label') || 'Doctor Sharing:'}</strong> {consentCopy.doctor}
                 </span>
               </label>
 
@@ -397,7 +405,7 @@ export function PatientOnboardingPage() {
                   style={{ marginTop: '0.2rem' }}
                 />
                 <span>
-                  <strong>3. ABDM Simulation (Optional):</strong> {consentCopy.abdm}
+                  <strong>3. {t('consent3Label') || 'ABDM Simulation (Optional):'}</strong> {consentCopy.abdm}
                 </span>
               </label>
             </div>
@@ -413,7 +421,7 @@ export function PatientOnboardingPage() {
             disabled={isLoading || !hasConsent}
             style={{ width: '100%' }}
           >
-            {isLoading ? 'Creating case...' : 'Start Intake'}
+            {isLoading ? (t('creatingCase') || 'Creating case...') : (t('startIntakeButton') || 'Start Intake')}
           </Button>
         </form>
       </main>

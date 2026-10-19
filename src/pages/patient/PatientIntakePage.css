@@ -1240,5 +1240,60 @@
   font-weight: 600;
 }
 
+/* Multilingual & i18n overlay styles */
+.intake-lang-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.intake-lang-select {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  border: 1.5px solid var(--color-navy);
+  background-color: var(--color-surface);
+  color: var(--color-navy);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.intake-ai-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  color: #0369a1;
+  background-color: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 4px;
+  padding: 0.15rem 0.45rem;
+  margin-left: 0.5rem;
+  font-weight: 500;
+}
+
+.intake-fallback-notice {
+  background-color: #fffbeb;
+  border: 1px solid #fef3c7;
+  color: #92400e;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.intake-no-voice-notice {
+  background-color: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  color: #475569;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  margin-top: 0.5rem;
+}
+
 
 

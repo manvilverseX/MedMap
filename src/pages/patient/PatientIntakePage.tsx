@@ -7,16 +7,22 @@ import { Button } from '../../components/Button';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { LoadingIndicator } from '../../components/LoadingIndicator';
 import { StatusBadge } from '../../components/StatusBadge';
+import { useT } from '../../i18n/useT';
 import './PatientIntakePage.css';
 
 interface IntakeQuestion {
   id: string;
   category: string;
+  categoryLocalized?: string;
   prompt: string;
+  promptLocalized?: string;
   helperText?: string;
+  helperTextLocalized?: string;
   inputType: 'text' | 'textarea';
   options?: string[];
+  optionsLocalized?: string[];
   clarificationOptions?: string[];
+  clarificationOptionsLocalized?: string[];
   isOptional?: boolean;
 }
 
@@ -24,6 +30,7 @@ interface IntakeSessionState {
   state: 'question' | 'clarification' | 'correction' | 'complete' | 'safety_escalation' | 'incomplete';
   currentQuestion?: IntakeQuestion;
   issue?: string;
+  issueLocalized?: string | null;
   previousQuestionId?: string | null;
   originalAnswer?: string | null;
   clarificationAttempts?: number;
@@ -34,6 +41,10 @@ interface IntakeSessionState {
   skippedQuestionIds: string[];
   irrelevantQuestionIds: string[];
   malformedAnswerQuestionIds: string[];
+  translated?: boolean;
+  translationLang?: string;
+  translationFallbackNotice?: string | null;
+  aiTranslationTag?: string | null;
   safetyEscalation?: {
     triggered: boolean;
     severity: 'emergency' | 'urgent';
@@ -86,6 +97,9 @@ export function PatientIntakePage() {
   const recognitionRef = useRef<any>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
+  // ── i18n & Language state ───────────────────────────────────────────
+  const { t } = useT(clinicalCase?.language);
+
   // Browser speech language mapping (en-IN, hi-IN, kn-IN)
   const speechLang = clinicalCase?.language?.toLowerCase().startsWith('hi')
     ? 'hi-IN'
@@ -93,6 +107,36 @@ export function PatientIntakePage() {
     ? 'kn-IN'
     : 'en-IN';
   const speechLangName = speechLang === 'hi-IN' ? 'Hindi' : speechLang === 'kn-IN' ? 'Kannada' : 'English';
+
+  const [hasVoiceForLang, setHasVoiceForLang] = useState(true);
+
+  // Check if Web Speech voice is available for non-English speechLang
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    const checkVoice = () => {
+      const targetPrefix = speechLang.slice(0, 2).toLowerCase();
+      if (targetPrefix === 'en') {
+        setHasVoiceForLang(true);
+        return;
+      }
+      const voices = window.speechSynthesis.getVoices();
+      if (!voices || voices.length === 0) {
+        return;
+      }
+      const found = voices.some((v) =>
+        v.lang.toLowerCase().replace('_', '-').startsWith(targetPrefix)
+      );
+      setHasVoiceForLang(found);
+    };
+
+    checkVoice();
+    window.speechSynthesis.onvoiceschanged = checkVoice;
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.onvoiceschanged = null;
+      }
+    };
+  }, [speechLang]);
 
   const SpeechRecognitionAPI =
     typeof window !== 'undefined'
@@ -111,13 +155,22 @@ export function PatientIntakePage() {
   const speakQuestion = useCallback((customText?: string) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     stopSpeaking();
-    const text = customText || (sessionState?.currentQuestion
-      ? `${sessionState.currentQuestion.prompt}. ${sessionState.currentQuestion.helperText || ''}`
-      : '');
+    const promptText = sessionState?.currentQuestion?.promptLocalized || sessionState?.currentQuestion?.prompt || '';
+    const helperText = sessionState?.currentQuestion?.helperTextLocalized || sessionState?.currentQuestion?.helperText || '';
+    const text = customText || (promptText ? `${promptText}. ${helperText}` : '');
     if (!text) return;
+    if (!hasVoiceForLang) return; // Never speak English when patient's language voice is missing!
     try {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = speechLang;
+      const voices = window.speechSynthesis.getVoices();
+      const targetPrefix = speechLang.slice(0, 2).toLowerCase();
+      const matchingVoice = voices.find((v) =>
+        v.lang.toLowerCase().replace('_', '-').startsWith(targetPrefix)
+      );
+      if (matchingVoice) {
+        utterance.voice = matchingVoice;
+      }
       utterance.onstart = () => setIsSpeaking(true);
       utterance.onend = () => setIsSpeaking(false);
       utterance.onerror = () => setIsSpeaking(false);
@@ -125,7 +178,7 @@ export function PatientIntakePage() {
     } catch {
       setIsSpeaking(false);
     }
-  }, [sessionState?.currentQuestion, speechLang, stopSpeaking]);
+  }, [sessionState?.currentQuestion, speechLang, stopSpeaking, hasVoiceForLang]);
 
   const startListening = () => {
     if (!SpeechRecognitionAPI) {
@@ -738,10 +791,34 @@ export function PatientIntakePage() {
         </div>
 
         <div className="intake-header">
-          <h1>Medical History</h1>
-          <p className="intake-case-id" style={{display: "flex", alignItems: "center", gap: "0.5rem", justifyContent: "center"}}>
-            Case {clinicalCase.caseId} <StatusBadge status={clinicalCase.status} />
-          </p>
+          <h1>{t('intakeHeading') || 'Medical History'}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.25rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+            <p className="intake-case-id" style={{display: "flex", alignItems: "center", gap: "0.5rem", margin: 0}}>
+              Case {clinicalCase.caseId} <StatusBadge status={clinicalCase.status} />
+            </p>
+            <div className="intake-lang-switch">
+              <label htmlFor="intake-lang-select" style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                {t('languageLabel') || 'Language'}:
+              </label>
+              <select
+                id="intake-lang-select"
+                value={clinicalCase?.language || 'English'}
+                onChange={async (e) => {
+                  const newLang = e.target.value;
+                  if (clinicalCase && caseId) {
+                    setClinicalCase({ ...clinicalCase, language: newLang });
+                    await updateCase(caseId, { language: newLang });
+                    await refreshAdaptiveState(answers);
+                  }
+                }}
+                className="intake-lang-select"
+              >
+                <option value="English">English</option>
+                <option value="Hindi">हिंदी (Hindi)</option>
+                <option value="Kannada">ಕನ್ನಡ (Kannada)</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         {/* Voice Mode Toggle Bar (Web Speech API) */}
@@ -776,7 +853,7 @@ export function PatientIntakePage() {
 
         <div className="intake-progress">
           <div className="intake-progress-header">
-            <span className="intake-progress-label">{currentQuestion.category}</span>
+            <span className="intake-progress-label">{currentQuestion.categoryLocalized || currentQuestion.category}</span>
             <span className="intake-progress-count">{progressLabel}</span>
           </div>
           <div className="intake-progress-track" role="progressbar" aria-valuenow={progressPercent} aria-valuemin={0} aria-valuemax={100}>
@@ -799,9 +876,15 @@ export function PatientIntakePage() {
         </div>
 
         <div className={`intake-question-card ${state === 'clarification' ? 'intake-clarification-card' : ''}`} key={currentQuestion.id}>
+          {sessionState.translationFallbackNotice && (
+            <div className="intake-fallback-notice" role="alert">
+              <span>⚠️</span> {sessionState.translationFallbackNotice}
+            </div>
+          )}
+
           {state === 'clarification' && (
             <div className="intake-clarification-banner">
-              <span aria-hidden="true">⚠️</span> {issue || 'Could you provide a little more detail for clarity?'}
+              <span aria-hidden="true">⚠️</span> {sessionState.issueLocalized || issue || t('intakeClarificationPrompt') || 'Could you provide a little more detail for clarity?'}
             </div>
           )}
 
@@ -812,15 +895,26 @@ export function PatientIntakePage() {
             </div>
           )}
           
-          <h2 className="intake-question-category">{currentQuestion.category}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.35rem' }}>
+            <h2 className="intake-question-category" style={{ margin: 0 }}>
+              {currentQuestion.categoryLocalized || currentQuestion.category}
+            </h2>
+            {sessionState.aiTranslationTag && (
+              <span className="intake-ai-tag">
+                🤖 {sessionState.aiTranslationTag}
+              </span>
+            )}
+          </div>
+
           <div className="intake-prompt-row">
-            <p className="intake-question-prompt">{currentQuestion.prompt}</p>
+            <p className="intake-question-prompt">{currentQuestion.promptLocalized || currentQuestion.prompt}</p>
             {hasSpeechSynthesis && (
               <button
                 type="button"
                 className={`intake-btn-read-aloud ${isSpeaking ? 'intake-btn-read-aloud--speaking' : ''}`}
                 onClick={() => (isSpeaking ? stopSpeaking() : speakQuestion())}
-                title="Read question aloud or replay"
+                title={hasVoiceForLang ? "Read question aloud or replay" : t('noVoiceForLang')}
+                disabled={!hasVoiceForLang}
                 aria-label="Read question aloud"
                 id="btn-read-aloud-question"
               >
@@ -828,10 +922,16 @@ export function PatientIntakePage() {
               </button>
             )}
           </div>
+
+          {!hasVoiceForLang && (
+            <div className="intake-no-voice-notice" role="note">
+              ℹ️ {t('noVoiceForLang')}
+            </div>
+          )}
           
-          {currentQuestion.helperText && (
+          {(currentQuestion.helperTextLocalized || currentQuestion.helperText) && (
             <p className="intake-question-helper" id={`helper-${currentQuestion.id}`}>
-              {currentQuestion.helperText}
+              {currentQuestion.helperTextLocalized || currentQuestion.helperText}
             </p>
           )}
 
@@ -840,17 +940,23 @@ export function PatientIntakePage() {
             <div className="intake-options-group">
               <div className="intake-options-title">Suggested Options</div>
               <div className="intake-pills-container">
-                {currentQuestion.options.map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    className={`intake-option-pill ${currentAnswer.trim().toLowerCase() === opt.toLowerCase() ? 'intake-option-pill--selected' : ''}`}
-                    onClick={() => handleSelectOption(opt)}
-                    disabled={isSubmitting}
-                  >
-                    {opt}
-                  </button>
-                ))}
+                {currentQuestion.options.map((opt: any, idx: number) => {
+                  const optValue = typeof opt === 'string' ? opt : (opt.value || opt.label || opt.id || String(opt));
+                  const rawDisplay = currentQuestion.optionsLocalized?.[idx] || opt;
+                  const displayLabel = typeof rawDisplay === 'string' ? rawDisplay : (rawDisplay.label || rawDisplay.value || String(rawDisplay));
+                  const isSelected = currentAnswer.trim().toLowerCase() === optValue.toLowerCase();
+                  return (
+                    <button
+                      key={typeof opt === 'string' ? opt : (opt.id || opt.value || idx)}
+                      type="button"
+                      className={`intake-option-pill ${isSelected ? 'intake-option-pill--selected' : ''}`}
+                      onClick={() => handleSelectOption(optValue)}
+                      disabled={isSubmitting}
+                    >
+                      {displayLabel}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -860,17 +966,23 @@ export function PatientIntakePage() {
             <div className="intake-options-group">
               <div className="intake-options-title">Suggested Clarifications</div>
               <div className="intake-pills-container">
-                {currentQuestion.clarificationOptions.map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    className={`intake-option-pill ${currentAnswer.trim().toLowerCase() === opt.toLowerCase() ? 'intake-option-pill--selected' : ''}`}
-                    onClick={() => handleSelectOption(opt)}
-                    disabled={isSubmitting}
-                  >
-                    {opt}
-                  </button>
-                ))}
+                {currentQuestion.clarificationOptions.map((opt: any, idx: number) => {
+                  const optValue = typeof opt === 'string' ? opt : (opt.value || opt.label || opt.id || String(opt));
+                  const rawDisplay = currentQuestion.clarificationOptionsLocalized?.[idx] || opt;
+                  const displayLabel = typeof rawDisplay === 'string' ? rawDisplay : (rawDisplay.label || rawDisplay.value || String(rawDisplay));
+                  const isSelected = currentAnswer.trim().toLowerCase() === optValue.toLowerCase();
+                  return (
+                    <button
+                      key={typeof opt === 'string' ? opt : (opt.id || opt.value || idx)}
+                      type="button"
+                      className={`intake-option-pill ${isSelected ? 'intake-option-pill--selected' : ''}`}
+                      onClick={() => handleSelectOption(optValue)}
+                      disabled={isSubmitting}
+                    >
+                      {displayLabel}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

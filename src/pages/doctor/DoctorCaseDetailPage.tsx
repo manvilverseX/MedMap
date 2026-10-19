@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { DoctorCaseStatusBadge } from '../../components/doctor/DoctorCaseStatusBadge';
 import { DoctorSectionCard } from '../../components/doctor/DoctorSectionCard';
-import { getCase, getCaseDocuments, updateCase, generateAISummary, getClinicalIntelligence, getUnifiedCase, getDocumentFileUrl, getFhirBundle, reviewClinicalItem, getCaseAuditTrail, linkCareContext } from '../../utils/api';
+import { getCase, getCaseDocuments, updateCase, generateAISummary, getClinicalIntelligence, getUnifiedCase, getDocumentFileUrl, getFhirBundle, reviewClinicalItem, getCaseAuditTrail, linkCareContext, API_BASE_URL } from '../../utils/api';
 import type { ClinicalCase } from '../../types/case';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { Button } from '../../components/Button';
@@ -30,6 +30,50 @@ export function DoctorCaseDetailPage() {
     followUp: ''
   });
   const [isSaving, setIsSaving] = useState(false);
+
+  // Multilingual toggle state
+  const [displayLanguage, setDisplayLanguage] = useState<'en' | 'patient'>('en');
+  const [translatedSummary, setTranslatedSummary] = useState<Record<string, string> | null>(null);
+  const [isTranslatingSummary, setIsTranslatingSummary] = useState(false);
+
+  const fetchTranslatedSummary = async (targetCase?: ClinicalCase) => {
+    const c = targetCase || caseDetail;
+    if (!c?.aiSummary || !c.language) return;
+    const langLower = c.language.toLowerCase();
+    const langCode = langLower.startsWith('hi') ? 'hi' : langLower.startsWith('kn') ? 'kn' : 'en';
+    if (langCode === 'en') return;
+    if (translatedSummary) return;
+
+    setIsTranslatingSummary(true);
+    try {
+      const summaryFields: Record<string, string> = {};
+      const keys = ['chiefComplaint', 'hpi', 'pastMedical', 'pastSurgical', 'medications', 'allergies', 'familyHistory', 'reviewOfSystems'];
+      keys.forEach((k) => {
+        const val = (c.aiSummary as any)[k];
+        if (val) summaryFields[k] = val;
+      });
+
+      const res = await fetch(`${API_BASE_URL}/translate/ui`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('medmap_token') || ''}`,
+        },
+        body: JSON.stringify({
+          strings: summaryFields,
+          targetLang: langCode,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTranslatedSummary(data.translations || summaryFields);
+      }
+    } catch {
+      // fallback gracefully
+    } finally {
+      setIsTranslatingSummary(false);
+    }
+  };
 
   // FHIR Bundle state
   const [isFhirModalOpen, setIsFhirModalOpen] = useState(false);
@@ -606,6 +650,56 @@ export function DoctorCaseDetailPage() {
             </span>
           </div>
 
+          {/* Multilingual View Toggle (Doctor Side) */}
+          {caseDetail.language && !caseDetail.language.toLowerCase().startsWith('en') && (
+            <div className="doctor-lang-toggle" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '1rem', padding: '0.65rem 1rem', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1.5px solid var(--color-navy)', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--color-navy)' }}>🌐 Language View:</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                  Patient consultation language: <strong>{caseDetail.language}</strong>
+                </span>
+              </div>
+              <div style={{ display: 'inline-flex', borderRadius: '6px', overflow: 'hidden', border: '1.5px solid var(--color-navy)' }}>
+                <button
+                  type="button"
+                  id="toggle-lang-en"
+                  onClick={() => setDisplayLanguage('en')}
+                  style={{
+                    padding: '0.35rem 0.85rem',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    backgroundColor: displayLanguage === 'en' ? 'var(--color-navy)' : '#ffffff',
+                    color: displayLanguage === 'en' ? '#ffffff' : 'var(--color-navy)',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  English (Canonical)
+                </button>
+                <button
+                  type="button"
+                  id="toggle-lang-patient"
+                  onClick={() => {
+                    setDisplayLanguage('patient');
+                    fetchTranslatedSummary();
+                  }}
+                  style={{
+                    padding: '0.35rem 0.85rem',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    backgroundColor: displayLanguage === 'patient' ? 'var(--color-navy)' : '#ffffff',
+                    color: displayLanguage === 'patient' ? '#ffffff' : 'var(--color-navy)',
+                    border: 'none',
+                    borderLeft: '1px solid var(--color-navy)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Patient's Language ({caseDetail.language})
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* View Mode Navigation Tabs */}
           <div className="view-tabs-container" role="tablist">
             <button
@@ -774,7 +868,10 @@ export function DoctorCaseDetailPage() {
                   .filter(([question]) => question !== 'ayush' && question !== 'consultation_type' && !question.startsWith('ayush_'))
                   .map(([question, answer], i) => {
                   const structuredInfo = (caseDetail.derivedClinicalData?.structuredIntake || {})[question] || {};
-                  const answerText = typeof answer === 'string' ? answer : (answer?.value || answer?.originalValue || '');
+                  const isPatientLang = displayLanguage === 'patient';
+                  const canonicalEnglishText = typeof answer === 'string' ? answer : (answer?.value || answer?.originalValue || '');
+                  const patientOriginalText = (typeof answer === 'object' && answer?.original) ? answer.original : canonicalEnglishText;
+                  const answerText = isPatientLang ? patientOriginalText : canonicalEnglishText;
                   const isSkipped = !answerText || answerText.trim().length === 0;
                   const isInactive = structuredInfo.active === false;
                   const isUncertain = structuredInfo.isUncertain || answerText.toLowerCase().includes('not sure') || answerText.toLowerCase().includes('unknown');
@@ -786,7 +883,7 @@ export function DoctorCaseDetailPage() {
                           {structuredInfo.prompt || question.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                         </h3>
 
-                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
                           {isInactive && (
                             <span className="verification-badge" style={{ backgroundColor: 'rgba(15, 23, 42, 0.08)', color: 'var(--color-text-secondary)', border: '1px solid rgba(15, 23, 42, 0.2)', fontSize: '0.75rem', padding: '0.15rem 0.5rem' }}>
                               Branch Inactive
@@ -815,6 +912,29 @@ export function DoctorCaseDetailPage() {
                             <span className="verification-badge" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#b45309', border: '1px solid var(--color-warning)', fontSize: '0.75rem', padding: '0.15rem 0.5rem' }}>
                               Uncertain
                             </span>
+                          )}
+                          {!isSkipped && (
+                            <button
+                              type="button"
+                              onClick={() => setEvidenceModalItem({
+                                title: structuredInfo.prompt || question.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                                sourceType: 'intake',
+                                snippet: canonicalEnglishText,
+                                originalAnswer: patientOriginalText !== canonicalEnglishText ? patientOriginalText : undefined,
+                                pageLocation: 'Patient Self-Reported Intake',
+                              })}
+                              style={{
+                                background: 'none',
+                                border: '1px solid var(--color-border)',
+                                borderRadius: '4px',
+                                padding: '0.15rem 0.45rem',
+                                fontSize: '0.75rem',
+                                cursor: 'pointer',
+                                color: 'var(--color-navy)',
+                              }}
+                            >
+                              🔍 Evidence
+                            </button>
                           )}
                         </div>
                       </div>
@@ -971,6 +1091,12 @@ export function DoctorCaseDetailPage() {
                     </p>
                   </div>
 
+                  {displayLanguage === 'patient' && isTranslatingSummary && (
+                    <div style={{ marginBottom: '1rem', color: 'var(--color-primary)', fontSize: '0.85rem' }}>
+                      ⏳ Translating AI summary into {caseDetail.language}...
+                    </div>
+                  )}
+
                   {[
                     { key: 'chiefComplaint', label: 'Chief Complaint' },
                     { key: 'historyOfPresentIllness', label: 'History of Present Illness' },
@@ -983,12 +1109,22 @@ export function DoctorCaseDetailPage() {
                   ].map(({ key, label }) => {
                     const value = caseDetail.aiSummary![key as keyof typeof caseDetail.aiSummary];
                     if (!value) return null;
+                    const isPatientLang = displayLanguage === 'patient';
+                    const displayValue = (isPatientLang && translatedSummary?.[key]) ? translatedSummary[key] : value;
+
                     return (
                       <div key={key} style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--color-border-subtle)' }}>
-                        <h3 className="history-subheading" style={{ color: 'var(--color-navy)', marginBottom: '0.5rem', fontWeight: 600 }}>
-                          {label}
-                        </h3>
-                        <p className="clinical-list-item" style={{ margin: 0 }}>{value}</p>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                          <h3 className="history-subheading" style={{ color: 'var(--color-navy)', margin: 0, fontWeight: 600 }}>
+                            {label}
+                          </h3>
+                          {isPatientLang && translatedSummary?.[key] && (
+                            <span className="intake-ai-tag" style={{ margin: 0 }}>
+                              🤖 AI translation, may contain errors.
+                            </span>
+                          )}
+                        </div>
+                        <p className="clinical-list-item" style={{ margin: 0 }}>{displayValue}</p>
                       </div>
                     );
                   })}
@@ -1395,13 +1531,18 @@ export function DoctorCaseDetailPage() {
               ) : null}
             </div>
 
-            <div className="fhir-modal-footer">
-              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                FHIR R4 bundle compiled from verified clinical case, conditions, medications, and investigations.
-              </span>
-              <Button variant="outline" onClick={() => setIsFhirModalOpen(false)}>
-                Done
-              </Button>
+            <div className="fhir-modal-footer" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                  FHIR R4 bundle compiled from verified clinical case, conditions, medications, and investigations.
+                </span>
+                <Button variant="outline" onClick={() => setIsFhirModalOpen(false)}>
+                  Done
+                </Button>
+              </div>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--color-text-secondary)', fontStyle: 'italic', borderTop: '1px solid var(--color-border-subtle)', paddingTop: '0.4rem' }}>
+                Note: Clinical content is exported in English; original-language text kept as extension/annotation.
+              </p>
             </div>
           </div>
         </div>
@@ -1463,7 +1604,7 @@ export function DoctorCaseDetailPage() {
 
               <div>
                 <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
-                  Extracted Context / Snippet
+                  Canonical Clinical Interpretation (English)
                 </span>
                 <blockquote style={{
                   margin: 0,
@@ -1476,9 +1617,30 @@ export function DoctorCaseDetailPage() {
                   lineHeight: 1.5,
                   color: '#78350f',
                 }}>
-                  "{evidenceModalItem.snippet || evidenceModalItem.originalAnswer || 'No raw snippet recorded'}"
+                  "{evidenceModalItem.snippet || 'No raw snippet recorded'}"
                 </blockquote>
               </div>
+
+              {evidenceModalItem.originalAnswer && (
+                <div style={{ marginTop: '0.75rem' }}>
+                  <span style={{ fontSize: '0.78rem', color: '#166534', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                    Patient's Original Statement ({caseDetail?.language || 'Original Language'})
+                  </span>
+                  <blockquote style={{
+                    margin: 0,
+                    padding: '0.85rem 1rem',
+                    backgroundColor: '#f0fdf4',
+                    borderLeft: '4px solid #10b981',
+                    borderRadius: '4px',
+                    fontFamily: 'inherit',
+                    fontSize: '0.9rem',
+                    lineHeight: 1.5,
+                    color: '#14532d',
+                  }}>
+                    "{evidenceModalItem.originalAnswer}"
+                  </blockquote>
+                </div>
+              )}
 
               {evidenceModalItem.documentId && caseDetail && (
                 <div style={{ marginTop: '0.5rem' }}>
