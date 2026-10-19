@@ -133,49 +133,88 @@ export const generateAISummary = async (caseId: string): Promise<ClinicalCase> =
 };
 
 export const uploadDocument = async (caseId: string, file: File): Promise<any> => {
-  let blobMetadata = null;
-  
-  try {
-    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-    const safeFilename = `${caseId}/${crypto.randomUUID()}${ext}`;
+  let blobUploaded = false;
+  let blobMetadata: any = null;
 
-    blobMetadata = await uploadPresigned(safeFilename, file, {
-      access: 'private',
-      handleUploadUrl: '/api/blob-upload',
-      clientPayload: caseId,
-      headers: { ...getAuthHeaders() }
-    });
-  } catch (error: any) {
-    throw new Error(error.message || 'Blob upload failed');
+  // Check if running in a local environment
+  const isLocalHost = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname === '[::1]'
+  );
+
+  // If not local, try Vercel Blob presigned flow first
+  if (!isLocalHost) {
+    try {
+      const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+      const safeFilename = `${caseId}/${crypto.randomUUID()}${ext}`;
+
+      blobMetadata = await uploadPresigned(safeFilename, file, {
+        access: 'private',
+        handleUploadUrl: '/api/blob-upload',
+        clientPayload: caseId,
+        headers: { ...getAuthHeaders() }
+      });
+      if (blobMetadata && blobMetadata.url) {
+        blobUploaded = true;
+      }
+    } catch (error: any) {
+      console.warn('Vercel Blob presigned upload failed, falling back to direct server upload:', error?.message);
+      blobUploaded = false;
+    }
   }
-  
-  const finalBody = new FormData();
-  finalBody.append('metadata', JSON.stringify({
-    url: blobMetadata.url,
-    pathname: blobMetadata.pathname,
-    filename: file.name,
-    mimeType: file.type,
-    sizeBytes: file.size
-  }));
-  
-  const response = await fetch(`${API_BASE_URL}/cases/${caseId}/documents`, {
+
+  // If Vercel Blob upload succeeded, save metadata to backend
+  if (blobUploaded && blobMetadata) {
+    const finalBody = new FormData();
+    finalBody.append('metadata', JSON.stringify({
+      url: blobMetadata.url,
+      pathname: blobMetadata.pathname,
+      filename: file.name,
+      mimeType: file.type,
+      sizeBytes: file.size
+    }));
+
+    const response = await fetch(`${API_BASE_URL}/cases/${caseId}/documents`, {
+      method: 'POST',
+      headers: { ...getAuthHeaders() },
+      body: finalBody,
+    });
+
+    if (response.ok) {
+      return response.json();
+    }
+    console.warn('Metadata save failed, falling back to direct file upload');
+  }
+
+  // Fallback: direct multipart/form-data upload to FastAPI
+  const directBody = new FormData();
+  directBody.append('file', file);
+
+  const directResponse = await fetch(`${API_BASE_URL}/cases/${caseId}/documents`, {
     method: 'POST',
     headers: { ...getAuthHeaders() },
-    body: finalBody,
+    body: directBody,
   });
-  
-  if (!response.ok) {
+
+  if (!directResponse.ok) {
     let errorMessage = 'Failed to upload document';
     try {
-      const errorData = await response.json();
+      const errorData = await directResponse.json();
       if (errorData.detail) errorMessage = errorData.detail;
     } catch {
       // Ignore
     }
     throw new Error(errorMessage);
   }
-  
-  return response.json();
+
+  return directResponse.json();
+};
+
+export const getDocumentFileUrl = (caseId: string, documentId: string): string => {
+  const token = localStorage.getItem('medmap_token');
+  const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+  return `${API_BASE_URL}/cases/${caseId}/documents/${documentId}/file${tokenParam}`;
 };
 
 export const extractDocument = async (caseId: string, documentId: string): Promise<any> => {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCase } from '../../context/CaseContext';
-import { getCase, updateCase, updateCaseStatus, getCaseDocuments } from '../../utils/api';
+import { getCase, updateCase, updateCaseStatus, getCaseDocuments, getDocumentFileUrl } from '../../utils/api';
 import type { ClinicalCase } from '../../types/case';
 import { Button } from '../../components/Button';
 import { ErrorMessage } from '../../components/ErrorMessage';
@@ -476,9 +476,27 @@ export function PatientVerificationPage() {
                       </div>
                     </div>
 
-                    <span className="verification-badge" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: 'var(--color-verify)', color: 'var(--color-verify)' }}>
-                      Attached
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <a
+                        href={getDocumentFileUrl(clinicalCase.caseId, doc.id || doc.documentId || '')}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          fontSize: '0.8rem',
+                          padding: '0.2rem 0.6rem',
+                          border: '1px solid var(--color-primary)',
+                          borderRadius: '4px',
+                          color: 'var(--color-primary)',
+                          textDecoration: 'none',
+                          fontWeight: 500,
+                        }}
+                      >
+                        Open File ↗
+                      </a>
+                      <span className="verification-badge" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: 'var(--color-verify)', color: 'var(--color-verify)' }}>
+                        Attached
+                      </span>
+                    </div>
                   </li>
                 );
               })}

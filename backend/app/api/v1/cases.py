@@ -1,16 +1,17 @@
-from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Depends, Query
+from typing import List, Optional, Dict, Any
+import os
+import logging
+from fastapi import APIRouter, HTTPException, Depends, Query, Header, UploadFile, File, Form
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from app.schemas.case import CaseCreate, CaseUpdate, CaseResponse, CaseStatus
 from app.schemas.intake import IntakeRequestMode, IntakeSessionState
 from app.services import case_service
 from app.core.database import get_db
-from fastapi import UploadFile, File, Form
 from app.schemas.document import DocumentResponse
 from app.services import document_service
+from app.models.document import PatientDocument
 from app.core.security import require_doctor, require_patient_or_doctor, create_access_token
-from typing import Dict, Any
-import logging
 
 router = APIRouter()
 
@@ -284,6 +285,72 @@ def get_case_documents(case_id: str, db: Session = Depends(get_db), current_user
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
     return document_service.get_documents(db, case_id)
+
+@router.get("/{case_id}/documents/{document_id}/file")
+def get_case_document_file(
+    case_id: str,
+    document_id: str,
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
+    auth_token = None
+    if authorization and authorization.startswith("Bearer "):
+        auth_token = authorization.split(" ", 1)[1]
+    elif token:
+        auth_token = token
+
+    if not auth_token:
+        raise HTTPException(
+            status_code=401,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    from app.core.security import SECRET_KEY, ALGORITHM
+    from app.models.user import TokenBlocklist
+    import jwt
+
+    try:
+        payload = jwt.decode(auth_token, SECRET_KEY, algorithms=[ALGORITHM])
+        role = payload.get("role")
+        if role not in ["patient", "doctor"]:
+            raise HTTPException(status_code=403, detail="Operation not permitted")
+        if role == "patient" and payload.get("case_id") != case_id:
+            raise HTTPException(status_code=403, detail="Not authorized to access this case")
+    except jwt.PyJWTError:
+        raise HTTPException(
+            status_code=401,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    is_blocked = db.query(TokenBlocklist).filter(TokenBlocklist.token == auth_token).first()
+    if is_blocked:
+        raise HTTPException(
+            status_code=401,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    doc = db.query(PatientDocument).filter(
+        PatientDocument.id == document_id,
+        PatientDocument.caseId == case_id
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if doc.storagePath.startswith("http://") or doc.storagePath.startswith("https://"):
+        return RedirectResponse(url=doc.storagePath)
+
+    if not os.path.exists(doc.storagePath):
+        raise HTTPException(status_code=404, detail="Document file not found on disk")
+
+    return FileResponse(
+        path=doc.storagePath,
+        media_type=doc.mimeType,
+        filename=doc.filename
+    )
 
 
 @router.post("/{case_id}/documents/{document_id}/extract", response_model=DocumentResponse)

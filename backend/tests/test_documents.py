@@ -143,3 +143,62 @@ class DocumentTests(unittest.TestCase):
         doc = self.db.query(PatientDocument).filter_by(id=response.id).first()
         self.assertIsNotNone(doc)
         self.assertEqual(doc.storagePath, "https://blob.vercel-storage.com/test.pdf")
+
+    def test_get_document_file_endpoint_local(self):
+        from fastapi.testclient import TestClient
+        from app.main import app
+        from app.core.database import get_db
+        from app.core.security import create_access_token
+
+        def override_get_db():
+            try:
+                yield self.db
+            finally:
+                pass
+
+        app.dependency_overrides[get_db] = override_get_db
+        client = TestClient(app)
+
+        file_content = b"pdf-for-download"
+        file = self.create_upload_file("download.pdf", file_content, "application/pdf")
+        upload_res = upload_document(self.db, "test-case", file)
+
+        patient_token = create_access_token({"role": "patient", "case_id": "test-case"})
+        doctor_token = create_access_token({"role": "doctor", "sub": "dr_smith"})
+        other_token = create_access_token({"role": "patient", "case_id": "other-case"})
+
+        # 1. Patient with header auth can download
+        resp = client.get(
+            f"/api/v1/cases/test-case/documents/{upload_res.id}/file",
+            headers={"Authorization": f"Bearer {patient_token}"}
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.content, file_content)
+
+        # 2. Patient with query param token can download
+        resp = client.get(
+            f"/api/v1/cases/test-case/documents/{upload_res.id}/file?token={patient_token}"
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.content, file_content)
+
+        # 3. Doctor can download
+        resp = client.get(
+            f"/api/v1/cases/test-case/documents/{upload_res.id}/file",
+            headers={"Authorization": f"Bearer {doctor_token}"}
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.content, file_content)
+
+        # 4. Other patient is forbidden
+        resp = client.get(
+            f"/api/v1/cases/test-case/documents/{upload_res.id}/file",
+            headers={"Authorization": f"Bearer {other_token}"}
+        )
+        self.assertEqual(resp.status_code, 403)
+
+        # 5. Missing token is 401
+        resp = client.get(f"/api/v1/cases/test-case/documents/{upload_res.id}/file")
+        self.assertEqual(resp.status_code, 401)
+
+        app.dependency_overrides.pop(get_db, None)
