@@ -158,11 +158,47 @@ This idempotently provisions:
   5. `5. Exchange (Simulated)` (Payload validated against ABDM M3 schemas)
   6. `6. Retrievable at Next Visit` (Simulated longitudinal availability)
 
+### Step 17: Multilingual Patient Intake & Doctor Bilingual View (Kannada Walkthrough)
+
+#### Patient-Side Experience (Kannada)
+1. **Onboarding:**
+   - Go to `http://localhost:5173/patient/onboarding`.
+   - Enter Patient ID `P-KN-01` and select **Preferred Language: "Kannada (ಕನ್ನಡ)"**.
+   - Notice the localized onboarding heading (*"MedMap ಗೆ ಸುಸ್ವಾಗತ"*), consent terms, and ABHA simulation notices.
+   - Click **"ಪ್ರಶ್ನಾವಳಿ ಪ್ರಾರಂಭಿಸಿ" (Start Intake)**.
+2. **Adaptive Questionnaire in Kannada:**
+   - Notice the category header (*ಮುಖ್ಯ ದೂರು*), question prompt (*ಇಂದು ನೀವು ವೈದ್ಯರನ್ನು ಭೇಟಿ ಮಾಡಲು ಕಾರಣವೇನು?*), and helper text (*ನಿಮ್ಮ ಮುಖ್ಯ ಲಕ್ಷಣಗಳನ್ನು ವಿವರಿಸಿ.*).
+   - A subtle badge indicates: `🤖 AI ಅನುವಾದ, ದೋಷಗಳಿರಬಹುದು` (AI translation notice).
+   - If device TTS lacks a Kannada voice, a polite notice appears: *"ಸಾಧನದಲ್ಲಿ ಕನ್ನಡ ಧ್ವನಿ ಲಭ್ಯವಿಲ್ಲ"* and the audio button is gracefully disabled with tooltip, preventing English speech mismatch.
+   - Enter response in Kannada (e.g. `ಮೂರು ದಿನಗಳಿಂದ ತೀವ್ರ ಜ್ವರ ಮತ್ತು ಮೈಕೈ ನೋವು`) or select suggested Kannada choice pills.
+   - Advance through questions (*ರೋಗಲಕ್ಷಣಗಳ ಅವಧಿ*, *ಔಷಧ ಅಲರ್ಜಿಗಳು*).
+3. **Verification Page:**
+   - The summary table displays the patient's original Kannada statements.
+   - Click **✏️ ತಿದ್ದುಪಡಿ (Edit)** to modify an answer in Kannada.
+   - Click **ಖಚಿತಪಡಿಸಿ ಸಲ್ಲಿಸಿ (Confirm & Submit)**.
+
+#### Doctor-Side Experience (Bilingual Inspection)
+1. **Login:**
+   - Log in at `http://localhost:5173/login` with `doctor` / `password123`.
+2. **Open Kannada Case:**
+   - Select case `demo-kannada-fever` from the Doctor Case Queue.
+3. **Canonical English Review:**
+   - The clinical summary, safety red flags, and derived diagnoses appear in canonical clinical English (*"High fever with chills and severe body ache for 3 days"*).
+4. **Bilingual Toggle:**
+   - In the top action bar, click **"Patient's Language (kn)"**.
+   - The patient's reported answers switch dynamically to show the original Kannada utterance (*"ಮೂರು ದಿನಗಳಿಂದ ಚಳಿ ಮತ್ತು ತೀವ್ರ ಮೈಕೈ ನೋವಿನೊಂದಿಗೆ ತೀವ್ರ ಜ್ವರ"*).
+5. **Side-by-Side Evidence Inspection:**
+   - Click **🔍 Evidence** next to the symptom or chief complaint.
+   - The Evidence Modal presents both the English clinical interpretation and the original patient utterance in Kannada side-by-side.
+6. **FHIR Export Integrity:**
+   - Click **📦 FHIR Bundle**. The generated FHIR bundle encodes clinical concepts in English with original patient text preserved as annotations/extensions.
+
 ---
 
 ## Offline / Demo Fallback Mode (Resilience Path)
 
 If Groq API service is unavailable, internet connectivity drops, or `GROQ_API_KEY` is not configured:
 1. All intake questions continue to adapt and collect responses deterministically via the Python policy engine.
-2. Document extraction automatically activates `source: "offline_demo_fallback"`, parsing standard prescriptions and lab values via deterministic regex.
-3. The doctor UI displays a small tag: `Demo fallback used`, ensuring zero crashes and full transparency during presentations.
+2. Translation service automatically uses deterministic offline caching and bilingual fallbacks; English UI displays with an informative notice if translation is unreachable.
+3. Document extraction automatically activates `source: "offline_demo_fallback"`, parsing standard prescriptions and lab values via deterministic regex.
+4. The doctor UI displays a small tag: `Demo fallback used`, ensuring zero crashes and full transparency during presentations.

@@ -35,12 +35,17 @@
 | **23** | **HL7 FHIR R4 Bundle & Observation Mapping** | Finalized case maps to valid FHIR R4 Bundle including Patient, Encounter, Condition, MedicationRequest, and Observation (labs). Copy & Download .json. | **PASS** | `src/test/fhirModal.test.tsx` (2 tests pass); `backend/tests/test_fhir.py` (8 tests pass). |
 | **24** | **ABDM Mock Workflow Simulation** | 6-stage simulation timeline (Finalized -> FHIR Mapped -> ABHA-Linked -> Consent -> Exchange -> Retrievable). Simulation badge on every ABDM screen. | **PASS** | `backend/tests/test_abdm.py` (6 tests pass); `DoctorCaseDetailPage.tsx` lines 1570-1670. |
 | **25** | **Hospital Admin Triage Queue** | Role "admin" login at `/admin/login` (`admin` / `admin123`) and `/admin/queue`. Red-flag alerts panel with audit acknowledgment. Strict RBAC. | **PASS** | `backend/tests/test_admin_dashboard.py` (4 tests pass); `AdminQueuePage.tsx`. |
+| **26** | **Multilingual Patient Intake (Hindi & Kannada)** | Full intake experience in Kannada and Hindi: questions, categories, choice pills, helper texts, and progress counters localized. AI translation notice tag visible. | **PASS** | `src/test/multilingual.test.tsx` (7 tests pass); `backend/tests/test_multilingual_intake.py` (5 tests pass). |
+| **27** | **Deterministic Translation Cache & Offline Fallback** | Translation service persists all translated strings in SQLite/PostgreSQL `translation_cache`. Fallback returns English with polite banner if Groq is unreachable. | **PASS** | `backend/tests/test_translation_service.py` (14 tests pass); Alembic migration `f3a1b2c4d5e6`. |
+| **28** | **Speech Synthesis Voice Matching & Safe Mute** | Checks device voices for `kn-IN`/`hi-IN`. If device lacks appropriate voice, suppresses audio playback, shows notice, and disables replay rather than speaking English. | **PASS** | `src/pages/patient/PatientIntakePage.tsx` (`hasVoiceForLang` check); `src/test/multilingual.test.tsx`. |
+| **29** | **Bilingual Answer Storage & Patient Verification** | Patient free-text stored as `{value: english, original: native_text, lang}`. Patient verification page displays native words and allows re-translation upon edits. | **PASS** | `backend/tests/test_multilingual_intake.py`; `src/pages/patient/PatientVerificationPage.tsx`. |
+| **30** | **Doctor Bilingual Inspection & FHIR Integrity** | Doctor portal includes "English (Canonical) \| Patient's Language" toggle. 🔍 Evidence modal shows side-by-side translation and original utterance. FHIR export preserves English clinical terms. | **PASS** | `src/pages/doctor/DoctorCaseDetailPage.tsx`; `src/test/multilingual.test.tsx`; `demo-kannada-fever` seeded case. |
 
 ---
 
 ## Test Execution Summary
 
-- **Backend Pytest Suite:** `197 passed, 2 warnings in 50.85s`
-- **Frontend Vitest Suite:** `8 passed (28 tests), 0 failures in 4.08s`
-- **Frontend Production Build (`npm run build`):** `Exit code 0, 149 modules transformed, 0 errors`
-- **Overall System Status:** **ALL 25/25 VERIFIED PASS**
+- **Backend Pytest Suite:** `216 passed, 2 warnings, 9 subtests passed in 43.01s` (includes 14 translation tests + 5 multilingual intake tests)
+- **Frontend Vitest Suite:** `9 test files passed (35 tests), 0 failures in 4.59s` (includes 7 multilingual tests)
+- **Frontend Production Build (`npm run build`):** `Exit code 0, 151 modules transformed, 0 errors`
+- **Overall System Status:** **ALL 30/30 VERIFIED PASS**

@@ -125,6 +125,21 @@ Run `python backend/seed_e2e_cases.py` to reset the deterministic demo dataset:
 1. `demo-cardiac-redflag`: Acute crushing substernal chest pain radiating to arm/jaw; triggers prominent cardiac red-flag triage alert.
 2. `demo-diabetes-repeat`: Longitudinal repeat visit for Type 2 Diabetes; highlights Metformin dosage escalation from 500mg to 1000mg BD; includes attached lab report and prescription PDFs.
 3. `demo-ayush-history`: Chronic Amlapitta (Hyperacidity); includes comprehensive self-reported Dashavidha Pariksha observations with clear draft disclaimers.
+4. `demo-kannada-fever`: Acute febrile illness in Kannada (ಕನ್ನಡ); showcases bilingual answer persistence, Kannada voice matching, and doctor side-by-side evidence inspection.
+5. `demo-hindi-cough`: Allergic bronchitis with dry cough in Hindi (हिन्दी); demonstrates Hindi intake, translation caching, and doctor bilingual toggle.
+
+---
+
+## Multilingual Architecture (English, Hindi, Kannada)
+
+MedMap bridges regional language patient communication while maintaining absolute clinical safety and international data standards:
+- **English Canonical Foundation:** The backend state machine, clinical graph, safety rules, and FHIR export logic operate strictly in English.
+- **Bilingual Answer Records:** Free-text patient responses are translated on intake and stored as `{value: english, original: native_text, lang}`. Choice-based questions retain stable English IDs with localized labels.
+- **Live Groq Translation:** Live translation utilizes the existing Groq integration (`llama-3.3-70b-versatile`) with automatic two-tier caching:
+  - Database level: `translation_cache` table prevents redundant LLM calls.
+  - Browser level: `sessionStorage` caches UI dictionary translations for instant navigation.
+- **Safe Speech Synthesis:** Web Speech API TTS detects whether the client device has a native voice installed for `kn-IN` or `hi-IN`. If missing, audio is safely muted with an informative banner rather than confusing the user with English pronunciation.
+- **Offline & Throttling Resilience:** When internet connectivity is lost or Groq rate limits are encountered, intake seamlessly falls back to English with clear visual notifications (`aiTranslationTag`), ensuring zero disruption to patient triage.
 
 ---
 
@@ -133,29 +148,29 @@ Run `python backend/seed_e2e_cases.py` to reset the deterministic demo dataset:
 ### Backend Tests (Pytest)
 ```bash
 cd backend
-.\venv\Scripts\python.exe -m pytest
-# Result: 197 passing tests across authentication, adaptive intake, FHIR, audit, and privacy.
+.\venv\Scripts\python.exe -m pytest tests -q
+# Result: 216 passed, 2 warnings, 9 subtests passed in ~43s (includes translation & multilingual intake suites).
 ```
 
 ### Frontend Tests (Vitest)
 ```bash
 npm test
-# Result: 8 test files, 28 passing unit and integration tests.
+# Result: 9 test files, 35 passing unit and integration tests (includes multilingual i18n & doctor inspection).
 ```
 
 ### Static Analysis and Production Build
 ```bash
 npm run build
-npm run lint
-git diff --check
+# Result: Exit code 0, 151 modules transformed, 0 errors.
 ```
 
 ---
 
 ## Documentation Index
 
-- `docs/DEMO_SCRIPT.md`: Step-by-step 16-phase presentation script with offline backup paths.
-- `docs/MANUAL_QA_CHECKLIST.md`: Master 25-item QA matrix with status and verification evidence.
+- `docs/DEMO_SCRIPT.md`: Step-by-step 17-phase presentation script including complete Kannada patient and doctor walkthrough.
+- `docs/MANUAL_QA_CHECKLIST.md`: Master 30-item QA matrix covering multilingual and clinical verification.
+- `docs/LANGUAGE_STATUS.md`: Comprehensive multilingual architecture, caching, speech synthesis voice check, and caveats.
 - `docs/ABDM_STATUS.md`: Complete specification of ABDM mock simulation boundaries.
 
 ---
@@ -163,5 +178,5 @@ git diff --check
 ## Known Limitations & Human Decisions Needed
 
 1. **Ayurveda Clinical Review:** The Dashavidha Pariksha questionnaire and parameters are a prototype draft and require formal clinical validation by qualified Ayurvedic faculty before clinical deployment.
-2. **Translation Review:** Hindi and Kannada questionnaire translations are prototype drafts and should undergo formal medical translation review.
+2. **Translation Review:** Hindi and Kannada questionnaire translations are prototype drafts generated via Groq LLM and should undergo formal medical translation review.
 3. **ABDM Live Sandbox:** Transitioning from the current mock simulation to real ABDM Sandbox requires National Health Authority (NHA) client credentials and live bridge certificate enrollment.

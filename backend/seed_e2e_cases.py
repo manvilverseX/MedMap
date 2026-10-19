@@ -385,6 +385,129 @@ def seed_db():
         case_ayush.status = "doctor_review"
     db.commit()
 
+    # ── 5. Demo Case D: Kannada Multilingual Case (Acute Febrile Illness) ──
+    case_kn = db.query(ClinicalCase).filter(ClinicalCase.caseId == "demo-kannada-fever").first()
+    kn_answers = {
+        "chief_complaint": {
+            "value": "High fever with chills and severe body ache for 3 days",
+            "original": "ಮೂರು ದಿನಗಳಿಂದ ಚಳಿ ಮತ್ತು ತೀವ್ರ ಮೈಕೈ ನೋವಿನೊಂದಿಗೆ ತೀವ್ರ ಜ್ವರ",
+            "lang": "kn",
+        },
+        "duration": {
+            "value": "3 days",
+            "original": "3 ದಿನಗಳು",
+            "lang": "kn",
+        },
+        "symptom_severity": {
+            "value": "Severe",
+            "original": "ತೀವ್ರ",
+            "lang": "kn",
+        },
+        "allergies": {
+            "value": "No known drug allergies",
+            "original": "ಯಾವುದೇ ಔಷಧ ಅಲರ್ಜಿ ಇಲ್ಲ",
+            "lang": "kn",
+        },
+        "current_medications": {
+            "value": "Paracetamol 650mg SOS",
+            "original": "ಪ್ಯಾರಸಿಟಮಾಲ್ 650mg ಅಗತ್ಯವಿದ್ದಾಗ",
+            "lang": "kn",
+        },
+    }
+    kn_derived = {
+        "clinicalSummary": "42-year-old male presenting with acute febrile illness: high fever, chills, and severe myalgia for 3 days.",
+        "patientVerification": {"verified": True, "verifiedAt": now.isoformat()},
+        "medicalEntities": {
+            "diagnoses": ["Acute Febrile Illness", "Suspected Viral Infection"],
+            "medications": [
+                {"name": "Paracetamol", "dose": "650mg", "frequency": "SOS (as needed)"}
+            ],
+            "investigations": [],
+            "procedures": [],
+        },
+        "doctorReviews": {},
+    }
+    if not case_kn:
+        case_kn = ClinicalCase(
+            caseId="demo-kannada-fever",
+            patientId="patient-demo-kn",
+            createdAt=now,
+            updatedAt=now,
+            language="kn",
+            status="doctor_review",
+            consentGranted=True,
+            intakeAnswers=kn_answers,
+            derivedClinicalData=kn_derived,
+        )
+        db.add(case_kn)
+    else:
+        case_kn.intakeAnswers = kn_answers
+        case_kn.derivedClinicalData = kn_derived
+        case_kn.language = "kn"
+        case_kn.status = "doctor_review"
+
+    # ── 6. Demo Case E: Hindi Multilingual Case (Allergic Bronchitis) ───────
+    case_hi = db.query(ClinicalCase).filter(ClinicalCase.caseId == "demo-hindi-cough").first()
+    hi_answers = {
+        "chief_complaint": {
+            "value": "Dry cough and shortness of breath during exertion for 1 week",
+            "original": "एक सप्ताह से सूखी खांसी और मेहनत करने पर सांस फूलना",
+            "lang": "hi",
+        },
+        "duration": {
+            "value": "1 week",
+            "original": "1 सप्ताह",
+            "lang": "hi",
+        },
+        "symptom_severity": {
+            "value": "Moderate",
+            "original": "मध्यम",
+            "lang": "hi",
+        },
+        "allergies": {
+            "value": "Dust and pollen allergy",
+            "original": "धूल और पराग से एलर्जी",
+            "lang": "hi",
+        },
+        "current_medications": {
+            "value": "Cetirizine 10mg OD at night",
+            "original": "सिटिरिज़िन 10mg रात को एक बार",
+            "lang": "hi",
+        },
+    }
+    hi_derived = {
+        "clinicalSummary": "38-year-old female presenting with dry cough and exertional dyspnea for 1 week with known atopy/dust allergy.",
+        "patientVerification": {"verified": True, "verifiedAt": now.isoformat()},
+        "medicalEntities": {
+            "diagnoses": ["Bronchospasm", "Allergic Bronchitis"],
+            "medications": [
+                {"name": "Cetirizine", "dose": "10mg", "frequency": "OD at bedtime"}
+            ],
+            "investigations": [],
+            "procedures": [],
+        },
+        "doctorReviews": {},
+    }
+    if not case_hi:
+        case_hi = ClinicalCase(
+            caseId="demo-hindi-cough",
+            patientId="patient-demo-hi",
+            createdAt=now,
+            updatedAt=now,
+            language="hi",
+            status="doctor_review",
+            consentGranted=True,
+            intakeAnswers=hi_answers,
+            derivedClinicalData=hi_derived,
+        )
+        db.add(case_hi)
+    else:
+        case_hi.intakeAnswers = hi_answers
+        case_hi.derivedClinicalData = hi_derived
+        case_hi.language = "hi"
+        case_hi.status = "doctor_review"
+    db.commit()
+
     # Pre-existing test cases for backward test compatibility
     for test_id, pat_id, cc, alg in [
         ("test-e2e-ci-positive", "patient-pos", "I have severe chest pain", "anaphylaxis to peanuts"),
@@ -408,6 +531,8 @@ def seed_db():
     print("  - Case A (Cardiac red flag): demo-cardiac-redflag")
     print("  - Case B (Diabetes repeat longitudinal): demo-diabetes-repeat")
     print("  - Case C (AYUSH / Ayurveda): demo-ayush-history")
+    print("  - Case D (Kannada Multilingual): demo-kannada-fever")
+    print("  - Case E (Hindi Multilingual): demo-hindi-cough")
     print("  - Users: doctor/password123, admin/admin123, patient/password123")
 
 if __name__ == "__main__":
