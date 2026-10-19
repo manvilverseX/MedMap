@@ -186,5 +186,11 @@ export default defineConfig(({ mode }) => ({
   plugins: [react(), envLoaderPlugin({ mode }), localBlobMockPlugin(), blobUploadMiddleware()],
   define: {
     'process.env.VERCEL_BLOB_API_URL': JSON.stringify(process.env.VERCEL_BLOB_API_URL || '')
+  },
+  // @ts-ignore
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
   }
 }))

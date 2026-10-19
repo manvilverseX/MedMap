@@ -708,15 +708,16 @@ export function PatientIntakePage() {
 
   const { currentQuestion, state, issue, answeredQuestionIds, previousQuestionId, clinicalProgress } = sessionState;
   if (!currentQuestion) return null;
-
-  const total = sessionState.totalEligibleQuestions || (answeredQuestionIds.length + 1);
-  const currentIdx = sessionState.currentQuestionIndex || (answeredQuestionIds.length + 1);
+  const answeredCount = answeredQuestionIds?.length || 0;
+  const total = sessionState.totalEligibleQuestions || (answeredCount + 1);
+  const currentIdx = sessionState.currentQuestionIndex || (answeredCount + 1);
   const progressPercent = clinicalProgress && clinicalProgress.totalRelevantGaps > 0
     ? Math.min(100, Math.max(10, Math.round((clinicalProgress.resolvedGaps / clinicalProgress.totalRelevantGaps) * 100)))
     : Math.min(100, Math.max(10, Math.round((currentIdx / Math.max(total, 1)) * 100)));
   const progressLabel = clinicalProgress
     ? `${clinicalProgress.activeDomain || currentQuestion.category} (Point ${clinicalProgress.resolvedGaps + 1} of ~${clinicalProgress.totalRelevantGaps})`
-    : `Question ${currentIdx} of ${total} (${answeredQuestionIds.length} answered)`;
+    : `Question ${currentIdx} of ${total} (${answeredCount} answered)`;
+
 
   return (
     <div className="container">

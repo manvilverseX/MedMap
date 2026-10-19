@@ -1,7 +1,7 @@
-import test, { mock } from 'node:test';
-import assert from 'node:assert';
+import { test, expect, vi } from 'vitest';
+import handler from './blob-read.js';
 
-const getMock = mock.fn(async (url, options) => {
+const getMock = vi.fn(async (url, options) => {
   if (options?.access !== 'private') return null;
   if (url === 'https://test-store.public.blob.vercel-storage.com/file.png') {
     return {
@@ -12,23 +12,26 @@ const getMock = mock.fn(async (url, options) => {
     };
   }
   if (url === 'https://test-store.public.blob.vercel-storage.com/nodownload.png') {
-    return null; // Mocking missing blob
+    return null;
   }
   return null;
 });
 
-mock.module('@vercel/blob', {
-  exports: {
-    get: getMock
-  }
-});
+vi.mock('@vercel/blob', () => ({
+  get: (...args) => getMock(...args),
+}));
 
 test('Valid request succeeds and never exposes secret', async () => {
-  getMock.mock.resetCalls();
-  const handler = (await import('./blob-read.js')).default;
+  getMock.mockClear();
   process.env.SECRET_KEY = 'test-secret';
-  const req = { method: 'GET', headers: { 'x-internal-auth': 'test-secret' }, query: { url: 'https://test-store.public.blob.vercel-storage.com/file.png' } };
-  let status, headers = {};
+  delete process.env.BLOB_READ_WRITE_TOKEN;
+  const req = {
+    method: 'GET',
+    headers: { 'x-internal-auth': 'test-secret' },
+    query: { url: 'https://test-store.public.blob.vercel-storage.com/file.png' }
+  };
+  let status = 0;
+  const headers = {};
   let sentBuffer;
   const res = {
     status: (s) => { status = s; return res; },
@@ -37,111 +40,108 @@ test('Valid request succeeds and never exposes secret', async () => {
     json: () => { return res; }
   };
   await handler(req, res);
-  assert.strictEqual(status, 200);
-  assert.strictEqual(headers['Content-Type'], 'image/png');
-  assert.ok(sentBuffer instanceof Buffer);
-  // Ensure secret is nowhere in response
-  assert.ok(!sentBuffer.toString().includes('test-secret'));
-  
-  // Verify get was called correctly
-  assert.strictEqual(getMock.mock.calls.length, 1);
-  assert.strictEqual(getMock.mock.calls[0].arguments[0], 'https://test-store.public.blob.vercel-storage.com/file.png');
-  assert.deepStrictEqual(getMock.mock.calls[0].arguments[1], { access: 'private' });
+  expect(status).toBe(200);
+  expect(headers['Content-Type']).toBe('image/png');
+  expect(sentBuffer instanceof Buffer).toBe(true);
+  expect(sentBuffer.toString().includes('test-secret')).toBe(false);
+  expect(getMock).toHaveBeenCalledTimes(1);
+  expect(getMock.mock.calls[0][0]).toBe('https://test-store.public.blob.vercel-storage.com/file.png');
+  expect(getMock.mock.calls[0][1]).toEqual({ access: 'private' });
 });
 
 test('Missing x-internal-auth returns 401', async () => {
-  const handler = (await import('./blob-read.js')).default;
   process.env.SECRET_KEY = 'test-secret';
   const req = { method: 'GET', headers: {} };
-  let status, jsonBody;
+  let status = 0;
+  let jsonBody;
   const res = {
     status: (s) => { status = s; return res; },
     json: (j) => { jsonBody = j; return res; }
   };
   await handler(req, res);
-  assert.strictEqual(status, 401);
-  assert.strictEqual(jsonBody.error, 'Unauthorized');
-  assert.ok(!JSON.stringify(jsonBody).includes('test-secret'));
+  expect(status).toBe(401);
+  expect(jsonBody.error).toBe('Unauthorized');
+  expect(JSON.stringify(jsonBody).includes('test-secret')).toBe(false);
 });
 
 test('Incorrect x-internal-auth returns 401', async () => {
-  const handler = (await import('./blob-read.js')).default;
   process.env.SECRET_KEY = 'test-secret';
   const req = { method: 'GET', headers: { 'x-internal-auth': 'wrong-secret' } };
-  let status, jsonBody;
+  let status = 0;
+  let jsonBody;
   const res = {
     status: (s) => { status = s; return res; },
     json: (j) => { jsonBody = j; return res; }
   };
   await handler(req, res);
-  assert.strictEqual(status, 401);
-  assert.ok(!JSON.stringify(jsonBody).includes('test-secret'));
+  expect(status).toBe(401);
+  expect(JSON.stringify(jsonBody).includes('test-secret')).toBe(false);
 });
 
 test('Missing url returns 400', async () => {
-  const handler = (await import('./blob-read.js')).default;
   process.env.SECRET_KEY = 'test-secret';
   const req = { method: 'GET', headers: { 'x-internal-auth': 'test-secret' }, query: {} };
-  let status, jsonBody;
+  let status = 0;
+  let jsonBody;
   const res = {
     status: (s) => { status = s; return res; },
     json: (j) => { jsonBody = j; return res; }
   };
   await handler(req, res);
-  assert.strictEqual(status, 400);
-  assert.ok(!JSON.stringify(jsonBody).includes('test-secret'));
+  expect(status).toBe(400);
+  expect(JSON.stringify(jsonBody).includes('test-secret')).toBe(false);
 });
 
 test('Malformed URL returns 400', async () => {
-  const handler = (await import('./blob-read.js')).default;
   process.env.SECRET_KEY = 'test-secret';
   const req = { method: 'GET', headers: { 'x-internal-auth': 'test-secret' }, query: { url: 'not-a-url' } };
-  let status, jsonBody;
+  let status = 0;
+  let jsonBody;
   const res = {
     status: (s) => { status = s; return res; },
     json: (j) => { jsonBody = j; return res; }
   };
   await handler(req, res);
-  assert.strictEqual(status, 400);
-  assert.ok(!JSON.stringify(jsonBody).includes('test-secret'));
+  expect(status).toBe(400);
+  expect(JSON.stringify(jsonBody).includes('test-secret')).toBe(false);
 });
 
 test('Non-HTTPS URL returns 400', async () => {
-  const handler = (await import('./blob-read.js')).default;
   process.env.SECRET_KEY = 'test-secret';
   const req = { method: 'GET', headers: { 'x-internal-auth': 'test-secret' }, query: { url: 'http://test-store.public.blob.vercel-storage.com/file.png' } };
-  let status, jsonBody;
+  let status = 0;
+  let jsonBody;
   const res = {
     status: (s) => { status = s; return res; },
     json: (j) => { jsonBody = j; return res; }
   };
   await handler(req, res);
-  assert.strictEqual(status, 400);
+  expect(status).toBe(400);
 });
 
 test('URL with .vercel-storage.com in path returns 400', async () => {
-  const handler = (await import('./blob-read.js')).default;
   process.env.SECRET_KEY = 'test-secret';
   const req = { method: 'GET', headers: { 'x-internal-auth': 'test-secret' }, query: { url: 'https://malicious.com/.vercel-storage.com/file.png' } };
-  let status, jsonBody;
+  let status = 0;
+  let jsonBody;
   const res = {
     status: (s) => { status = s; return res; },
     json: (j) => { jsonBody = j; return res; }
   };
   await handler(req, res);
-  assert.strictEqual(status, 400);
+  expect(status).toBe(400);
 });
 
 test('get() returning no blob returns 404', async () => {
-  const handler = (await import('./blob-read.js')).default;
   process.env.SECRET_KEY = 'test-secret';
   const req = { method: 'GET', headers: { 'x-internal-auth': 'test-secret' }, query: { url: 'https://test-store.public.blob.vercel-storage.com/nodownload.png' } };
-  let status, jsonBody;
+  let status = 0;
+  let jsonBody;
   const res = {
     status: (s) => { status = s; return res; },
     json: (j) => { jsonBody = j; return res; }
   };
   await handler(req, res);
-  assert.strictEqual(status, 404);
-  assert.strictEqual(jsonBody.error, 'Blob not found or not downloadable');
+  expect(status).toBe(404);
+  expect(jsonBody.error).toBe('Blob not found or not downloadable');
 });
