@@ -23,8 +23,8 @@ MedMap supports **English (`en`)**, **Hindi (`hi`)**, and **Kannada (`kn`)** acr
 - Choice questions maintain stable English identifiers (e.g. `lt_1_day`, `yes`, `no`) while rendering localized display labels (`1 ದಿನಕ್ಕಿಂತ ಕಡಿಮೆ`).
 
 ### 2. Live Translation via Groq Integration
-- Translation is performed using the existing `Groq` LLM client (`llama-3.3-70b-versatile` / `llama-3.1-8b-instant`).
-- No new external translation vendor or additional API key is required.
+- Translation is performed using the existing `Groq` LLM client with the configured model (defined by `GROQ_MODEL`, e.g. `openai/gpt-oss-120b`).
+- No additional translation vendor is required for text translation.
 - Translation requests utilize batched JSON prompts for high throughput and reduced token usage.
 
 ### 3. Two-Tier Caching for Low Latency & High Resilience
@@ -46,19 +46,28 @@ MedMap supports **English (`en`)**, **Hindi (`hi`)**, and **Kannada (`kn`)** acr
 
 ## Speech Synthesis (TTS) & Recognition (STT)
 
-### Language Matching & Safe Audio Fallback
-- **Speech-to-Text (STT):**
-  - Web Speech API `SpeechRecognition` is configured with regional BCP 47 language codes:
-    - English: `en-IN`
-    - Hindi: `hi-IN`
-    - Kannada: `kn-IN`
-  - Voice transcripts populate the editable input field and are never auto-submitted without patient review.
+### Reliable Server-Side Speech (Kannada & Hindi)
 - **Speech Synthesis (TTS - Read Aloud):**
-  - Before invoking `window.speechSynthesis.speak()`, MedMap queries `window.speechSynthesis.getVoices()` to verify that an installed voice exists for the target language (e.g. `kn` or `kn-IN`).
-  - **Critical Rule:** If the user's OS or browser lacks a voice for the selected language (common for Kannada on desktop Windows/Linux), MedMap **does not speak English**. Speaking English when the patient selected Kannada causes confusion.
-  - Instead, the audio button is disabled with tooltip guidance, and an accessible message is displayed:
-    - Kannada: `ℹ️ ಈ ಸಾಧನದಲ್ಲಿ ಕನ್ನಡ ಧ್ವನಿ ಲಭ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ಓದಿ ಅಥವಾ ಟೈಪ್ ಮಾಡಿ.`
-    - Hindi: `ℹ️ इस डिवाइस पर हिंदी आवाज़ उपलब्ध नहीं है। कृपया पढ़कर उत्तर दें।`
+  - For Kannada (`kn`) and Hindi (`hi`), audio playback calls the backend endpoint `POST /api/v1/speech/tts`.
+  - The backend calls Sarvam AI's Text-to-Speech API (`model: "bulbul:v3"`, target language codes `kn-IN` / `hi-IN` with default female voices such as `roopa` for Kannada and `priya` for Hindi).
+  - Returns audio bytes (`audio/wav`) with `Cache-Control: public, max-age=86400`.
+  - The frontend caches audio blobs in-memory per `(language, text)` so repeated question replays are instant.
+  - If the backend TTS call fails, MedMap gracefully falls back to the browser's `window.speechSynthesis` *only if* a matching native voice exists for the language; otherwise, it presents a clear user message without safe-muting to English:
+    - Kannada: `ℹ️ ಧ್ವನಿ ಪ್ರಸ್ತುತ ಲಭ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ಪರದೆಯ ಮೇಲಿನ ಪ್ರಶ್ನೆಯನ್ನು ಓದಿ.`
+    - Hindi: `ℹ️ आवाज़ वर्तमान में उपलब्ध नहीं है। कृपया स्क्रीन पर प्रश्न पढ़ें।`
+  - English retains the standard client-side Web Speech API path.
+- **Speech-to-Text (STT - Voice Input):**
+  - For Kannada (`kn`) and Hindi (`hi`), voice input captures microphone audio via `navigator.mediaDevices.getUserMedia` and `MediaRecorder` (using supported mime types such as `audio/webm;codecs=opus` or `audio/mp4`).
+  - States: `idle` -> `recording` (with visible 30-second countdown timer, tap-to-stop, auto-stop at 30s) -> `transcribing` -> `done`.
+  - Recorded audio is sent to `POST /api/v1/speech/stt` with the patient's language code (`kn` / `hi`).
+  - The backend invokes Sarvam AI Speech-to-Text (`model: "saaras:v4"`, language code `kn-IN` / `hi-IN`). If `SARVAM_API_KEY` is missing or Sarvam fails, the backend automatically falls back to Groq `whisper-large-v3`.
+  - The resulting transcript is populated into the editable intake answer input and is **never auto-submitted**, allowing the patient to inspect and correct their answer.
+  - An informative disclaimer is displayed: *"AI transcription - please check and correct before continuing."* (localized in Kannada and Hindi).
+  - English retains the browser Web Speech API `SpeechRecognition` path.
+
+### Privacy & Consent Disclosure
+- When voice input or audio playback is used, voice and audio data are processed securely by an AI service (Sarvam AI, with Groq Whisper as fallback).
+- The patient consent agreement explicitly informs patients of this: *"Voice and audio recordings, when used, are securely processed by an AI service for transcription and playback."* (also localized in Hindi and Kannada).
 
 ---
 

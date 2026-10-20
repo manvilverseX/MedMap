@@ -17,7 +17,7 @@ const CONSENT_TRANSLATIONS: Record<string, {
   English: {
     title: 'Granular Data Sharing Consent',
     isDraft: false,
-    collect: 'I consent to MedMap collecting my health responses and medical documents to prepare my clinical history.',
+    collect: 'I consent to MedMap collecting my health responses and medical documents to prepare my clinical history. Voice recordings and audio, when used, are processed securely by an AI service.',
     doctor: 'I consent to sharing my organized clinical history with treating physicians for medical consultation.',
     abdm: 'I consent to simulated ABDM care-context exchange (optional, mock mode).',
     revocable: 'You may revoke your consent or request your session data to be cleared at any time.'
@@ -25,7 +25,7 @@ const CONSENT_TRANSLATIONS: Record<string, {
   Hindi: {
     title: 'डेटा साझाकरण सहमति (सटीक सहमति)',
     isDraft: true,
-    collect: 'मैं मेदमैप द्वारा मेरा स्वास्थ्य इतिहास और दस्तावेज़ एकत्र करने की सहमति देता/देती हूँ।',
+    collect: 'मैं मेदमैप द्वारा मेरा स्वास्थ्य इतिहास और दस्तावेज़ एकत्र करने की सहमति देता/देती हूँ। ध्वनि रिकॉर्डिंग और ऑडियो का उपयोग करने पर, उन्हें एक AI सेवा द्वारा सुरक्षित रूप से संसाधित किया जाता है।',
     doctor: 'मैं यह स्वास्थ्य जानकारी परामर्श हेतु डॉक्टर के साथ साझा करने की सहमति देता/देती हूँ।',
     abdm: 'मैं आयुष्मान भारत डिजिटल मिशन (ABDM) सिमुलेशन में भाग लेने की सहमति देता/देती हूँ (वैकल्पिक)।',
     revocable: 'आप किसी भी समय अपनी सहमति वापस ले सकते हैं या डिवाइस से डेटा मिटा सकते हैं।'
@@ -33,12 +33,13 @@ const CONSENT_TRANSLATIONS: Record<string, {
   Kannada: {
     title: 'ಡೇಟಾ ಹಂಚಿಕೆ ಸಮ್ಮತಿ',
     isDraft: true,
-    collect: 'ವೈದ್ಯಕೀಯ ಇತಿಹಾಸ ಸಿದ್ಧಪಡಿಸಲು ಮೆಡ್‌ಮ್ಯಾಪ್ ನನ್ನ ಆರೋಗ್ಯ ವಿವರಗಳನ್ನು ಸಂಗ್ರಹಿಸಲು ಸಮ್ಮತಿಸುತ್ತೇನೆ.',
+    collect: 'ವೈದ್ಯಕೀಯ ಇತಿಹಾಸ ಸಿದ್ಧಪಡಿಸಲು ಮೆಡ್‌ಮ್ಯಾಪ್ ನನ್ನ ಆರೋಗ್ಯ ವಿವರಗಳನ್ನು ಸಂಗ್ರಹಿಸಲು ಸಮ್ಮತಿಸುತ್ತೇನೆ. ಧ್ವನಿ ರೆಕಾರ್ಡಿಂಗ್‌ಗಳನ್ನು ಬಳಸಿದಾಗ, ಅವುಗಳನ್ನು AI ಸೇವೆಯ ಮೂಲಕ ಸುರಕ್ಷಿತವಾಗಿ ಪ್ರಕ್ರಿಯೆಗೊಳಿಸಲಾಗುತ್ತದೆ.',
     doctor: 'ಈ ಮಾಹಿತಿಯನ್ನು ಚಿಕಿತ್ಸೆ ನೀಡುವ ವೈದ್ಯರೊಂದಿಗೆ ಹಂಚಿಕೊಳ್ಳಲು ಸಮ್ಮತಿಸುತ್ತೇನೆ.',
     abdm: 'ಆಯುಷ್ಮಾನ್ ಭಾರತ್ ಡಿಜಿಟಲ್ ಮಿಷನ್ ಸಿಮ್ಯುಲೇಶನ್ ಡೇಟಾ ಹಂಚಿಕೆಗೆ ಸಮ್ಮತಿಸುತ್ತೇನೆ (ಐಚ್ಛಿಕ).',
     revocable: 'ನಿಮ್ಮ ಸಮ್ಮತಿಯನ್ನು ನೀವು ಯಾವುದೇ ಸಮಯದಲ್ಲಿ ಹಿಂಪಡೆಯಬಹುದು ಅಥವಾ ಡೇಟಾವನ್ನು ಅಳಿಸಬಹುದು.'
   }
 };
+
 
 export function PatientOnboardingPage() {
   const [patientId, setPatientId] = useState('');

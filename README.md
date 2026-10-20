@@ -36,8 +36,8 @@
 - **Frontend Testing:** Vitest, React Testing Library, JSDOM.
 - **Backend:** Python 3.12, FastAPI, SQLAlchemy ORM, SQLite (local) / PostgreSQL (production).
 - **Backend Testing:** Pytest, HTTPX TestClient.
-- **AI & Vision:** Groq Cloud (`llama-3.3-70b-versatile`) with deterministic regex fallback.
-- **Health Standards:** HL7 FHIR R4 Bundle specifications (`Observation`, `Condition`, `MedicationRequest`, `Encounter`, `Patient`).
+- **AI & Vision:** Groq Cloud (configured model `openai/gpt-oss-120b`, configurable via `GROQ_MODEL`) with deterministic regex fallback.
+- **Voice & Speech:** Sarvam AI (`bulbul:v3` TTS, `saaras:v4` STT) with Groq `whisper-large-v3` STT fallback and Web Speech API client fallback.
 
 ---
 
@@ -135,10 +135,10 @@ Run `python backend/seed_e2e_cases.py` to reset the deterministic demo dataset:
 MedMap bridges regional language patient communication while maintaining absolute clinical safety and international data standards:
 - **English Canonical Foundation:** The backend state machine, clinical graph, safety rules, and FHIR export logic operate strictly in English.
 - **Bilingual Answer Records:** Free-text patient responses are translated on intake and stored as `{value: english, original: native_text, lang}`. Choice-based questions retain stable English IDs with localized labels.
-- **Live Groq Translation:** Live translation utilizes the existing Groq integration (`llama-3.3-70b-versatile`) with automatic two-tier caching:
+- **Live Groq Translation:** Live translation utilizes Groq with the configured `GROQ_MODEL` (e.g. `openai/gpt-oss-120b`) with automatic two-tier caching:
   - Database level: `translation_cache` table prevents redundant LLM calls.
   - Browser level: `sessionStorage` caches UI dictionary translations for instant navigation.
-- **Safe Speech Synthesis:** Web Speech API TTS detects whether the client device has a native voice installed for `kn-IN` or `hi-IN`. If missing, audio is safely muted with an informative banner rather than confusing the user with English pronunciation.
+- **Reliable Server-Side Voice & Audio:** Kannada and Hindi voice input and read-aloud use server-side AI processing via Sarvam AI (`bulbul:v3` for TTS, `saaras:v4` for STT with Groq `whisper-large-v3` fallback). English retains the browser Web Speech API. Audio responses are cached in memory for instant replay, and AI voice transcripts are placed into editable fields with consent disclosures and verification notices.
 - **Offline & Throttling Resilience:** When internet connectivity is lost or Groq rate limits are encountered, intake seamlessly falls back to English with clear visual notifications (`aiTranslationTag`), ensuring zero disruption to patient triage.
 
 ---

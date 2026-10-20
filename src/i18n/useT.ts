@@ -17,6 +17,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   EN_STRINGS,
+  HI_STRINGS,
+  KN_STRINGS,
   type StringKey,
   type LangCode,
   getCachedStrings,
@@ -120,14 +122,17 @@ export function useT(rawLang?: string | null): UseTResult {
 
   const t = useCallback(
     (key: StringKey, vars?: Record<string, string | number>): string => {
-      const source = EN_STRINGS[key] as string;
+      const fallback =
+        (lang === "kn" && KN_STRINGS[key]) ||
+        (lang === "hi" && HI_STRINGS[key]) ||
+        (EN_STRINGS[key] as string);
       const localized =
         localizedStrings && localizedStrings[key] != null
           ? (localizedStrings[key] as string)
-          : source;
+          : fallback;
       return vars ? interpolate(localized, vars) : localized;
     },
-    [localizedStrings]
+    [localizedStrings, lang]
   );
 
   return { t, ready, fallbackNotice, aiTranslationTag, lang };

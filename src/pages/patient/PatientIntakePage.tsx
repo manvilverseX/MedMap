@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCase } from '../../context/CaseContext';
-import { getCase, updateCase, getAdaptiveIntakeState, getUnifiedCase } from '../../utils/api';
+import { getCase, updateCase, getAdaptiveIntakeState, getUnifiedCase, synthesizeSpeech, transcribeSpeech } from '../../utils/api';
 import type { ClinicalCase } from '../../types/case';
 import { Button } from '../../components/Button';
 import { ErrorMessage } from '../../components/ErrorMessage';
@@ -82,12 +82,18 @@ export function PatientIntakePage() {
   const [isReviewing, setIsReviewing] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // ── Voice & Audio state (Web Speech API) ────────────────────────────────
+  // ── Voice & Audio state ────────────────────────────────────────────────
   const [voiceMode, setVoiceMode] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isAudioLoading, setIsAudioLoading] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
   const [speechTranscript, setSpeechTranscript] = useState('');
   const [speechError, setSpeechError] = useState<string | null>(null);
+  const [micRecordState, setMicRecordState] = useState<'idle' | 'recording' | 'transcribing'>('idle');
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [showAiTranscriptionNotice, setShowAiTranscriptionNotice] = useState(false);
+
   const [pendingCriticalConfirmation, setPendingCriticalConfirmation] = useState<{
     answer: string;
     questionId: string;
@@ -96,16 +102,24 @@ export function PatientIntakePage() {
 
   const recognitionRef = useRef<any>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const ttsAudioCache = useRef<Map<string, string>>(new Map());
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<any>(null);
 
   // ── i18n & Language state ───────────────────────────────────────────
   const { t } = useT(clinicalCase?.language);
 
-  // Browser speech language mapping (en-IN, hi-IN, kn-IN)
+  // Speech language mapping (en-IN, hi-IN, kn-IN)
   const speechLang = clinicalCase?.language?.toLowerCase().startsWith('hi')
     ? 'hi-IN'
     : clinicalCase?.language?.toLowerCase().startsWith('kn')
     ? 'kn-IN'
     : 'en-IN';
+  const normLang = speechLang.slice(0, 2).toLowerCase();
+  const isIndicLang = normLang === 'kn' || normLang === 'hi';
   const speechLangName = speechLang === 'hi-IN' ? 'Hindi' : speechLang === 'kn-IN' ? 'Kannada' : 'English';
 
   const [hasVoiceForLang, setHasVoiceForLang] = useState(true);
@@ -145,26 +159,23 @@ export function PatientIntakePage() {
   const hasSpeechRecognition = !!SpeechRecognitionAPI;
   const hasSpeechSynthesis = typeof window !== 'undefined' && 'speechSynthesis' in window;
 
-  const stopSpeaking = useCallback(() => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
-    }
+  const hasBrowserVoiceForLang = useCallback((targetLang: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return false;
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices || voices.length === 0) return false;
+    const prefix = targetLang.slice(0, 2).toLowerCase();
+    return voices.some((v) =>
+      v.lang.toLowerCase().replace('_', '-').startsWith(prefix)
+    );
   }, []);
 
-  const speakQuestion = useCallback((customText?: string) => {
+  const speakWithBrowser = useCallback((text: string, lang: string) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    stopSpeaking();
-    const promptText = sessionState?.currentQuestion?.promptLocalized || sessionState?.currentQuestion?.prompt || '';
-    const helperText = sessionState?.currentQuestion?.helperTextLocalized || sessionState?.currentQuestion?.helperText || '';
-    const text = customText || (promptText ? `${promptText}. ${helperText}` : '');
-    if (!text) return;
-    if (!hasVoiceForLang) return; // Never speak English when patient's language voice is missing!
     try {
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = speechLang;
+      utterance.lang = lang;
       const voices = window.speechSynthesis.getVoices();
-      const targetPrefix = speechLang.slice(0, 2).toLowerCase();
+      const targetPrefix = lang.slice(0, 2).toLowerCase();
       const matchingVoice = voices.find((v) =>
         v.lang.toLowerCase().replace('_', '-').startsWith(targetPrefix)
       );
@@ -178,11 +189,80 @@ export function PatientIntakePage() {
     } catch {
       setIsSpeaking(false);
     }
-  }, [sessionState?.currentQuestion, speechLang, stopSpeaking, hasVoiceForLang]);
+  }, []);
 
+  const stopSpeaking = useCallback(() => {
+    if (audioPlayerRef.current) {
+      try {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current.currentTime = 0;
+      } catch {}
+    }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try { window.speechSynthesis.cancel(); } catch {}
+    }
+    setIsSpeaking(false);
+    setIsAudioLoading(false);
+  }, []);
+
+  const playAudioUrl = useCallback((url: string) => {
+    if (!audioPlayerRef.current) {
+      audioPlayerRef.current = new Audio();
+    }
+    const player = audioPlayerRef.current;
+    player.src = url;
+    player.onplay = () => setIsSpeaking(true);
+    player.onended = () => setIsSpeaking(false);
+    player.onerror = () => {
+      setIsSpeaking(false);
+      setAudioError(t('audioUnavailable'));
+    };
+    player.play().catch(() => {
+      setIsSpeaking(false);
+    });
+  }, [t]);
+
+  const speakQuestion = useCallback(async (customText?: string) => {
+    stopSpeaking();
+    setAudioError(null);
+    const promptText = sessionState?.currentQuestion?.promptLocalized || sessionState?.currentQuestion?.prompt || '';
+    const helperText = sessionState?.currentQuestion?.helperTextLocalized || sessionState?.currentQuestion?.helperText || '';
+    const text = (customText || (promptText ? `${promptText}. ${helperText}` : '')).trim();
+    if (!text) return;
+
+    if (isIndicLang) {
+      const cacheKey = `${normLang}:${text}`;
+      const cachedUrl = ttsAudioCache.current.get(cacheKey);
+      if (cachedUrl) {
+        playAudioUrl(cachedUrl);
+        return;
+      }
+
+      setIsAudioLoading(true);
+      try {
+        const audioBlob = await synthesizeSpeech(text, normLang);
+        const audioUrl = URL.createObjectURL(audioBlob);
+        ttsAudioCache.current.set(cacheKey, audioUrl);
+        setIsAudioLoading(false);
+        playAudioUrl(audioUrl);
+      } catch {
+        setIsAudioLoading(false);
+        if (hasBrowserVoiceForLang(speechLang)) {
+          speakWithBrowser(text, speechLang);
+        } else {
+          setAudioError(t('audioUnavailable'));
+        }
+      }
+    } else {
+      if (!hasVoiceForLang) return;
+      speakWithBrowser(text, speechLang);
+    }
+  }, [sessionState?.currentQuestion, speechLang, normLang, isIndicLang, stopSpeaking, playAudioUrl, hasBrowserVoiceForLang, speakWithBrowser, hasVoiceForLang, t]);
+
+  // ── English Web Speech API Listening ──────────────────────────────────
   const startListening = () => {
     if (!SpeechRecognitionAPI) {
-      setSpeechError('Speech recognition is not supported in this browser. Please use touch/typing.');
+      setSpeechError(t('micNoSupport'));
       return;
     }
     setSpeechError(null);
@@ -222,9 +302,9 @@ export function PatientIntakePage() {
       recognition.onerror = (event: any) => {
         setIsListening(false);
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-          setSpeechError('Microphone permission denied. You can continue by typing or choosing options below.');
+          setSpeechError(t('micDenied'));
         } else if (event.error === 'no-speech') {
-          setSpeechError('No speech was detected. Please tap the mic and try speaking again.');
+          setSpeechError(t('micNoSpeech'));
         } else {
           setSpeechError(`Speech recognition notice (${event.error}). Please use touch or typing.`);
         }
@@ -242,12 +322,139 @@ export function PatientIntakePage() {
     }
   };
 
-  const stopListening = () => {
+  const stopListening = useCallback(() => {
     if (recognitionRef.current) {
       try { recognitionRef.current.stop(); } catch {}
       setIsListening(false);
     }
-  };
+  }, []);
+
+  // ── Indic MediaRecorder + Server-Side STT ────────────────────────────
+  const stopServerSideRecording = useCallback(() => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {}
+    }
+  }, []);
+
+  const startServerSideRecording = useCallback(async () => {
+    setSpeechError(null);
+    setShowAiTranscriptionNotice(false);
+
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setSpeechError(t('micNoSupport'));
+      return;
+    }
+
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err: any) {
+      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+        setSpeechError(t('micDenied'));
+      } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+        setSpeechError(t('micNoDevice'));
+      } else {
+        setSpeechError(t('micServiceError'));
+      }
+      return;
+    }
+    mediaStreamRef.current = stream;
+
+    let mimeType = '';
+    if (typeof MediaRecorder !== 'undefined' && typeof MediaRecorder.isTypeSupported === 'function') {
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        mimeType = 'audio/webm;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+        mimeType = 'audio/webm';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        mimeType = 'audio/mp4';
+      }
+    }
+
+    try {
+      const options = mimeType ? { mimeType } : undefined;
+      const mediaRecorder = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event: BlobEvent) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        if (recordingTimerRef.current) {
+          clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = null;
+        }
+        stream.getTracks().forEach((track) => {
+          try { track.stop(); } catch {}
+        });
+
+        const chunks = audioChunksRef.current;
+        if (!chunks || chunks.length === 0) {
+          setMicRecordState('idle');
+          setRecordingSeconds(0);
+          return;
+        }
+
+        setMicRecordState('transcribing');
+        const recordedBlob = new Blob(chunks, { type: mimeType || 'audio/webm' });
+        const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+        const filename = `recording.${ext}`;
+
+        try {
+          const result = await transcribeSpeech(recordedBlob, filename, normLang);
+          const transcript = (result?.transcript || '').trim();
+          if (transcript) {
+            setSpeechTranscript(transcript);
+            setCurrentAnswer(transcript);
+            setValidationError(null);
+            setShowAiTranscriptionNotice(true);
+          } else {
+            setSpeechError(t('micNoSpeech'));
+          }
+        } catch {
+          setSpeechError(t('micServiceError'));
+        } finally {
+          setMicRecordState('idle');
+          setRecordingSeconds(0);
+        }
+      };
+
+      mediaRecorder.start(250);
+      setMicRecordState('recording');
+      setRecordingSeconds(0);
+
+      let elapsed = 0;
+      recordingTimerRef.current = setInterval(() => {
+        elapsed += 1;
+        setRecordingSeconds(elapsed);
+        if (elapsed >= 30) {
+          if (recordingTimerRef.current) {
+            clearInterval(recordingTimerRef.current);
+            recordingTimerRef.current = null;
+          }
+          if (mediaRecorder.state !== 'inactive') {
+            try { mediaRecorder.stop(); } catch {}
+          }
+        }
+      }, 1000);
+    } catch {
+      stream.getTracks().forEach((track) => {
+        try { track.stop(); } catch {}
+      });
+      setSpeechError(t('micServiceError'));
+    }
+  }, [normLang, t]);
+
 
   const isCriticalQuestion = (questionId?: string) => {
     if (!questionId) return false;
@@ -264,7 +471,8 @@ export function PatientIntakePage() {
   const isMeaninglessTextAnswer = (value: string): boolean => {
     const trimmed = value.trim();
     if (trimmed.length === 0) return false; // empty is handled by the existing disabled check
-    return !/[a-zA-Z0-9]/.test(trimmed);
+    // Allow any letter or number across Unicode (English, Hindi, Kannada, etc.)
+    return !/[\p{L}\p{N}]/u.test(trimmed);
   };
 
   const refreshAdaptiveState = useCallback(async (currentAnswers: Record<string, any>, mode?: string, questionId?: string) => {
@@ -344,14 +552,16 @@ export function PatientIntakePage() {
   // ── Stop speaking/listening on unmount ────────────────────────────────
   useEffect(() => {
     return () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-      if (recognitionRef.current) {
-        try { recognitionRef.current.abort(); } catch {}
+      stopSpeaking();
+      stopListening();
+      stopServerSideRecording();
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => {
+          try { track.stop(); } catch {}
+        });
       }
     };
-  }, []);
+  }, [stopSpeaking, stopListening, stopServerSideRecording]);
 
   // ── Auto-read question if voice mode is ON ────────────────────────────
   useEffect(() => {
@@ -373,6 +583,9 @@ export function PatientIntakePage() {
     
     stopSpeaking();
     stopListening();
+    stopServerSideRecording();
+    setShowAiTranscriptionNotice(false);
+    setAudioError(null);
     setSpeechTranscript('');
     setPendingCriticalConfirmation(null);
 
@@ -422,6 +635,9 @@ export function PatientIntakePage() {
     if (!caseId || !sessionState?.previousQuestionId) return;
     stopSpeaking();
     stopListening();
+    stopServerSideRecording();
+    setShowAiTranscriptionNotice(false);
+    setAudioError(null);
     setSpeechTranscript('');
     setPendingCriticalConfirmation(null);
     setIsSubmitting(true);
@@ -908,22 +1124,27 @@ export function PatientIntakePage() {
 
           <div className="intake-prompt-row">
             <p className="intake-question-prompt">{currentQuestion.promptLocalized || currentQuestion.prompt}</p>
-            {hasSpeechSynthesis && (
+            {(isIndicLang || hasSpeechSynthesis) && (
               <button
                 type="button"
                 className={`intake-btn-read-aloud ${isSpeaking ? 'intake-btn-read-aloud--speaking' : ''}`}
                 onClick={() => (isSpeaking ? stopSpeaking() : speakQuestion())}
-                title={hasVoiceForLang ? "Read question aloud or replay" : t('noVoiceForLang')}
-                disabled={!hasVoiceForLang}
-                aria-label="Read question aloud"
+                title={isIndicLang ? (isSpeaking ? t('stopAudio') : t('readAloud')) : (hasVoiceForLang ? "Read question aloud or replay" : t('noVoiceForLang'))}
+                disabled={(!isIndicLang && !hasVoiceForLang) || isAudioLoading}
+                aria-label={isSpeaking ? t('stopAudio') : t('readAloud')}
                 id="btn-read-aloud-question"
               >
-                {isSpeaking ? '⏹ Stop' : '🔊 Read Aloud'}
+                {isAudioLoading ? `⏳ ${t('audioLoading')}` : isSpeaking ? `⏹ ${t('stopAudio')}` : `🔊 ${t('readAloud')}`}
               </button>
             )}
           </div>
 
-          {!hasVoiceForLang && (
+          {audioError && (
+            <div className="intake-no-voice-notice" role="alert" style={{ marginTop: '0.5rem' }}>
+              ℹ️ {audioError}
+            </div>
+          )}
+          {!isIndicLang && !hasVoiceForLang && (
             <div className="intake-no-voice-notice" role="note">
               ℹ️ {t('noVoiceForLang')}
             </div>
@@ -987,8 +1208,52 @@ export function PatientIntakePage() {
             </div>
           )}
 
-          {/* Microphone Voice Input (Web Speech API) */}
-          {hasSpeechRecognition ? (
+          {/* Voice Input: Server-Side for Kannada/Hindi, Web Speech API for English */}
+          {isIndicLang ? (
+            <div className="intake-mic-container">
+              <button
+                type="button"
+                className={`intake-mic-btn ${micRecordState === 'recording' ? 'intake-mic-btn--listening' : ''}`}
+                onClick={
+                  micRecordState === 'recording'
+                    ? stopServerSideRecording
+                    : micRecordState === 'transcribing'
+                    ? undefined
+                    : startServerSideRecording
+                }
+                disabled={isSubmitting || micRecordState === 'transcribing'}
+                aria-label={
+                  micRecordState === 'recording'
+                    ? t('stopAudio')
+                    : micRecordState === 'transcribing'
+                    ? t('micTranscribing')
+                    : `${t('micTapToSpeak')} (${speechLangName})`
+                }
+                id="btn-mic-input"
+              >
+                <span aria-hidden="true">
+                  {micRecordState === 'recording' ? '⏹️' : micRecordState === 'transcribing' ? '⏳' : '🎙️'}
+                </span>
+                <span>
+                  {micRecordState === 'recording'
+                    ? `${t('micRecording')} (${30 - recordingSeconds}s)`
+                    : micRecordState === 'transcribing'
+                    ? t('micTranscribing')
+                    : `${t('micTapToSpeak')} (${speechLangName})`}
+                </span>
+              </button>
+              {micRecordState === 'recording' && (
+                <p className="intake-listening-hint" aria-live="polite">
+                  {speechLangName} {t('micRecording')} — {30 - recordingSeconds}s remaining. Tap button when finished.
+                </p>
+              )}
+              {speechError && (
+                <p className="intake-speech-unsupported-note" role="alert" style={{ color: '#b91c1c' }}>
+                  ⚠️ {speechError}
+                </p>
+              )}
+            </div>
+          ) : hasSpeechRecognition ? (
             <div className="intake-mic-container">
               <button
                 type="button"
@@ -1006,11 +1271,35 @@ export function PatientIntakePage() {
                   Listening in {speechLangName}... Speak clearly, then review your transcript below.
                 </p>
               )}
+              {speechError && (
+                <p className="intake-speech-unsupported-note" role="alert" style={{ color: '#b91c1c' }}>
+                  ⚠️ {speechError}
+                </p>
+              )}
             </div>
           ) : (
             <p className="intake-speech-unsupported-note">
               🎙️ Speech recognition not supported in this browser. Please use touch or typing below.
             </p>
+          )}
+
+          {/* AI Transcription Notice */}
+          {showAiTranscriptionNotice && (
+            <div
+              className="intake-ai-transcription-notice"
+              role="status"
+              style={{
+                marginTop: '0.5rem',
+                padding: '0.5rem 0.75rem',
+                background: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                borderRadius: '6px',
+                fontSize: '0.875rem',
+                color: '#1e40af'
+              }}
+            >
+              ℹ️ {t('micTranscriptionNotice')}
+            </div>
           )}
 
           {/* Editable Speech Transcript Banner */}

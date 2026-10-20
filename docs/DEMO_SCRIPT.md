@@ -1,11 +1,10 @@
 # MedMap Demo Script (SIH26047, Ministry of Ayush / AIIA)
 
 **Platform:** MedMap AI Pre-Consultation Patient Case-Taking Platform
-**Target Environments:** Local Dev (`localhost:5173` / `localhost:8000`) & Vercel Preview/Production
-**LLM / Vision Provider:** Groq Cloud (`llama-3.3-70b-versatile`) with deterministic offline rule-based fallback
+**LLM / Vision Provider:** Groq Cloud (configured model `openai/gpt-oss-120b`, configurable via `GROQ_MODEL`) with deterministic offline rule-based fallback
 **ABDM Status:** Clearly labeled Mock / Simulation (`Simulation: not connected to ABDM`)
 **AYUSH Questionnaire:** Draft questionnaire (requires review by a qualified Ayurvedic practitioner)
-**Speech:** Browser-based Web Speech API (`SpeechRecognition` & `SpeechSynthesis`)
+**Speech:** Server-side Sarvam AI (`bulbul:v3` TTS, `saaras:v4` STT with Groq Whisper fallback) for Kannada/Hindi; Web Speech API for English
 
 ---
 

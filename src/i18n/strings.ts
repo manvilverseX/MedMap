@@ -44,7 +44,7 @@ export const EN_STRINGS = {
   consentTitle: "Granular Data Sharing Consent",
   consent1Label: "Data Collection:",
   consent1Text:
-    "I consent to MedMap collecting my health responses and medical documents to prepare my clinical history.",
+    "I consent to MedMap collecting my health responses and medical documents to prepare my clinical history. Voice recordings and audio, when used, are processed securely by an AI service.",
   consent2Label: "Doctor Sharing:",
   consent2Text:
     "I consent to sharing my organized clinical history with treating physicians for medical consultation.",
@@ -87,13 +87,28 @@ export const EN_STRINGS = {
   micStart: "Start speaking",
   micStop: "Stop",
   micReplay: "Replay question",
+  readAloud: "Read Aloud",
+  stopAudio: "Stop",
+  audioLoading: "Loading audio...",
+  audioPlaying: "Playing audio...",
+  audioUnavailable:
+    "Audio is unavailable right now. Please read the question on screen.",
+  micTapToSpeak: "Tap to Speak",
+  micRecording: "Recording ({{seconds}}s)... Tap to Stop",
+  micTranscribing: "Transcribing audio...",
+  micTranscriptionNotice:
+    "AI transcription - please check and correct before continuing.",
+  micServiceError:
+    "Speech recognition service error. Please use touch or typing below.",
+  micNoDevice:
+    "No microphone found on this device. Please type your answer.",
   micNoSupport:
     "Microphone not supported in this browser. Please type your answer.",
   micDenied:
     "Microphone permission denied. You can continue by typing or choosing options below.",
   micNoSpeech: "No speech detected. Please try again.",
   noVoiceForLang:
-    "Audio for this language is not available on this device. Please read the question on screen.",
+    "Audio is unavailable right now. Please read the question on screen.",
   aiTranslationTag: "AI translation, may contain errors.",
   draftTranslationTag: "Draft translation",
   translationUnavailable:
@@ -201,6 +216,52 @@ export function getSupportedLanguages(): { code: LangCode; label: string; native
   ];
 }
 
+export const HI_STRINGS: Partial<Record<StringKey, string>> = {
+  readAloud: "जोर से पढ़ें",
+  stopAudio: "रोकें",
+  audioLoading: "ऑडियो लोड हो रहा है...",
+  audioPlaying: "चल रहा है... रोकने के लिए टैप करें",
+  audioUnavailable: "ऑडियो अभी उपलब्ध नहीं है। कृपया स्क्रीन पर प्रश्न पढ़ें।",
+  noVoiceForLang: "ऑडियो अभी उपलब्ध नहीं है। कृपया स्क्रीन पर प्रश्न पढ़ें।",
+  micTapToSpeak: "बोलने के लिए टैप करें",
+  micRecording: "रिकॉर्डिंग ({{seconds}}s)... रोकने के लिए टैप करें",
+  micTranscribing: "ऑडियो ट्रांसक्राइब हो रहा है...",
+  micTranscriptionNotice: "AI ट्रांसक्रिप्शन - आगे बढ़ने से पहले कृपया जांचें और सुधारें।",
+  micServiceError: "भाषण पहचान सेवा में त्रुटि। कृपया नीचे लिखकर या विकल्प चुनकर उत्तर दें।",
+  micNoDevice: "इस डिवाइस पर कोई माइक्रोफ़ोन नहीं मिला। कृपया लिखकर उत्तर दें।",
+  micDenied: "माइक्रोफ़ोन की अनुमति अस्वीकृत। आप नीचे लिखकर या विकल्प चुनकर जारी रख सकते हैं।",
+  micNoSupport: "इस ब्राउज़र में भाषण पहचान समर्थित नहीं है। कृपया लिखकर उत्तर दें।",
+  micNoSpeech: "कोई आवाज़ नहीं मिली। कृपया पुनः प्रयास करें।",
+  intakeVoiceMode: "ध्वनि मोड",
+  intakeTypeMode: "टाइप मोड",
+  intakeNext: "सहेजें और जारी रखें",
+  intakeSkip: "यह प्रश्न छोड़ें",
+  intakeBack: "← वापस",
+};
+
+export const KN_STRINGS: Partial<Record<StringKey, string>> = {
+  readAloud: "ಓದಿ ಹೇಳಿ",
+  stopAudio: "ನಿಲ್ಲಿಸಿ",
+  audioLoading: "ಧ್ವನಿಯನ್ನು ಲೋಡ್ ಮಾಡಲಾಗುತ್ತಿದೆ...",
+  audioPlaying: "ಪ್ಲೇ ಆಗುತ್ತಿದೆ... ನಿಲ್ಲಿಸಲು ಟ್ಯಾಪ್ ಮಾಡಿ",
+  audioUnavailable: "ಧ್ವನಿ ಪ್ರಸ್ತುತ ಲಭ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ಪರದೆಯ ಮೇಲಿನ ಪ್ರಶ್ನೆಯನ್ನು ಓದಿ.",
+  noVoiceForLang: "ಧ್ವನಿ ಪ್ರಸ್ತುತ ಲಭ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ಪರದೆಯ ಮೇಲಿನ ಪ್ರಶ್ನೆಯನ್ನು ಓದಿ.",
+  micTapToSpeak: "ಮಾತನಾಡಲು ಟ್ಯಾಪ್ ಮಾಡಿ",
+  micRecording: "ರೆಕಾರ್ಡಿಂಗ್ ({{seconds}}s)... ನಿಲ್ಲಿಸಲು ಟ್ಯಾಪ್ ಮಾಡಿ",
+  micTranscribing: "ಧ್ವನಿಯನ್ನು ಪರಿವರ್ತಿಸಲಾಗುತ್ತಿದೆ...",
+  micTranscriptionNotice: "AI ಪ್ರತಿಲೇಖನ - ಮುಂದುವರಿಯುವ ಮೊದಲು ದಯವಿಟ್ಟು ಪರಿಶೀಲಿಸಿ ಮತ್ತು ಸರಿಪಡಿಸಿ.",
+  micServiceError: "ಧ್ವನಿ ಗುರುತಿಸುವಿಕೆ ಸೇವೆಯಲ್ಲಿ ದೋಷ. ದಯವಿಟ್ಟು ಕೆಳಗೆ ಟೈಪ್ ಮಾಡಿ ಮುಂದುವರಿಯಿರಿ.",
+  micNoDevice: "ಈ ಸಾಧನದಲ್ಲಿ ಮೈಕ್ರೊಫೋನ್ ಕಂಡುಬಂದಿಲ್ಲ. ದಯವಿಟ್ಟು ನಿಮ್ಮ ಉತ್ತರವನ್ನು ಟೈಪ್ ಮಾಡಿ.",
+  micDenied: "ಮೈಕ್ರೊಫೋನ್ ಅನುಮತಿ ನಿರಾಕರಿಸಲಾಗಿದೆ. ನೀವು ಟೈಪ್ ಮಾಡುವ ಮೂಲಕ ಅಥವಾ ಕೆಳಗಿನ ಆಯ್ಕೆಗಳನ್ನು ಆರಿಸುವ ಮೂಲಕ ಮುಂದುವರಿಯಬಹುದು.",
+  micNoSupport: "ಈ ಬ್ರೌಸರ್‌ನಲ್ಲಿ ಧ್ವನಿ ಗುರುತಿಸುವಿಕೆ ಬೆಂಬಲಿತವಾಗಿಲ್ಲ. ದಯವಿಟ್ಟು ಕೆಳಗೆ ಟೈಪ್ ಮಾಡಿ.",
+  micNoSpeech: "ಯಾವುದೇ ಧ್ವನಿ ಪತ್ತೆಯಾಗಿಲ್ಲ. ದಯವಿಟ್ಟು ಮತ್ತೊಮ್ಮೆ ಪ್ರಯತ್ನಿಸಿ.",
+  intakeVoiceMode: "ಧ್ವನಿ ಮೋಡ್",
+  intakeTypeMode: "ಟೈಪ್ ಮೋಡ್",
+  intakeNext: "ಉಳಿಸಿ ಮತ್ತು ಮುಂದುವರಿಯಿರಿ",
+  intakeSkip: "ಈ ಪ್ರಶ್ನೆಯನ್ನು ಬಿಟ್ಟುಬಿಡಿ",
+  intakeBack: "← ಹಿಂದಕ್ಕೆ",
+};
+
 export function t(
   key: StringKey,
   lang: LangCode = "en",
@@ -214,7 +275,14 @@ export function t(
     if (cached && cached[key]) {
       return cached[key];
     }
+    if (lang === "kn" && KN_STRINGS[key]) {
+      return KN_STRINGS[key]!;
+    }
+    if (lang === "hi" && HI_STRINGS[key]) {
+      return HI_STRINGS[key]!;
+    }
   }
   return EN_STRINGS[key] ?? (key as string);
 }
+
 

@@ -535,3 +535,59 @@ export const logout = async (): Promise<void> => {
   localStorage.removeItem('medmap_role');
   sessionStorage.clear();
 };
+
+export const synthesizeSpeech = async (text: string, language: string): Promise<Blob> => {
+  const response = await fetch(`${API_BASE_URL}/speech/tts`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({ text, language }),
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'tts_unavailable';
+    try {
+      const errJson = await response.json();
+      if (errJson?.detail?.code) {
+        errorDetail = errJson.detail.code;
+      }
+    } catch {}
+    throw new Error(errorDetail);
+  }
+
+  return await response.blob();
+};
+
+export const transcribeSpeech = async (
+  audioBlob: Blob,
+  filename: string,
+  language: string
+): Promise<{ transcript: string }> => {
+  const formData = new FormData();
+  formData.append('file', audioBlob, filename);
+  formData.append('language', language);
+
+  const response = await fetch(`${API_BASE_URL}/speech/stt`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'stt_unavailable';
+    try {
+      const errJson = await response.json();
+      if (errJson?.detail?.code) {
+        errorDetail = errJson.detail.code;
+      }
+    } catch {}
+    throw new Error(errorDetail);
+  }
+
+  return await response.json();
+};
+
