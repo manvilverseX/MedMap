@@ -62,6 +62,79 @@ def extract_answer_text(answer_entry: Any) -> str:
     return ""
 
 
+def has_reported_allergy(answer_entry: Any) -> bool:
+    """Conservative clinical helper to determine if patient reported any allergy.
+    Defaults to TRUE (allergy possible). Returns FALSE only when the normalized answer
+    is clearly an unambiguous negation and contains no positive or contrast markers.
+    """
+    if isinstance(answer_entry, Mapping):
+        raw_text = extract_answer_text(answer_entry)
+    elif isinstance(answer_entry, str):
+        raw_text = answer_entry
+    else:
+        return False
+
+    raw_text = raw_text.strip()
+    if not raw_text:
+        return False
+
+    lower_text = raw_text.casefold()
+
+    # Contrast or positive allergy markers: patient is reporting an allergy
+    # (even if preceded by a negation like "no known allergies ..., but allergic to peanuts")
+    contrast_or_positive_markers = (
+        "but",
+        "except",
+        "however",
+        "although",
+        "allergic to",
+        "allergy to",
+        "reaction",
+        "rash",
+        "swelling",
+        "hives",
+        "anaphylaxis",
+    )
+    for marker in contrast_or_positive_markers:
+        if re.search(r"\b" + re.escape(marker) + r"\b", lower_text):
+            return True
+
+    # Strip punctuation and normalize whitespace
+    cleaned = re.sub(r"[^\w\s]", "", lower_text)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    exact_negations = {
+        "no",
+        "none",
+        "nil",
+        "nothing",
+        "na",
+        "denies",
+        "denies allergies",
+        "no allergies",
+        "no allergy",
+        "no known allergies",
+        "no known drug allergies",
+        "not allergic to anything",
+        "no known allergies to anything",
+        "no allergies to anything",
+    }
+    if cleaned in exact_negations:
+        return False
+
+    negation_patterns = [
+        r"^no\s+(known\s+)?(drug\s+|food\s+|medication\s+|environmental\s+)?allergies(\s+to\s+[a-z0-9\s]+)?$",
+        r"^no\s+allergy(\s+to\s+[a-z0-9\s]+)?$",
+        r"^not\s+allergic(\s+to\s+[a-z0-9\s]+)?$",
+        r"^denies\s+(any\s+)?(known\s+)?allergies(\s+to\s+[a-z0-9\s]+)?$",
+    ]
+    for pattern in negation_patterns:
+        if re.match(pattern, cleaned):
+            return False
+
+    return True
+
+
 def is_uncertain_answer(text: str) -> bool:
     """Detect if the patient indicated genuine uncertainty."""
     cleaned = text.strip().casefold()
@@ -285,10 +358,7 @@ def identify_unresolved_gaps(
     all_needed_gaps = determine_required_gaps(complaint_text, current_answers=answers)
 
     # Allergy reaction is dependent on allergies being present
-    allergy_val = extract_answer_text(answers.get("allergies", ""))
-    has_allergy = bool(allergy_val) and not any(
-        neg in allergy_val.lower() for neg in ("no known allergies", "no allergies", "no allergy", "denies allergies", "none", "nil", "n/a")
-    ) and allergy_val.lower().strip() not in ("no", "na", "denies", "nothing")
+    has_allergy = has_reported_allergy(answers.get("allergies", ""))
 
     resolved_gaps: list[str] = []
     unresolved_gaps: list[str] = []

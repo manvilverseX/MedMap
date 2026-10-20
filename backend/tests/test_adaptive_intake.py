@@ -613,4 +613,20 @@ def test_safety_escalation_remains_active_during_fever_workflow():
     assert any("cardiac" in flag.lower() or "chest pain" in flag.lower() for flag in state.safetyEscalation.redFlags)
 
 
+def test_conservative_allergy_negation_safety_cases():
+    """Safety-critical verification of has_reported_allergy with positive markers and negations."""
+    from app.services.interview_engine.clinical_gaps import has_reported_allergy
+
+    assert has_reported_allergy("No known allergies") is False
+    assert has_reported_allergy("None") is False
+    assert has_reported_allergy("Nil") is False
+    assert has_reported_allergy("No known allergies to medications or food") is False
+    assert has_reported_allergy("Penicillin") is True
+    assert has_reported_allergy("No known allergies to medications, but allergic to peanuts") is True
+    assert has_reported_allergy("I am not allergic to anything except dust") is True
+    assert has_reported_allergy("Nuts, no other allergies") is True
+    assert has_reported_allergy("") is False
+
+
+
 

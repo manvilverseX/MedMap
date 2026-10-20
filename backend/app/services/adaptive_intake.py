@@ -16,6 +16,7 @@ from app.schemas.intake import (
 from app.services.interview_engine.clinical_gaps import (
     ClinicalGap,
     identify_unresolved_gaps,
+    has_reported_allergy,
 )
 from app.services.interview_engine.policy_engine import (
     CURATED_GAP_QUESTIONS,
@@ -250,6 +251,11 @@ def extract_answer_text(answer_entry: Any) -> str:
     return ""
 
 
+# Shared allergy helper (imported from interview_engine.clinical_gaps)
+# has_reported_allergy(answer_entry: Any) -> bool
+
+
+
 def is_uncertain_answer(text: str) -> bool:
     """Detect if the patient indicated genuine uncertainty."""
     cleaned = text.strip().casefold()
@@ -353,6 +359,9 @@ def _is_eligible(question: IntakeQuestion, answers: Mapping[str, Any]) -> bool:
     answer_text = extract_answer_text(dependency_answer)
     if not answer_text:
         return False
+
+    if dependency.questionId == "allergies":
+        return has_reported_allergy(dependency_answer)
 
     normalized = answer_text.strip().casefold()
     excluded = {answer.casefold() for answer in dependency.excludedAnswers}
@@ -540,10 +549,7 @@ def select_intake_state(
             malformed_ids.append(q_key)
 
     # Check allergy branch relevance
-    allergy_ans = extract_answer_text(answer_map.get("allergies", ""))
-    has_allergy = bool(allergy_ans) and not any(
-        neg in allergy_ans.lower() for neg in ("no known allergies", "no allergies", "no allergy", "denies allergies", "none", "nil", "n/a")
-    ) and allergy_ans.lower().strip() not in ("no", "na", "denies", "nothing")
+    has_allergy = has_reported_allergy(answer_map.get("allergies", ""))
     irrelevant_ids = ["allergy_reaction"] if ("allergies" in answer_map and not has_allergy) else []
 
     # Calculate clinical progress
