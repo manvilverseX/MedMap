@@ -650,6 +650,59 @@ export function DoctorCaseDetailPage() {
             </span>
           </div>
 
+          {/* Translation Failure / Incomplete Red-Flag Screening Alert Banner */}
+          {(caseDetail?.derivedClinicalData?.translationScreeningIncomplete ||
+            Object.values(caseDetail?.intakeAnswers || {}).some(
+              (a: any) => typeof a === 'object' && (a?.translationFailed === true || (a?.translated === false && a?.lang && a?.lang !== 'en'))
+            )) && (
+            <div
+              role="alert"
+              className="doctor-translation-failure-warning"
+              style={{
+                padding: '1rem 1.25rem',
+                backgroundColor: '#fef2f2',
+                border: '2px solid #ef4444',
+                borderRadius: '8px',
+                marginBottom: '1rem',
+                boxShadow: '0 1px 3px rgba(239, 68, 68, 0.15)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                <span style={{ fontSize: '1.4rem', lineHeight: 1 }} aria-hidden="true">⚠️</span>
+                <div style={{ flex: 1 }}>
+                  <h4 style={{ margin: '0 0 0.35rem 0', color: '#b91c1c', fontSize: '0.98rem', fontWeight: 700 }}>
+                    Manual Red-Flag Review Required
+                  </h4>
+                  <p style={{ margin: 0, color: '#991b1b', fontSize: '0.88rem', lineHeight: 1.45, fontWeight: 500 }}>
+                    Automatic red-flag screening could not run on some non-English answers. Please review the original patient answers manually.
+                  </p>
+                  <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    {Object.entries(caseDetail?.intakeAnswers || {})
+                      .filter(([, ans]: [string, any]) => typeof ans === 'object' && (ans?.translationFailed === true || (ans?.translated === false && ans?.lang && ans?.lang !== 'en')))
+                      .map(([qId, ans]: [string, any]) => (
+                        <div
+                          key={qId}
+                          style={{
+                            padding: '0.45rem 0.75rem',
+                            backgroundColor: '#ffffff',
+                            border: '1px solid #fca5a5',
+                            borderRadius: '6px',
+                            fontSize: '0.85rem',
+                          }}
+                        >
+                          <strong style={{ color: '#7f1d1d' }}>{qId.replace(/_/g, ' ').toUpperCase()}:</strong>{' '}
+                          <span style={{ color: '#1e293b', fontStyle: 'italic' }}>"{ans.original || ans.value}"</span>
+                          <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>
+                            ({ans.lang || caseDetail.language || 'Non-English'} · Unscreened)
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Multilingual View Toggle (Doctor Side) */}
           {caseDetail.language && !caseDetail.language.toLowerCase().startsWith('en') && (
             <div className="doctor-lang-toggle" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '1rem', padding: '0.65rem 1rem', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1.5px solid var(--color-navy)', flexWrap: 'wrap' }}>

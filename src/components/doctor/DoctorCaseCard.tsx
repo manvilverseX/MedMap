@@ -25,7 +25,30 @@ export const DoctorCaseCard: React.FC<DoctorCaseCardProps> = ({ caseItem }) => {
             Patient ID: {caseItem.patientId}
           </h3>
         </div>
-        <div className="case-badges">
+        <div className="case-badges" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          {(caseItem.derivedClinicalData?.translationScreeningIncomplete ||
+            Object.values(caseItem.intakeAnswers || {}).some(
+              (a: any) => typeof a === 'object' && (a?.translationFailed === true || (a?.translated === false && a?.lang && a?.lang !== 'en'))
+            )) && (
+            <span
+              className="badge-manual-review-needed"
+              title="Automatic red-flag screening incomplete - translation failure"
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                padding: '0.2rem 0.5rem',
+                borderRadius: '4px',
+                backgroundColor: '#fef2f2',
+                color: '#dc2626',
+                border: '1.5px solid #ef4444',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+              }}
+            >
+              ⚠️ Manual review needed
+            </span>
+          )}
           <DoctorCaseStatusBadge status={caseItem.status} />
         </div>
       </div>

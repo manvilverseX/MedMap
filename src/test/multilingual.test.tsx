@@ -4,6 +4,7 @@ import { BrowserRouter, MemoryRouter, Routes, Route } from 'react-router-dom';
 import { t, getSupportedLanguages, setCachedStrings } from '../i18n/strings';
 import { PatientIntakePage } from '../pages/patient/PatientIntakePage';
 import { DoctorCaseDetailPage } from '../pages/doctor/DoctorCaseDetailPage';
+import { DoctorCaseCard } from '../components/doctor/DoctorCaseCard';
 import * as api from '../utils/api';
 import { CaseProvider } from '../context/CaseContext';
 
@@ -219,6 +220,69 @@ describe('Multilingual i18n & Patient/Doctor views', () => {
       await waitFor(() => {
         expect(screen.getByText(/ಎರಡು ದಿನಗಳಿಂದ ತೀವ್ರ ಕೆಮ್ಮು ಮತ್ತು ಸೌಮ್ಯ ಜ್ವರ/)).toBeInTheDocument();
       });
+    });
+
+    it('surfaces warning banner and manual review badge when non-English translation fails', async () => {
+      localStorage.setItem('medmap_token', 'doctor-jwt-token');
+
+      const failedCase: any = {
+        caseId: 'doc-failed-trans-case',
+        patientId: 'patient-789',
+        status: 'doctor_review',
+        language: 'kn',
+        consultationType: 'general',
+        intakeAnswers: {
+          chief_complaint: {
+            value: 'ತೀವ್ರ ಎದೆ ನೋವು',
+            original: 'ತೀವ್ರ ಎದೆ ನೋವು',
+            lang: 'kn',
+            translated: false,
+            translationFailed: true,
+          },
+        },
+        derivedClinicalData: {
+          translationScreeningIncomplete: true,
+          translationFailedAnswers: [
+            { questionId: 'chief_complaint', original: 'ತೀವ್ರ ಎದೆ ನೋವು', lang: 'kn' }
+          ],
+          medicalEntities: { diagnoses: [], medications: [], investigations: [], procedures: [] },
+          doctorReviews: {},
+        },
+      };
+
+      vi.mocked(api.getCase).mockResolvedValue(failedCase);
+      vi.mocked(api.getCaseDocuments).mockResolvedValue([]);
+      vi.mocked(api.getClinicalIntelligence).mockResolvedValue({
+        redFlags: [],
+        missingInformation: [],
+        confidenceAssessment: {},
+      });
+      vi.mocked(api.getUnifiedCase).mockResolvedValue(null);
+
+      // 1. Verify DoctorCaseDetailPage displays visible warning banner and original text
+      render(
+        <MemoryRouter initialEntries={['/doctor/cases/doc-failed-trans-case']}>
+          <Routes>
+            <Route path="/doctor/cases/:caseId" element={<DoctorCaseDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Automatic red-flag screening could not run on some non-English answers. Please review the original patient answers manually./i)
+        ).toBeInTheDocument();
+        expect(screen.getAllByText(/ತೀವ್ರ ಎದೆ ನೋವು/).length).toBeGreaterThan(0);
+      });
+
+      // 2. Verify DoctorCaseCard displays "Manual review needed" badge
+      render(
+        <MemoryRouter>
+          <DoctorCaseCard caseItem={failedCase} />
+        </MemoryRouter>
+      );
+
+      expect(screen.getByText(/Manual review needed/i)).toBeInTheDocument();
     });
   });
 });

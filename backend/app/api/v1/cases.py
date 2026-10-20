@@ -259,6 +259,7 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
                     "original": original_lang_answer, # Patient's language
                     "lang": case_lang,
                     "translated": translation_was_successful,
+                    "translationFailed": not translation_was_successful,
                 }
                 # Use english_answer for all subsequent validation
                 answer = english_answer
@@ -321,6 +322,18 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
     derived = dict(current_case.derivedClinicalData or {})
     derived["structuredIntake"] = structured
 
+    # Check whether any non-English answer failed translation
+    active_intake_answers = dict(case.intakeAnswers or {})
+    unscreened_answers = [
+        {"questionId": k, "original": v.get("original", ""), "lang": v.get("lang", getattr(case, "language", "non-en"))}
+        for k, v in active_intake_answers.items()
+        if isinstance(v, dict) and (v.get("translationFailed") is True or (v.get("translated") is False and v.get("lang") and v.get("lang") != "en"))
+    ]
+    translation_screening_incomplete = len(unscreened_answers) > 0
+    derived["translationScreeningIncomplete"] = translation_screening_incomplete
+    if translation_screening_incomplete:
+        derived["translationFailedAnswers"] = unscreened_answers
+
     # Persist interview state and safety metadata
     from app.services.interview_engine import evaluate_emergency_safety
     from app.services.adaptive_intake import select_intake_state
@@ -335,6 +348,19 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
             "message": safety_check.message,
             "instructions": safety_check.instructions,
             "redFlags": safety_check.red_flags,
+            "escalatedAt": datetime.now(timezone.utc).isoformat(),
+            "translationScreeningIncomplete": translation_screening_incomplete,
+        }
+    elif translation_screening_incomplete:
+        from datetime import datetime, timezone
+        derived["safetyEscalation"] = {
+            "isEscalated": False,
+            "translationScreeningIncomplete": True,
+            "requiresManualReview": True,
+            "title": "Manual Red-Flag Review Required",
+            "message": "Automatic red-flag screening could not run on some non-English answers. Please review the original patient answers manually.",
+            "instructions": "Clinician must manually review untranslated answers for safety signals.",
+            "redFlags": ["Manual review needed: Non-English answers unscreened due to translation failure"],
             "escalatedAt": datetime.now(timezone.utc).isoformat(),
         }
 

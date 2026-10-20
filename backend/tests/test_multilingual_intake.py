@@ -235,3 +235,37 @@ def test_translate_ui_endpoint_english_passthrough(client):
     data = resp.json()
     assert data["strings"]["start"] == "Start"
     assert data["translated"] is True
+
+
+@patch("app.services.translation_service.translate_to_english")
+def test_translation_failure_surfaces_screening_warning(mock_translate, client, db):
+    """When translation of non-English text fails, answer is marked translationFailed and case flagged."""
+    # Simulate translation failure (returns native text, success=False)
+    kannada_text = "ತೀವ್ರ ಎದೆ ನೋವು ಮತ್ತು ಉಸಿರಾಟದ ತೊಂದರೆ"
+    mock_translate.return_value = (kannada_text, False)
+
+    case = _create_kannada_case(db)
+    token = _patient_token(case.caseId)
+
+    resp = client.put(
+        f"/api/v1/cases/{case.caseId}",
+        json={"intakeAnswers": {"chief_complaint": kannada_text}},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200, resp.text
+
+    db.refresh(case)
+    ans = case.intakeAnswers.get("chief_complaint")
+    assert isinstance(ans, dict)
+    assert ans.get("translationFailed") is True
+    assert ans.get("original") == kannada_text
+
+    derived = case.derivedClinicalData or {}
+    assert derived.get("translationScreeningIncomplete") is True
+    assert "translationFailedAnswers" in derived
+    assert derived["translationFailedAnswers"][0]["questionId"] == "chief_complaint"
+
+    safety = derived.get("safetyEscalation")
+    assert safety is not None
+    assert safety.get("translationScreeningIncomplete") is True
+    assert "Manual review needed" in safety.get("redFlags", [""])[0]

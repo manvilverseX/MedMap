@@ -412,6 +412,18 @@ export function AdminQueuePage() {
                           }}>
                             ⚠️ {c.redFlagCount} Alert{c.redFlagCount > 1 ? 's' : ''}
                           </span>
+                        ) : (c as any).translationScreeningIncomplete ? (
+                          <span style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            padding: '0.15rem 0.45rem',
+                            borderRadius: '4px',
+                            backgroundColor: '#fef2f2',
+                            color: '#dc2626',
+                            border: '1px solid #ef4444',
+                          }}>
+                            ⚠️ Manual review needed
+                          </span>
                         ) : (
                           <span style={{ fontSize: '0.75rem', color: '#16a34a' }}>
                             ✓ Clear

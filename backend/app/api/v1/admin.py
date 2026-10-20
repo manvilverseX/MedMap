@@ -94,6 +94,13 @@ def get_admin_triage_queue(
                 "updatedAt": c.updatedAt.isoformat() if c.updatedAt else None,
             })
 
+        has_trans_fail = derived.get("translationScreeningIncomplete", False)
+        if not has_trans_fail and c.intakeAnswers:
+            has_trans_fail = any(
+                isinstance(a, dict) and (a.get("translationFailed") is True or (a.get("translated") is False and a.get("lang") and a.get("lang") != "en"))
+                for a in c.intakeAnswers.values()
+            )
+
         queue_cases.append({
             "caseId": c.caseId,
             "patientId": c.patientId,
@@ -102,6 +109,7 @@ def get_admin_triage_queue(
             "status": c.status,
             "hasRedFlags": len(case_flags) > 0,
             "redFlagCount": len(case_flags),
+            "translationScreeningIncomplete": has_trans_fail,
             "chiefComplaint": complaint_summary,
             "redFlags": case_flags,
             "lastUpdated": c.updatedAt.isoformat() if c.updatedAt else None,
