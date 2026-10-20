@@ -87,7 +87,9 @@ STRICT CLINICAL RULES:
                 },
             },
             temperature=0.2,
+            timeout=15.0,
         )
+
 
         result_text = response.choices[0].message.content
         if not result_text:

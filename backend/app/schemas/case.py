@@ -58,11 +58,14 @@ class CaseUpdate(BaseModel):
             if isinstance(val, str):
                 continue
             if isinstance(val, dict):
-                if "value" not in val or "clarification_needed" not in val:
-                    raise ValueError(f"Invalid value type for {k}")
-                continue
+                has_clarification = "clarification_needed" in val
+                has_multilingual = "original" in val or "lang" in val or "translated" in val or "translationFailed" in val
+                if "value" in val and (has_clarification or has_multilingual):
+                    continue
+                raise ValueError(f"Invalid value type for {k}")
             raise ValueError(f"Invalid value type for {k}")
         return v
+
 
 
 class CaseResponse(BaseModel):

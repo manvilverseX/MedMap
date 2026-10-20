@@ -31,9 +31,10 @@ SARVAM_BASE_URL = "https://api.sarvam.ai"
 
 # Recommended female speaker personas for bulbul:v3
 VOICE_MAP = {
-    "kn": "roopa",   # Sarvam's recommended female voice for kn-IN in bulbul:v3
+    "kn": "kavitha", # Sarvam's tested clear female voice for kn-IN in bulbul:v3
     "hi": "priya",   # Sarvam's recommended female voice for hi-IN in bulbul:v3
 }
+
 
 
 
@@ -118,11 +119,13 @@ async def text_to_speech(
             )
 
         if resp.status_code != 200:
-            logger.error("Sarvam TTS returned HTTP status %s: %s", resp.status_code, resp.text)
+            error_reason = resp.text.strip()
+            logger.error("Sarvam TTS returned HTTP status %s: %s", resp.status_code, error_reason)
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail={"code": "tts_unavailable", "message": "Text-to-speech provider failed"},
+                detail={"code": "tts_unavailable", "message": "Text-to-speech provider failed", "reason": error_reason[:200]},
             )
+
 
         data = resp.json()
         audios = data.get("audios")
@@ -190,8 +193,9 @@ async def speech_to_text(
         )
 
     filename = file.filename or "recording.webm"
-    content_type = file.content_type or "audio/webm"
+    content_type = (file.content_type or "audio/webm").split(";")[0].strip()
     sarvam_api_key = os.getenv("SARVAM_API_KEY")
+
     transcript: str | None = None
 
     # 1. Attempt Sarvam STT if key configured

@@ -105,7 +105,7 @@ def test_tts_kannada_success(mock_post, client, auth_headers):
     payload = call_args[1]["json"]
     assert payload["model"] == "bulbul:v3"
     assert payload["language_code"] == "kn-IN"
-    assert payload["speaker"] == "roopa"
+    assert payload["speaker"] == "kavitha"
 
 
 @patch("httpx.AsyncClient.post")

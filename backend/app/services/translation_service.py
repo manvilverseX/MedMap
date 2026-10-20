@@ -161,10 +161,20 @@ def _call_groq_translate(texts: list[str], source_lang: str, target_lang: str) -
     )
     raw = (response.choices[0].message.content or "").strip()
 
-    # Strip possible markdown fences
-    if raw.startswith("```"):
-        lines = raw.splitlines()
-        raw = "\n".join(lines[1:-1]) if len(lines) > 2 else raw
+    # Extract JSON array from markdown code fences or surrounding text
+    if "```" in raw:
+        parts = raw.split("```")
+        if len(parts) >= 3:
+            block = parts[1]
+            if block.startswith("json"):
+                block = block[4:]
+            raw = block.strip()
+
+    # Extract bracketed JSON array if model included thoughts/preamble
+    start_bracket = raw.find("[")
+    end_bracket = raw.rfind("]")
+    if start_bracket != -1 and end_bracket != -1 and end_bracket > start_bracket:
+        raw = raw[start_bracket : end_bracket + 1]
 
     result = json.loads(raw)
 
@@ -175,6 +185,7 @@ def _call_groq_translate(texts: list[str], source_lang: str, target_lang: str) -
             f"Translation length mismatch: expected {len(texts)}, got {len(result)}"
         )
     return [str(t) for t in result]
+
 
 
 # ── Public API ────────────────────────────────────────────────────────────────

@@ -81,6 +81,7 @@ export function PatientIntakePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [questionError, setQuestionError] = useState<{ message: string; retry: () => void } | null>(null);
 
   // ── Voice & Audio state ────────────────────────────────────────────────
   const [voiceMode, setVoiceMode] = useState(false);
@@ -477,6 +478,7 @@ export function PatientIntakePage() {
 
   const refreshAdaptiveState = useCallback(async (currentAnswers: Record<string, any>, mode?: string, questionId?: string) => {
     try {
+      setQuestionError(null);
       const state = await getAdaptiveIntakeState(caseId!, mode, questionId);
       setSessionState(state);
       
@@ -497,7 +499,12 @@ export function PatientIntakePage() {
         setCurrentAnswer('');
       }
     } catch {
-      setError('Failed to load next question. Please try again.');
+      setQuestionError({
+        message: 'Failed to load question. Please try again.',
+        retry: () => {
+          refreshAdaptiveState(currentAnswers, mode, questionId);
+        },
+      });
     }
   }, [caseId]);
 
@@ -506,6 +513,7 @@ export function PatientIntakePage() {
     if (!caseId) return;
     setIsLoading(true);
     setError(null);
+    setQuestionError(null);
     try {
       const [data, unified] = await Promise.all([
         getCase(caseId),
@@ -591,6 +599,7 @@ export function PatientIntakePage() {
 
     setIsSubmitting(true);
     setError(null);
+    setQuestionError(null);
     try {
       const newAnswers = { ...answers, [sessionState.currentQuestion.id]: answerValue };
       const updatedCase = await updateCase(caseId, { intakeAnswers: newAnswers });
@@ -598,7 +607,12 @@ export function PatientIntakePage() {
       setAnswers(savedAnswers);
       await refreshAdaptiveState(savedAnswers);
     } catch (err: any) {
-      setError(err?.message || 'Failed to save your answers. Please try again.');
+      setQuestionError({
+        message: err?.message || 'Failed to save your answers. Please try again.',
+        retry: () => {
+          handleAnswerSubmit(answerValue);
+        },
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -642,10 +656,16 @@ export function PatientIntakePage() {
     setPendingCriticalConfirmation(null);
     setIsSubmitting(true);
     setError(null);
+    setQuestionError(null);
     try {
       await refreshAdaptiveState(answers, 'correction', sessionState.previousQuestionId);
     } catch {
-      setError('Failed to navigate to previous question.');
+      setQuestionError({
+        message: 'Failed to navigate to previous question.',
+        retry: () => {
+          handlePrevious();
+        },
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -676,10 +696,16 @@ export function PatientIntakePage() {
   const handleEdit = async (questionId: string) => {
     if (!caseId) return;
     setIsSubmitting(true);
+    setQuestionError(null);
     try {
       await refreshAdaptiveState(answers, 'correction', questionId);
     } catch {
-      setError('Failed to load question for correction.');
+      setQuestionError({
+        message: 'Failed to load question for correction.',
+        retry: () => {
+          handleEdit(questionId);
+        },
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -722,7 +748,7 @@ export function PatientIntakePage() {
     );
   }
 
-  if (error || !clinicalCase || !sessionState) {
+  if (error || !clinicalCase) {
     return (
       <div className="container">
         <div className="intake-page">
@@ -730,13 +756,43 @@ export function PatientIntakePage() {
             <h2>Something went wrong</h2>
             <ErrorMessage message={error || 'Case not found.'} />
             <div className="intake-error-actions">
-              <Button variant="primary" onClick={loadCase}>Try Again</Button>
+              <Button variant="primary" onClick={loadCase}>Try again</Button>
               <Link to="/" className="intake-btn intake-btn-skip">Back to Home</Link>
             </div>
           </div>
         </div>
       </div>
     );
+  }
+
+  if (!sessionState && questionError) {
+    return (
+      <div className="container">
+        <div className="intake-page">
+          <div className="intake-error-card" role="alert">
+            <h2>Something went wrong</h2>
+            <ErrorMessage message={questionError.message} />
+            <div className="intake-error-actions">
+              <Button
+                variant="primary"
+                onClick={() => {
+                  const retryFn = questionError.retry;
+                  setQuestionError(null);
+                  retryFn();
+                }}
+              >
+                Try again
+              </Button>
+              <Link to="/" className="intake-btn intake-btn-skip">Back to Home</Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!sessionState) {
+    return null;
   }
 
   if (showLongitudinalPrompt && unifiedCase?.previousVerified) {
@@ -854,6 +910,23 @@ export function PatientIntakePage() {
 
             <div className="intake-actions" style={{marginTop: '2rem'}}>
               {error && <ErrorMessage message={error} />}
+              {questionError && (
+                <div className="intake-error-banner" role="alert" style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--color-error)', borderRadius: '6px' }}>
+                  <ErrorMessage message={questionError.message} />
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <Button
+                      variant="primary"
+                      onClick={() => {
+                        const retryFn = questionError.retry;
+                        setQuestionError(null);
+                        retryFn();
+                      }}
+                    >
+                      Try again
+                    </Button>
+                  </div>
+                </div>
+              )}
               <Button
                 variant="primary"
                 onClick={handleComplete}
@@ -1380,6 +1453,23 @@ export function PatientIntakePage() {
               aria-invalid={!!validationError}
               placeholder="Type your response here..."
             />
+          )}
+          {questionError && (
+            <div className="intake-error-banner" role="alert" style={{ margin: '1rem 0', padding: '0.75rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--color-error)', borderRadius: '6px' }}>
+              <ErrorMessage message={questionError.message} />
+              <div style={{ marginTop: '0.5rem' }}>
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    const retryFn = questionError.retry;
+                    setQuestionError(null);
+                    retryFn();
+                  }}
+                >
+                  Try again
+                </Button>
+              </div>
+            </div>
           )}
 
           <div className="intake-actions">
