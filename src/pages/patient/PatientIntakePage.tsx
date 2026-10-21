@@ -114,9 +114,10 @@ export function PatientIntakePage() {
   const { t } = useT(clinicalCase?.language);
 
   // Speech language mapping (en-IN, hi-IN, kn-IN)
-  const speechLang = clinicalCase?.language?.toLowerCase().startsWith('hi')
+  const rawLang = clinicalCase?.language?.toLowerCase().trim() || '';
+  const speechLang = (rawLang.startsWith('hi') || rawLang === 'hindi')
     ? 'hi-IN'
-    : clinicalCase?.language?.toLowerCase().startsWith('kn')
+    : (rawLang.startsWith('kn') || rawLang === 'kannada' || rawLang.startsWith('ka'))
     ? 'kn-IN'
     : 'en-IN';
   const normLang = speechLang.slice(0, 2).toLowerCase();
@@ -218,8 +219,10 @@ export function PatientIntakePage() {
       setIsSpeaking(false);
       setAudioError(t('audioUnavailable'));
     };
-    player.play().catch(() => {
+    player.play().catch((err) => {
       setIsSpeaking(false);
+      const msg = err?.message || 'Playback blocked';
+      setAudioError(`${t('audioUnavailable')}: ${msg}`);
     });
   }, [t]);
 
@@ -246,12 +249,13 @@ export function PatientIntakePage() {
         ttsAudioCache.current.set(cacheKey, audioUrl);
         setIsAudioLoading(false);
         playAudioUrl(audioUrl);
-      } catch {
+      } catch (err: any) {
         setIsAudioLoading(false);
         if (hasBrowserVoiceForLang(speechLang)) {
           speakWithBrowser(text, speechLang);
         } else {
-          setAudioError(t('audioUnavailable'));
+          const detail = err?.message ? `: ${err.message}` : '';
+          setAudioError(`${t('audioUnavailable')}${detail}`);
         }
       }
     } else {
@@ -1212,9 +1216,19 @@ export function PatientIntakePage() {
             )}
           </div>
 
+          {isAudioLoading && (
+            <div className="intake-audio-status intake-audio-status--loading" role="status" style={{ fontSize: '0.8rem', color: 'var(--color-primary)', marginTop: '0.35rem' }}>
+              ⏳ {t('audioLoading')}
+            </div>
+          )}
+          {isSpeaking && (
+            <div className="intake-audio-status intake-audio-status--playing" role="status" style={{ fontSize: '0.8rem', color: 'var(--color-success, #16a34a)', marginTop: '0.35rem' }}>
+              🔊 {isIndicLang ? (normLang === 'kn' ? 'ಧ್ವನಿ ಪ್ಲೇ ಆಗುತ್ತಿದೆ (AI voice)' : 'ऑडियो चल रहा है (AI voice)') : 'Playing via browser voice'}
+            </div>
+          )}
           {audioError && (
             <div className="intake-no-voice-notice" role="alert" style={{ marginTop: '0.5rem' }}>
-              ℹ️ {audioError}
+              ⚠️ {audioError}
             </div>
           )}
           {!isIndicLang && !hasVoiceForLang && (

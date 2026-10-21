@@ -550,8 +550,12 @@ export const synthesizeSpeech = async (text: string, language: string): Promise<
     let errorDetail = 'tts_unavailable';
     try {
       const errJson = await response.json();
-      if (errJson?.detail?.code) {
+      if (errJson?.detail?.message) {
+        errorDetail = errJson.detail.message;
+      } else if (errJson?.detail?.code) {
         errorDetail = errJson.detail.code;
+      } else if (typeof errJson?.detail === 'string') {
+        errorDetail = errJson.detail;
       }
     } catch {}
     throw new Error(errorDetail);

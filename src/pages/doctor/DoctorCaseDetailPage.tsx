@@ -39,8 +39,12 @@ export function DoctorCaseDetailPage() {
   const fetchTranslatedSummary = async (targetCase?: ClinicalCase) => {
     const c = targetCase || caseDetail;
     if (!c?.aiSummary || !c.language) return;
-    const langLower = c.language.toLowerCase();
-    const langCode = langLower.startsWith('hi') ? 'hi' : langLower.startsWith('kn') ? 'kn' : 'en';
+    const langLower = (c.language || '').toLowerCase().trim();
+    const langCode = (langLower.startsWith('hi') || langLower === 'hindi')
+      ? 'hi'
+      : (langLower.startsWith('kn') || langLower === 'kannada' || langLower.startsWith('ka'))
+      ? 'kn'
+      : 'en';
     if (langCode === 'en') return;
     if (translatedSummary) return;
 

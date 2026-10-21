@@ -354,6 +354,67 @@ describe('Voice and touch fallback logic (Web Speech + Server-Side Speech)', () 
     });
   });
 
+  it('correctly maps full language name "Kannada" (from onboarding select) to kn and calls server-side TTS', async () => {
+    vi.mocked(api.getCase).mockResolvedValue({
+      ...mockCase,
+      language: 'Kannada',
+    });
+    vi.mocked(api.synthesizeSpeech).mockResolvedValue(new Blob(['fake-audio-bytes'], { type: 'audio/wav' }));
+
+    render(
+      <BrowserRouter>
+        <CaseProvider>
+          <PatientIntakePage />
+        </CaseProvider>
+      </BrowserRouter>
+    );
+
+    const readAloudBtn = await screen.findByRole('button', { name: /ಓದಿ ಹೇಳಿ|Read Aloud/i });
+    expect(readAloudBtn).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(readAloudBtn);
+    });
+
+    // Proves that 'Kannada' was NOT mapped to 'en' (which bypassed TTS), but correctly called server TTS with 'kn'
+    expect(api.synthesizeSpeech).toHaveBeenCalledTimes(1);
+    expect(api.synthesizeSpeech).toHaveBeenCalledWith(
+      expect.stringContaining('What brings you to see the doctor today?'),
+      'kn'
+    );
+    expect(mockAudioInstance.play).toHaveBeenCalledTimes(1);
+  });
+
+  it('displays visible error message when audio playback is blocked or fails', async () => {
+    vi.mocked(api.getCase).mockResolvedValue({
+      ...mockCase,
+      language: 'Kannada',
+    });
+    vi.mocked(api.synthesizeSpeech).mockResolvedValue(new Blob(['fake-audio-bytes'], { type: 'audio/wav' }));
+
+    // Simulate audio player play() rejection (e.g. Autoplay restriction)
+    mockAudioInstance.play.mockRejectedValueOnce(new Error('NotAllowedError: user gesture required'));
+
+    render(
+      <BrowserRouter>
+        <CaseProvider>
+          <PatientIntakePage />
+        </CaseProvider>
+      </BrowserRouter>
+    );
+
+    const readAloudBtn = await screen.findByRole('button', { name: /ಓದಿ ಹೇಳಿ|Read Aloud/i });
+    await act(async () => {
+      fireEvent.click(readAloudBtn);
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/ಧ್ವನಿ ಪ್ರಸ್ತುತ ಲಭ್ಯವಿಲ್ಲ|ಆಡಿಯೋ ಪ್ರಸ್ತುತ ಲಭ್ಯವಿಲ್ಲ|Audio is unavailable right now/i)
+      ).toBeInTheDocument();
+    });
+  });
+
   it('records audio with MediaRecorder for Kannada, sends to STT, populates editable textbox without auto-submitting, and shows notice', async () => {
     vi.mocked(api.getCase).mockResolvedValue({
       ...mockCase,
@@ -398,7 +459,7 @@ describe('Voice and touch fallback logic (Web Speech + Server-Side Speech)', () 
     });
 
     // Verify AI transcription notice is displayed
-    expect(screen.getByText(/AI ಪ್ರತಿಲೇಖನ|AI transcription/i)).toBeInTheDocument();
+    expect(screen.getByText(/AI ಪ್ರತಿಲೇಖನ|AI ಟ್ರಾನ್ಸ್‌ಕ್ರಿಪ್ಷನ್|AI transcription/i)).toBeInTheDocument();
 
     // Verify that it did NOT auto-submit (continue button is enabled for user review)
     const continueBtn = screen.getByRole('button', { name: /ಮುಂದುವರಿಯಿರಿ|Continue/i });
