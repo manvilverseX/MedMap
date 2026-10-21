@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCase } from '../../context/CaseContext';
-import { getCase, updateCase, getAdaptiveIntakeState, getUnifiedCase, synthesizeSpeech, transcribeSpeech } from '../../utils/api';
+import { getCase, updateCase, getAdaptiveIntakeState, getUnifiedCase, synthesizeSpeech, transcribeSpeech, mapApiErrorToKey } from '../../utils/api';
 import type { ClinicalCase } from '../../types/case';
 import { Button } from '../../components/Button';
 import { ErrorMessage } from '../../components/ErrorMessage';
@@ -543,7 +543,7 @@ export function PatientIntakePage() {
         await refreshAdaptiveState(data.intakeAnswers || {});
       }
     } catch (err: any) {
-      setError(err?.message || "We couldn't load your case. Please check your connection and try again.");
+      setError(t(mapApiErrorToKey(err)));
     } finally {
       setIsLoading(false);
     }

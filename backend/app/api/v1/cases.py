@@ -78,9 +78,7 @@ def get_adaptive_intake_state(
 
     # ── Localise the current question for non-English cases ──────────────
     lang = normalise_lang(getattr(case, 'language', None))
-    if lang != "en" and session_state.currentQuestion is not None:
-        q = session_state.currentQuestion
-
+    if lang != "en":
         # Collect all English strings that need translating in one batch call
         texts_to_translate: list[str] = []
         field_index: dict[str, int] = {}
@@ -90,23 +88,51 @@ def get_adaptive_intake_state(
                 field_index[key] = len(texts_to_translate)
                 texts_to_translate.append(text)
 
-        _enqueue("category", q.category)
-        _enqueue("prompt", q.prompt)
-        _enqueue("helperText", q.helperText)
-        option_start = len(texts_to_translate)
-        for opt in (q.options or []):
-            texts_to_translate.append(opt)
-        option_end = len(texts_to_translate)
-        clarif_start = len(texts_to_translate)
-        for opt in (q.clarificationOptions or []):
-            texts_to_translate.append(opt)
-        clarif_end = len(texts_to_translate)
+        if session_state.currentQuestion is not None:
+            q = session_state.currentQuestion
+            _enqueue("category", q.category)
+            _enqueue("prompt", q.prompt)
+            _enqueue("helperText", q.helperText)
+            option_start = len(texts_to_translate)
+            for opt in (q.options or []):
+                texts_to_translate.append(opt)
+            option_end = len(texts_to_translate)
+            clarif_start = len(texts_to_translate)
+            for opt in (q.clarificationOptions or []):
+                texts_to_translate.append(opt)
+            clarif_end = len(texts_to_translate)
+        else:
+            option_start = option_end = clarif_start = clarif_end = 0
 
         # Translate issue text if present
         issue_start = len(texts_to_translate)
         if session_state.issue:
             texts_to_translate.append(session_state.issue)
         issue_end = len(texts_to_translate)
+
+        # Translate safetyEscalation if present
+        if session_state.safetyEscalation is not None:
+            esc = session_state.safetyEscalation
+            _enqueue("esc_title", esc.title)
+            _enqueue("esc_message", esc.message)
+            _enqueue("esc_instructions", esc.instructions)
+            rf_start = len(texts_to_translate)
+            for rf in (esc.redFlags or []):
+                texts_to_translate.append(rf)
+            rf_end = len(texts_to_translate)
+        else:
+            rf_start = rf_end = 0
+
+        # Translate clinicalProgress if present
+        if session_state.clinicalProgress is not None:
+            cp = session_state.clinicalProgress
+            _enqueue("cp_activeDomain", cp.activeDomain)
+            dom_start = len(texts_to_translate)
+            for dom in (cp.domainsExplored or []):
+                texts_to_translate.append(dom)
+            dom_end = len(texts_to_translate)
+        else:
+            dom_start = dom_end = 0
 
         translated_list, was_translated = translate_texts(
             texts_to_translate, lang, db=db
@@ -121,36 +147,75 @@ def get_adaptive_intake_state(
                 return default
             return translated_list[idx] if was_translated else default
 
-        localized_options = (
-            tuple(translated_list[option_start:option_end])
-            if was_translated and option_end > option_start
-            else None
-        )
-        localized_clarif = (
-            tuple(translated_list[clarif_start:clarif_end])
-            if was_translated and clarif_end > clarif_start
-            else None
-        )
-        localized_issue = (
-            translated_list[issue_start] if was_translated and issue_end > issue_start else None
-        )
-
-        localized_q = q.model_copy(update={
-            "categoryLocalized": _get("category"),
-            "promptLocalized": _get("prompt"),
-            "helperTextLocalized": _get("helperText"),
-            "optionsLocalized": localized_options,
-            "clarificationOptionsLocalized": localized_clarif,
-        })
-
-        session_state = session_state.model_copy(update={
-            "currentQuestion": localized_q,
+        updates: dict[str, Any] = {
             "translated": was_translated,
             "translationLang": lang,
             "translationFallbackNotice": fallback_notice,
             "aiTranslationTag": ai_tag,
-            "issueLocalized": localized_issue,
-        })
+        }
+
+        if session_state.currentQuestion is not None:
+            localized_options = (
+                tuple(translated_list[option_start:option_end])
+                if was_translated and option_end > option_start
+                else None
+            )
+            localized_clarif = (
+                tuple(translated_list[clarif_start:clarif_end])
+                if was_translated and clarif_end > clarif_start
+                else None
+            )
+            localized_q = session_state.currentQuestion.model_copy(update={
+                "categoryLocalized": _get("category"),
+                "promptLocalized": _get("prompt"),
+                "helperTextLocalized": _get("helperText"),
+                "optionsLocalized": localized_options,
+                "clarificationOptionsLocalized": localized_clarif,
+            })
+            updates["currentQuestion"] = localized_q
+
+        if issue_end > issue_start:
+            updates["issueLocalized"] = translated_list[issue_start] if was_translated else None
+
+        if session_state.safetyEscalation is not None:
+            esc = session_state.safetyEscalation
+            localized_rfs = (
+                list(translated_list[rf_start:rf_end])
+                if was_translated and rf_end > rf_start
+                else None
+            )
+            title_loc = _get("esc_title")
+            msg_loc = _get("esc_message")
+            inst_loc = _get("esc_instructions")
+            localized_esc = esc.model_copy(update={
+                "titleLocalized": title_loc,
+                "messageLocalized": msg_loc,
+                "instructionsLocalized": inst_loc,
+                "redFlagsLocalized": localized_rfs,
+                "headlineLocalized": title_loc,
+                "reasonLocalized": msg_loc,
+                "guidanceLocalized": inst_loc,
+                "headline": esc.title,
+                "reason": esc.message,
+                "guidance": esc.instructions,
+                "redFlagsDetected": esc.redFlags,
+            })
+            updates["safetyEscalation"] = localized_esc
+
+        if session_state.clinicalProgress is not None:
+            cp = session_state.clinicalProgress
+            localized_doms = (
+                list(translated_list[dom_start:dom_end])
+                if was_translated and dom_end > dom_start
+                else None
+            )
+            localized_cp = cp.model_copy(update={
+                "activeDomainLocalized": _get("cp_activeDomain"),
+                "domainsExploredLocalized": localized_doms,
+            })
+            updates["clinicalProgress"] = localized_cp
+
+        session_state = session_state.model_copy(update=updates)
 
     return session_state
 

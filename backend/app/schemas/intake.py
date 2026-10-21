@@ -54,6 +54,18 @@ class SafetyEscalation(BaseModel):
     message: str
     instructions: str
     redFlags: List[str] = []
+    # Localized display fields
+    titleLocalized: Optional[str] = None
+    messageLocalized: Optional[str] = None
+    instructionsLocalized: Optional[str] = None
+    redFlagsLocalized: Optional[List[str]] = None
+    headlineLocalized: Optional[str] = None
+    reasonLocalized: Optional[str] = None
+    guidanceLocalized: Optional[str] = None
+    headline: Optional[str] = None
+    reason: Optional[str] = None
+    guidance: Optional[str] = None
+    redFlagsDetected: Optional[List[str]] = None
 
 
 class ClinicalProgress(BaseModel):
@@ -62,6 +74,10 @@ class ClinicalProgress(BaseModel):
     questionsAnswered: int = 0
     coverageStatus: str = "in_progress"
     unresolvedGapsCount: int = 0
+    totalRelevantGaps: Optional[int] = None
+    resolvedGaps: Optional[int] = None
+    domainsExploredLocalized: Optional[List[str]] = None
+    activeDomainLocalized: Optional[str] = None
 
 
 class IntakeSessionState(BaseModel):

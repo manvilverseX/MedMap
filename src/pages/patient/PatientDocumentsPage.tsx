@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCase } from '../../context/CaseContext';
-import { uploadDocument, extractDocument } from '../../utils/api';
+import { uploadDocument, extractDocument, mapApiErrorToKey } from '../../utils/api';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { compressImageIfNeeded } from '../../utils/imageCompressor';
 import { useT } from '../../i18n/useT';
@@ -136,7 +136,7 @@ export function PatientDocumentsPage() {
 
       setStatus('success');
     } catch (err: any) {
-      setError(err.message || t('documentsUnexpectedError'));
+      setError(t(mapApiErrorToKey(err)));
       setStatus('selected');
     }
   };

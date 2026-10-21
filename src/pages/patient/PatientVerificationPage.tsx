@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCase } from '../../context/CaseContext';
-import { getCase, updateCase, updateCaseStatus, getCaseDocuments, getDocumentFileUrl, logout } from '../../utils/api';
+import { getCase, updateCase, updateCaseStatus, getCaseDocuments, getDocumentFileUrl, logout, mapApiErrorToKey } from '../../utils/api';
 import type { ClinicalCase } from '../../types/case';
 import { Button } from '../../components/Button';
 import { InactivityCountdownBanner } from '../../components/patient/InactivityCountdownBanner';
@@ -65,7 +65,7 @@ export function PatientVerificationPage() {
       const data = await getCase(caseId);
       setClinicalCase(data);
     } catch (err: any) {
-      setError(err.message || t('verificationLoadError'));
+      setError(t(mapApiErrorToKey(err)));
     } finally {
       setIsLoading(false);
     }
@@ -79,7 +79,7 @@ export function PatientVerificationPage() {
       const docs = await getCaseDocuments(caseId);
       setDocuments(docs);
     } catch (err: any) {
-      setDocumentsError(err.message || t('verificationDocsLoadError'));
+      setDocumentsError(t(mapApiErrorToKey(err)));
     } finally {
       setIsDocumentsLoading(false);
     }
@@ -107,7 +107,7 @@ export function PatientVerificationPage() {
           setClinicalCase(updated);
         } catch (err: any) {
           console.error("Failed to update status to patient_verifying", err);
-          setUpdateError(err.message || t('verificationInitError'));
+          setUpdateError(t(mapApiErrorToKey(err)));
         }
       };
       transitionToVerifying();
@@ -143,7 +143,7 @@ export function PatientVerificationPage() {
       setEditingQuestionKey(null);
       setDraftAnswer('');
     } catch (err: any) {
-      setSaveAnswerError(err.message || t('verificationSaveAnswerError'));
+      setSaveAnswerError(t(mapApiErrorToKey(err)));
     } finally {
       setIsSavingAnswer(false);
     }
@@ -157,7 +157,7 @@ export function PatientVerificationPage() {
       const updatedCase = await updateCaseStatus(caseId, 'doctor_review');
       setClinicalCase(updatedCase);
     } catch (err: any) {
-      setUpdateError(err.message || t('verificationSubmitError'));
+      setUpdateError(t(mapApiErrorToKey(err)));
     } finally {
       setIsUpdating(false);
     }

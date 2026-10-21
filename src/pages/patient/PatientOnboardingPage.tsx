@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCase } from '../../context/CaseContext';
-import { createCase, verifyAbha } from '../../utils/api';
+import { createCase, verifyAbha, mapApiErrorToKey } from '../../utils/api';
 import { Button } from '../../components/Button';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { useT } from '../../i18n/useT';
@@ -103,8 +103,8 @@ export function PatientOnboardingPage() {
       const newCase = await createCase(patientId, language, hasConsent, consultationType, verifiedAbhaToLink);
       setCaseId(newCase.caseId);
       navigate('/patient/intake');
-    } catch {
-      setError(t('abhaCreateCaseError'));
+    } catch (err: any) {
+      setError(t(mapApiErrorToKey(err) || 'abhaCreateCaseError'));
     } finally {
       setIsLoading(false);
     }
