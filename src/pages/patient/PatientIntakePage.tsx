@@ -1447,7 +1447,7 @@ export function PatientIntakePage() {
               onChange={(e) => { setCurrentAnswer(e.target.value); setValidationError(null); }}
               onKeyDown={handleKeyDown}
               aria-describedby={currentQuestion.helperText ? `helper-${currentQuestion.id}` : undefined}
-              aria-label={currentQuestion.prompt}
+              aria-label={currentQuestion.promptLocalized || currentQuestion.prompt}
               aria-invalid={!!validationError}
               placeholder={t('intakeTypePlaceholder')}
             />
@@ -1461,7 +1461,7 @@ export function PatientIntakePage() {
               onChange={(e) => { setCurrentAnswer(e.target.value); setValidationError(null); }}
               onKeyDown={handleKeyDown}
               aria-describedby={currentQuestion.helperText ? `helper-${currentQuestion.id}` : undefined}
-              aria-label={currentQuestion.prompt}
+              aria-label={currentQuestion.promptLocalized || currentQuestion.prompt}
               aria-invalid={!!validationError}
               placeholder={t('intakeTypePlaceholder')}
             />

@@ -9,6 +9,7 @@ import { ErrorMessage } from '../../components/ErrorMessage';
 import { LoadingIndicator } from '../../components/LoadingIndicator';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useT } from '../../i18n/useT';
+import { EN_STRINGS, type StringKey } from '../../i18n/strings';
 import { formatDate } from '../../utils/language';
 import './PatientIntakePage.css';
 
@@ -229,6 +230,15 @@ export function PatientVerificationPage() {
   const editedCount = Object.keys(editedQuestionKeys).length;
   const documentCount = documents ? documents.length : 0;
 
+  const getQuestionHeading = (questionKey: string, promptLocalized?: string, promptFallback?: string) => {
+    if (promptLocalized) return promptLocalized;
+    const dictKey = ('q_' + questionKey) as StringKey;
+    if (EN_STRINGS[dictKey]) {
+      return t(dictKey);
+    }
+    return promptFallback || questionKey.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+  };
+
   return (
     <div className="container">
       <div className="intake-page" style={{ maxWidth: '800px' }}>
@@ -318,7 +328,7 @@ export function PatientVerificationPage() {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
                       <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--color-navy)', margin: 0, flex: 1, minWidth: '200px', wordBreak: 'break-word' }}>
-                        {meta.prompt || question.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        {getQuestionHeading(question, meta.promptLocalized, meta.prompt)}
                       </h3>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
@@ -437,7 +447,7 @@ export function PatientVerificationPage() {
                 {t('verificationAuditTrailTitle')}
               </strong>
               <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                {t('verificationAuditTrailNotice', { questions: inactiveEntries.map(([k]) => k.replace(/_/g, ' ')).join(', ') })}
+                {t('verificationAuditTrailNotice', { questions: inactiveEntries.map(([k]) => getQuestionHeading(k, undefined, k.replace(/_/g, ' '))).join(', ') })}
               </p>
             </div>
           )}

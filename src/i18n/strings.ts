@@ -372,7 +372,27 @@ export const EN_STRINGS = {
   errorUploadFailed: "Upload failed. Please check the file and try again.",
   errorSpeechUnavailable: "Speech service is temporarily unavailable.",
   errorTranslationUnavailable: "Translation service is temporarily unavailable.",
-} as const;
+
+  // Intake questions for verification and summary
+  q_chief_complaint: "Chief Complaint",
+  q_present_illness: "History of Present Illness",
+  q_hpi_timing: "Timing and Duration",
+  q_hpi_character: "Character of Pain/Symptom",
+  q_hpi_severity: "Severity",
+  q_hpi_radiation: "Radiation of Pain",
+  q_hpi_triggers: "Aggravating/Relieving Factors",
+  q_hpi_associated: "Associated Symptoms",
+  q_medications: "Current Medications",
+  q_allergies: "Allergies",
+  q_personal_diet: "Dietary Habits",
+  q_personal_sleep: "Sleep Quality",
+  q_personal_exercise: "Physical Activity",
+  q_personal_smoking: "Smoking / Tobacco Use",
+  q_personal_alcohol: "Alcohol Use",
+  q_ayush_prakriti: "Prakriti Assessment",
+  q_ayush_lifestyle: "Daily Routine & Lifestyle",
+  q_ayush_digestion: "Digestion and Appetite",
+};
 
 export type StringKey = keyof typeof EN_STRINGS;
 
@@ -442,7 +462,7 @@ export const HI_STRINGS: Record<StringKey, string> = {
   patientIdLabel: "रोगी आईडी",
   patientIdPlaceholder: "उदा: p-12345",
   languageLabel: "पसंदीदा भाषा",
-  languageEnglish: "English",
+  languageEnglish: "अंग्रेज़ी",
   languageHindi: "हिन्दी",
   languageKannada: "कन्नड़",
   consultationTypeLabel: "परामर्श का प्रकार",
@@ -475,7 +495,7 @@ export const HI_STRINGS: Record<StringKey, string> = {
   abhaDescription:
     "ABDM स्वास्थ्य रिकॉर्ड जोड़ने के लिए अपना आयुष्मान भारत स्वास्थ्य खाता लिंक करें।",
   abhaIdLabel: "ABHA पता या आईडी:",
-  abhaIdPlaceholder: "उदा: 14 अंकों का ABHA या user@abdm",
+  abhaIdPlaceholder: "उदा: 14 अंकों का ABHA या 9876543210@abdm",
   abhaVerifyButton: "सत्यापित करें",
   abhaSkipButton: "ABHA के बिना जारी रखें",
   abhaOtpLabel: "6 अंकों का ओटीपी दर्ज करें:",
@@ -564,7 +584,7 @@ export const HI_STRINGS: Record<StringKey, string> = {
   intakePrevQuestion: "← पिछला प्रश्न",
   intakePrevQuestionAria: "पिछले प्रश्न पर जाएं",
   intakeClinicalDomainsAria: "समीक्षा किए गए नैदानिक क्षेत्र",
-  intakeVoiceSpeechNote: "ब्राउज़र आधारित भाषण पहचान (Web Speech API)",
+  intakeVoiceSpeechNote: "ब्राउज़र आधारित ध्वनि पहचान",
   intakePreviousResponse: "आपका पिछला उत्तर",
   intakeSuggestedOptions: "सुझाए गए विकल्प",
   intakeSuggestedClarifications: "सुझाए गए स्पष्टीकरण",
@@ -759,6 +779,25 @@ export const HI_STRINGS: Record<StringKey, string> = {
   errorUploadFailed: "अपलोड विफल रहा। कृपया फ़ाइल जांचें और पुनः प्रयास करें।",
   errorSpeechUnavailable: "ध्वनि सेवा अस्थायी रूप से अनुपलब्ध है।",
   errorTranslationUnavailable: "अनुवाद सेवा अस्थायी रूप से अनुपलब्ध है।",
+
+  q_chief_complaint: "मुख्य समस्या",
+  q_present_illness: "वर्तमान बीमारी का विवरण",
+  q_hpi_timing: "समय और अवधि",
+  q_hpi_character: "दर्द या लक्षण का प्रकार",
+  q_hpi_severity: "तीव्रता",
+  q_hpi_radiation: "दर्द का फैलाव",
+  q_hpi_triggers: "बढ़ाने या कम करने वाले कारक",
+  q_hpi_associated: "संबंधित लक्षण",
+  q_medications: "वर्तमान दवाइयां",
+  q_allergies: "एलर्जी",
+  q_personal_diet: "आहार की आदतें",
+  q_personal_sleep: "नींद की गुणवत्ता",
+  q_personal_exercise: "शारीरिक गतिविधि",
+  q_personal_smoking: "धूम्रपान या तंबाकू का सेवन",
+  q_personal_alcohol: "शराब का सेवन",
+  q_ayush_prakriti: "प्रकृति परीक्षण",
+  q_ayush_lifestyle: "दैनिक दिनचर्या और जीवनशैली",
+  q_ayush_digestion: "पाचन और भूख",
 };
 
 // ── Complete Kannada Translations ─────────────────────────────────────────────
@@ -783,7 +822,7 @@ export const KN_STRINGS: Record<StringKey, string> = {
   patientIdLabel: "ರೋಗಿಯ ಗುರುತು (ID)",
   patientIdPlaceholder: "ಉದಾಹರಣೆಗೆ: p-12345",
   languageLabel: "ಆದ್ಯತೆಯ ಭಾಷೆ",
-  languageEnglish: "English",
+  languageEnglish: "ಇಂಗ್ಲಿಷ್",
   languageHindi: "ಹಿಂದಿ",
   languageKannada: "ಕನ್ನಡ",
   consultationTypeLabel: "ಸಮಾಲೋಚನೆಯ ಪ್ರಕಾರ",
@@ -816,7 +855,7 @@ export const KN_STRINGS: Record<StringKey, string> = {
   abhaDescription:
     "ABDM ಆರೋಗ್ಯ ದಾಖಲೆಗಳನ್ನು ಲಿಂಕ್ ಮಾಡಲು ನಿಮ್ಮ ಆಯುಷ್ಮಾನ್ ಭಾರತ್ ಆರೋಗ್ಯ ಖಾತೆಯನ್ನು ಜೋಡಿಸಿ.",
   abhaIdLabel: "ABHA ವಿಳಾಸ ಅಥವಾ ಸಂಖ್ಯೆ:",
-  abhaIdPlaceholder: "ಉದಾ: 14-ಅಂಕಿಯ ABHA ಅಥವಾ user@abdm",
+  abhaIdPlaceholder: "ಉದಾ: 14-ಅಂಕಿಯ ABHA ಅಥವಾ 9876543210@abdm",
   abhaVerifyButton: "ಪರಿಶೀಲಿಸಿ",
   abhaSkipButton: "ABHA ಇಲ್ಲದೆ ಮುಂದುವರಿಯಿರಿ",
   abhaOtpLabel: "6-ಅಂಕಿಯ ಒಟಿಪಿ ನಮೂದಿಸಿ:",
@@ -905,7 +944,7 @@ export const KN_STRINGS: Record<StringKey, string> = {
   intakePrevQuestion: "← ಹಿಂದಿನ ಪ್ರಶ್ನೆ",
   intakePrevQuestionAria: "ಹಿಂದಿನ ಪ್ರಶ್ನೆಗೆ ಹೋಗಿ",
   intakeClinicalDomainsAria: "ಪರಿಶೀಲಿಸಲಾದ ಕ್ಲಿನಿಕಲ್ ಕ್ಷೇತ್ರಗಳು",
-  intakeVoiceSpeechNote: "ಬ್ರೌಸರ್ ಆಧಾರಿತ ಧ್ವನಿ ಗುರುತಿಸುವಿಕೆ (Web Speech API)",
+  intakeVoiceSpeechNote: "ಬ್ರೌಸರ್ ಆಧಾರಿತ ಧ್ವನಿ ಗುರುತಿಸುವಿಕೆ",
   intakePreviousResponse: "ನಿಮ್ಮ ಹಿಂದಿನ ಉತ್ತರ",
   intakeSuggestedOptions: "ಸೂಚಿಸಲಾದ ಆಯ್ಕೆಗಳು",
   intakeSuggestedClarifications: "ಸೂಚಿಸಲಾದ ಸ್ಪಷ್ಟೀಕರಣಗಳು",
@@ -1101,6 +1140,26 @@ export const KN_STRINGS: Record<StringKey, string> = {
   intakeSaveContinue: "ಉಳಿಸಿ ಮತ್ತು ಮುಂದುವರಿಯಿರಿ →",
   micTapToSpeakLang: "ಮಾತನಾಡಲು ಸ್ಪರ್ಶಿಸಿ ({{lang}})",
   micListening: "ಆಲಿಸಲಾಗುತ್ತಿದೆ... ನಿಲ್ಲಿಸಲು ಸ್ಪರ್ಶಿಸಿ",
+
+
+  q_chief_complaint: "ಮುಖ್ಯ ತೊಂದರೆ",
+  q_present_illness: "ಪ್ರಸ್ತುತ ಅನಾರೋಗ್ಯದ ವಿವರ",
+  q_hpi_timing: "ತೊಂದರೆ ಶುರುವಾದ ಸಮಯ ಮತ್ತು ಅವಧಿ",
+  q_hpi_character: "ನೋವು ಅಥವಾ ತೊಂದರೆಯ ವಿಧ",
+  q_hpi_severity: "ತೀವ್ರತೆ",
+  q_hpi_radiation: "ನೋವು ಹರಡುವಿಕೆ",
+  q_hpi_triggers: "ನೋವು ಹೆಚ್ಚಿಸುವ ಅಥವಾ ಕಡಿಮೆ ಮಾಡುವ ಅಂಶಗಳು",
+  q_hpi_associated: "ಇತರ ಸಂಬಂಧಿತ ಲಕ್ಷಣಗಳು",
+  q_medications: "ಪ್ರಸ್ತುತ ತೆಗೆದುಕೊಳ್ಳುತ್ತಿರುವ ಔಷಧಿಗಳು",
+  q_allergies: "ಅಲರ್ಜಿಗಳು",
+  q_personal_diet: "ಆಹಾರ ಪದ್ಧತಿ",
+  q_personal_sleep: "ನಿದ್ರೆಯ ಗುಣಮಟ್ಟ",
+  q_personal_exercise: "ದೈಹಿಕ ಚಟುವಟಿಕೆ",
+  q_personal_smoking: "ಧೂಮಪಾನ ಅಥವಾ ತಂಬಾಕು ಬಳಕೆ",
+  q_personal_alcohol: "ಮದ್ಯಪಾನ",
+  q_ayush_prakriti: "ಪ್ರಕೃತಿ ಪರೀಕ್ಷೆ",
+  q_ayush_lifestyle: "ದೈನಂದಿನ ಜೀವನಶೈಲಿ",
+  q_ayush_digestion: "ಜೀರ್ಣಕ್ರಿಯೆ ಮತ್ತು ಹಸಿವು",
 };
 
 // ── Static lookup ─────────────────────────────────────────────────────────────

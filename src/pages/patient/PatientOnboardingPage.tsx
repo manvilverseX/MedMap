@@ -5,11 +5,14 @@ import { createCase, verifyAbha, mapApiErrorToKey } from '../../utils/api';
 import { Button } from '../../components/Button';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { useT } from '../../i18n/useT';
-import { normalizeLanguage, setSessionLanguage } from '../../utils/language';
+import { normalizeLanguage, setSessionLanguage, getSessionLanguage } from '../../utils/language';
 
 export function PatientOnboardingPage() {
   const [patientId, setPatientId] = useState('');
-  const [language, setLanguage] = useState('English');
+  const [language, setLanguage] = useState(() => {
+    const norm = getSessionLanguage();
+    return norm === 'kn' ? 'Kannada' : norm === 'hi' ? 'Hindi' : 'English';
+  });
   const { t } = useT(language);
   const [consultationType, setConsultationType] = useState('general');
   const [consentCollect, setConsentCollect] = useState(false);
