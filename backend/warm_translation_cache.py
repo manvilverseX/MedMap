@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Pre-translate curated questions, options, helper texts, and UI strings into Hindi ('hi')
-and Kannada ('kn'), storing them in the persistent translation_cache database table.
+Pre-translate curated questions, options, helper texts, UI strings, and backend messages
+into Hindi ('hi') and Kannada ('kn'), storing them in the persistent translation_cache database table.
 
 Features:
 - Idempotent: checks DB translation_cache table first and skips existing entries.
-- Batched requests to keep token usage within Groq limits.
+- Seeds static dictionary pairs from strings.ts directly into translation_cache.
+- Batched requests to keep token usage within Groq limits for dynamic strings.
 - Backoff and retry on HTTP 429 and timeouts (via translation_service).
 - Clear progress reporting and final cached/failed metrics.
 - Works with any DATABASE_URL (local or production).
@@ -17,7 +18,7 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import List, Set
+from typing import Dict, List, Set, Tuple
 
 from dotenv import load_dotenv
 
@@ -34,6 +35,7 @@ from app.models.translation_cache import TranslationCache
 from app.services.translation_service import (
     translate_texts,
     _text_hash,
+    _db_set,
     normalise_lang,
 )
 from app.services.adaptive_intake import INTAKE_QUESTIONS
@@ -41,8 +43,8 @@ from app.services.interview_engine.policy_engine import CURATED_GAP_QUESTIONS
 from app.services.interview_engine.ayush_questions import AYUSH_QUESTIONS
 
 
-def extract_ui_strings() -> List[str]:
-    """Extract English UI strings from src/i18n/strings.ts if accessible, or fallback list."""
+def parse_dictionaries() -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str]]:
+    """Extract EN, HI, and KN key-value pairs from src/i18n/strings.ts."""
     candidates = [
         backend_dir.parent / "src" / "i18n" / "strings.ts",
         Path("src/i18n/strings.ts"),
@@ -51,53 +53,29 @@ def extract_ui_strings() -> List[str]:
         if p.exists():
             try:
                 content = p.read_text(encoding="utf-8")
-                match = re.search(r"export const EN_STRINGS\s*=\s*\{(.*?)\};", content, re.DOTALL)
-                if match:
-                    block = match.group(1)
-                    # Extract string literals after property names
-                    found = re.findall(r':\s*(?:"([^"\\]*(?:\\.[^"\\]*)*)"|\'([^\'\\]*(?:\\.[^\'\\]*)*)\')', block)
-                    extracted = [m[0] or m[1] for m in found if (m[0] or m[1])]
-                    if extracted:
-                        return extracted
+                dicts = {}
+                for name in ["EN_STRINGS", "HI_STRINGS", "KN_STRINGS"]:
+                    # Match object block: export const NAME ... = { ... }
+                    match = re.search(rf"export const {name}[^=]*=\s*\{{(.*?)\}}\s*(?:as\s+const|satisfies[^;]*)?;", content, re.DOTALL)
+                    if match:
+                        block = match.group(1)
+                        items = {}
+                        for m in re.finditer(r'([a-zA-Z0-9_]+)\s*:\s*(?:"([^"\\]*(?:\\.[^"\\]*)*)"|\'([^\'\\]*(?:\\.[^\'\\]*)*)\')', block):
+                            k = m.group(1)
+                            v = m.group(2) if m.group(2) is not None else m.group(3)
+                            items[k] = v
+                        dicts[name] = items
+                if len(dicts) == 3:
+                    return dicts["EN_STRINGS"], dicts["HI_STRINGS"], dicts["KN_STRINGS"]
             except Exception as e:
                 print(f"[WARN] Failed to parse strings.ts: {e}")
                 break
 
-    # Fallback core UI strings if strings.ts cannot be read
-    return [
-        "MedMap",
-        "AI Pre-Consultation Case-Taking",
-        "Start Patient Intake",
-        "Doctor Clinical Review",
-        "Hospital Admin Triage",
-        "AI assists, your doctor decides. AI does not produce diagnoses.",
-        "Welcome to MedMap",
-        "Please enter your details to start.",
-        "Patient ID",
-        "Preferred Language",
-        "Consultation Type",
-        "General Clinical History",
-        "AYUSH / Ayurveda History",
-        "Start Intake",
-        "Patient Intake",
-        "Voice & Audio Mode",
-        "Skip this question",
-        "Save & Continue",
-        "Finish Intake",
-        "Read Aloud",
-        "Stop",
-        "Audio is unavailable right now. Please read the question on screen.",
-        "Tap to Speak",
-        "Try again",
-        "Failed to load question. Please try again.",
-        "Failed to save your answers. Please try again.",
-        "Confirm & Continue to Documents",
-        "Review Your Medical History",
-    ]
+    return {}, {}, {}
 
 
-def collect_all_translatable_strings() -> List[str]:
-    """Collect all unique curated prompts, categories, helper texts, options, and UI strings."""
+def collect_all_translatable_strings(en_dict: Dict[str, str]) -> List[str]:
+    """Collect all unique curated prompts, categories, helper texts, options, UI strings, and backend messages."""
     string_set: Set[str] = set()
 
     # 1. Standard curated intake questions
@@ -142,13 +120,37 @@ def collect_all_translatable_strings() -> List[str]:
             if opt and opt.strip():
                 string_set.add(opt.strip())
 
-    # 4. System & UI strings
-    for ui_str in extract_ui_strings():
-        if ui_str and ui_str.strip():
-            string_set.add(ui_str.strip())
+    # 4. All UI dictionary strings
+    for s in en_dict.values():
+        if s and s.strip():
+            string_set.add(s.strip())
 
-    # 5. Common intake state and clarification notices
-    auxiliary_strings = [
+    # 5. Backend-originated errors, notices, and categories
+    backend_patient_strings = [
+        "Immediate Medical Attention Advised",
+        "Immediate Medical Attention Recommended",
+        "Symptoms of Clinical Concern:",
+        "Recommended Action",
+        "Invalid input. Please check your answers.",
+        "Too many requests. Please wait a moment.",
+        "Your session has expired. Please start again.",
+        "Case not found.",
+        "Failed to create case. Please try again.",
+        "Failed to load case. Please try again.",
+        "Upload failed. Please check the file and try again.",
+        "File too large",
+        "File size exceeds 10MB limit.",
+        "Unsupported file format",
+        "Please upload a PDF or image file (PNG, JPG, WebP).",
+        "Speech service is temporarily unavailable.",
+        "Translation service is temporarily unavailable.",
+        "Network error. Please check your connection.",
+        "Patient consent is required",
+        "Invalid state transition",
+        "Failed to load question. Please try again.",
+        "Failed to save your answers. Please try again.",
+        "Failed to navigate to previous question.",
+        "Failed to load question for correction.",
         "The saved answer needs clarification",
         "Could you clarify?",
         "I'm not sure / Unknown",
@@ -158,23 +160,65 @@ def collect_all_translatable_strings() -> List[str]:
         "Skipped",
         "Uncertain",
         "Please describe your primary concern in a few words.",
+        "Review of Systems",
+        "History of Present Illness",
+        "Past Medical History",
+        "Medications & Allergies",
+        "Family History",
+        "Social & Environmental History",
+        "Ayurveda / AYUSH Pathway",
+        "Dashavidha Pariksha",
+        "Prakriti Assessment",
     ]
-    for s in auxiliary_strings:
-        string_set.add(s)
+    for s in backend_patient_strings:
+        string_set.add(s.strip())
 
-    # Filter out empty or whitespace-only
     cleaned = sorted(list({s for s in string_set if s and s.strip()}))
     return cleaned
 
 
-def warm_cache_for_language(db, strings: List[str], target_lang: str, batch_size: int = 12):
+def seed_static_translations(db, en_dict: Dict[str, str], target_dict: Dict[str, str], target_lang: str) -> int:
+    """Pre-seed known static translations into translation_cache table if missing."""
+    norm_lang = normalise_lang(target_lang)
+    seeded_count = 0
+    for key, en_text in en_dict.items():
+        if not en_text:
+            continue
+        target_text = target_dict.get(key)
+        if target_text and target_text.strip():
+            h = _text_hash(en_text.strip())
+            # Check if exists
+            row = (
+                db.query(TranslationCache.source_text_hash)
+                .filter_by(source_text_hash=h, target_lang=norm_lang)
+                .first()
+            )
+            if not row:
+                _db_set(db, h, norm_lang, target_text.strip())
+                seeded_count += 1
+    return seeded_count
+
+
+def warm_cache_for_language(
+    db,
+    strings: List[str],
+    target_lang: str,
+    en_dict: Dict[str, str],
+    target_dict: Dict[str, str],
+    batch_size: int = 12,
+):
     """Warm translation cache for a specific target language in idempotent batches."""
     norm_lang = normalise_lang(target_lang)
     print(f"\n========================================================")
     print(f" Warming translation cache for: {norm_lang.upper()} ({target_lang})")
     print(f"========================================================")
 
-    # 1. Identify already cached strings
+    # 1. First seed static dictionary translations
+    seeded = seed_static_translations(db, en_dict, target_dict, norm_lang)
+    if seeded > 0:
+        print(f"Pre-seeded from dictionary: {seeded} translations")
+
+    # 2. Identify already cached strings
     existing_hashes = {
         row[0]
         for row in db.query(TranslationCache.source_text_hash)
@@ -200,7 +244,12 @@ def warm_cache_for_language(db, strings: List[str], target_lang: str, batch_size
         print(f"All strings already cached for {norm_lang.upper()}! No API calls needed.")
         return len(already_cached), 0, 0
 
-    # 2. Batch and translate remaining strings
+    has_groq = bool(os.getenv("GROQ_API_KEY"))
+    if not has_groq:
+        print(f"[NOTE] GROQ_API_KEY not set. Kept {len(already_cached)} pre-cached entries in DB.")
+        return len(already_cached), 0, len(to_translate)
+
+    # 3. Batch and translate remaining strings
     batches = [to_translate[i : i + batch_size] for i in range(0, len(to_translate), batch_size)]
     total_batches = len(batches)
     newly_cached = 0
@@ -231,21 +280,25 @@ def main():
     print("MedMap Translation Cache Warmer")
     print("--------------------------------")
 
-    # Safety check on API key
-    if not os.getenv("GROQ_API_KEY"):
-        print("[ERROR] GROQ_API_KEY environment variable is not set. Aborting.")
-        sys.exit(1)
+    en_dict, hi_dict, kn_dict = parse_dictionaries()
+    print(f"Parsed strings.ts: {len(en_dict)} EN keys, {len(hi_dict)} HI keys, {len(kn_dict)} KN keys.")
 
-    all_strings = collect_all_translatable_strings()
-    print(f"Discovered {len(all_strings)} unique translatable curated & UI strings.")
+    all_strings = collect_all_translatable_strings(en_dict)
+    print(f"Discovered {len(all_strings)} unique translatable curated, UI & backend strings.")
 
     db = SessionLocal()
     summary = {}
 
     try:
-        for lang in ["hi", "kn"]:
-            already, new_count, failed = warm_cache_for_language(db, all_strings, lang, batch_size=12)
-            summary[lang] = {
+        targets = [
+            ("hi", hi_dict),
+            ("kn", kn_dict),
+        ]
+        for lang_code, target_dict in targets:
+            already, new_count, failed = warm_cache_for_language(
+                db, all_strings, lang_code, en_dict, target_dict, batch_size=12
+            )
+            summary[lang_code] = {
                 "already_cached": already,
                 "newly_cached": new_count,
                 "total_cached": already + new_count,
