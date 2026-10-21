@@ -10,6 +10,7 @@ MedMap supports **English (`en`)**, **Hindi (`hi`)**, and **Kannada (`kn`)** acr
 
 ### 1. English is the Canonical Clinical Language
 - The backend state machine, clinical graph, red-flag triggers, gap detection, drug interaction checks, and FHIR R4 schema mapping operate exclusively on English clinical tokens.
+- Doctor and Hospital Admin portals remain in English. The Doctor case review interface provides an explicit toggle (`English (Canonical) | Patient's Language (kn/hi)`) to inspect verbatim patient words alongside canonical English clinical interpretations.
 - Free-text answers submitted by patients in Kannada or Hindi are translated into English on receipt and persisted as bilingual dictionaries:
   ```json
   {
@@ -22,25 +23,28 @@ MedMap supports **English (`en`)**, **Hindi (`hi`)**, and **Kannada (`kn`)** acr
   ```
 - Choice questions maintain stable English identifiers (e.g. `lt_1_day`, `yes`, `no`) while rendering localized display labels (`1 ದಿನಕ್ಕಿಂತ ಕಡಿಮೆ`).
 
-### 2. Live Translation via Groq Integration
-- Translation is performed using the existing `Groq` LLM client with the configured model (defined by `GROQ_MODEL`, e.g. `openai/gpt-oss-120b`).
-- No additional translation vendor is required for text translation.
-- Translation requests utilize batched JSON prompts for high throughput and reduced token usage.
+### 2. Tiered Translation Resolution Order
+To eliminate English leaks while ensuring high performance, MedMap resolves patient-facing strings through four strict tiers:
+1. **Static Pre-Compiled Dictionary (`src/i18n/strings.ts`):** High-speed compile-time dictionary covering 329+ UI keys with native Kannada (`KN_STRINGS`) and Hindi (`HI_STRINGS`) strings.
+2. **Session Storage UI Cache:** Client-side cache (`medmap_i18n_kn`, `medmap_i18n_hi`) storing previously fetched dynamic translations.
+3. **Database Translation Cache (`POST /api/v1/translate/ui` & `translation_cache` table):** SHA-256 hashed persistent server cache pre-warmed via `backend/warm_translation_cache.py`.
+4. **Live Groq LLM Translation:** On-demand fallback using Groq LLM (`openai/gpt-oss-120b`).
+5. **Canonical English Fallback (Last Resort):** Returned only if translation service is unreachable, accompanied by an explicit localized banner (*"ಅನುವಾದ ಲಭ್ಯವಿಲ್ಲ, ಇಂಗ್ಲಿಷ್‌ನಲ್ಲಿ ತೋರಿಸಲಾಗುತ್ತಿದೆ"* / *"अनुवाद सेवा अनुपलब्ध है"*).
 
-### 3. Two-Tier Caching for Low Latency & High Resilience
-- **Database Level (`translation_cache` table):**
-  - Schema: `hash (SHA-256)`, `source_text`, `source_lang`, `target_lang`, `translated_text`, `created_at`.
-  - Alembic migration: `f3a1b2c4d5e6_add_translation_cache.py`.
-  - Cache hits return instantly with zero LLM latency and zero token consumption.
-- **Frontend Session Level (`sessionStorage`):**
-  - UI labels and static strings fetched via `POST /api/v1/translate/ui` are cached in the browser's `sessionStorage`.
-  - Switching pages or re-rendering questions does not re-fetch translations.
+### 3. Patient Screen Allowlist
+Rural patient screens in `kn` and `hi` must contain zero English text, with the sole exception of the strictly defined allowlist:
+- **Brand Name:** `MedMap`
+- **Acronyms:** `ABHA`, `ABDM`
+- **AI Token:** Native `ಎಐ` / `एआई` preferred, Latin `AI` permitted
+- **Drug Names:** Clinical entity names (e.g. `Paracetamol`, `Metformin`, `Amoxicillin`)
+- **Doses & Units:** Standard medical and file units (`500mg`, `10ml`, `MB`, `KB`)
+- **Numbers & Dates:** Patient-typed or extracted calendar dates and numerical counts
+- **File Names:** Uploaded documents (e.g. `discharge_summary.pdf`, `prescription.jpg`)
+- **Patient Free-Text:** Raw input explicitly entered by the user
 
-### 4. Non-Blocking Graceful Fallback
-- If Groq API rate limits are encountered (HTTP 429), the network disconnects, or `GROQ_API_KEY` is omitted:
-  - Backend returns the canonical English text with `aiTranslationTag: "Translation unavailable, showing English"`.
-  - Patient UI displays an informative banner (*"ಅನುವಾದ ಲಭ್ಯವಿಲ್ಲ, ಇಂಗ್ಲಿಷ್‌ನಲ್ಲಿ ತೋರಿಸಲಾಗುತ್ತಿದೆ"*).
-  - The patient workflow never hangs, errors, or prevents intake submission.
+### 4. Non-Medical Validation Notice
+> [!IMPORTANT]
+> All Kannada and Hindi translations in the static dictionary and dynamic translation service are AI-generated and author-drafted for low-literacy rural patient accessibility. They are **not medically validated or certified clinical translations**. English remains the sole canonical medical authority for diagnostic, safety, and prescribing decisions.
 
 ---
 

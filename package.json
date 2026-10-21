@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "vercel-build": "npm run build && if [ \"$VERCEL_ENV\" = \"preview\" ]; then pip3 install --break-system-packages -r requirements.txt && cd backend && python3 -m alembic upgrade head; fi",
     "lint": "oxlint",
-    "test": "vitest run",
+    "test": "vitest run --no-file-parallelism",
     "preview": "vite preview"
   },
   "dependencies": {
