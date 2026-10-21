@@ -1,14 +1,17 @@
 import { Link } from 'react-router-dom';
 import { Badge } from '../components/Badge';
+import { useT } from '../i18n/useT';
 
 export function LandingPage() {
+  const { t } = useT();
+
   return (
     <>
-      <Badge text="The project is under development" />
+      <Badge text={t('landingUnderDevelopment')} />
       
       <div className="container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh' }}>
         <header style={{ marginBottom: '3rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div className="logo" style={{ fontSize: '4.5rem' }}>MedMap</div>
+          <div className="logo" style={{ fontSize: '4.5rem' }}>{t('landingTitle')}</div>
         </header>
 
         <main style={{ width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -17,14 +20,14 @@ export function LandingPage() {
             className="doc-btn doc-btn-primary" 
             style={{ padding: '1.25rem', fontSize: '1.15rem' }}
           >
-            Patient Entry
+            {t('landingPatientEntry')}
           </Link>
           <Link 
             to="/doctor/login" 
             className="doc-btn doc-btn-secondary" 
             style={{ padding: '1.25rem', fontSize: '1.15rem' }}
           >
-            Doctor Login
+            {t('landingDoctorLogin')}
           </Link>
           <div style={{ textAlign: 'center', marginTop: '0.25rem' }}>
             <Link
@@ -36,7 +39,7 @@ export function LandingPage() {
                 fontWeight: 500,
               }}
             >
-              🏥 Hospital Admin / Triage Login →
+              {t('landingAdminLogin')}
             </Link>
           </div>
         </main>

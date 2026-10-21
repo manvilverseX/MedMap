@@ -5,42 +5,7 @@ import { createCase, verifyAbha } from '../../utils/api';
 import { Button } from '../../components/Button';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { useT } from '../../i18n/useT';
-import { normalizeLanguage } from '../../utils/language';
-
-const CONSENT_TRANSLATIONS: Record<string, {
-  title: string;
-  isDraft: boolean;
-  collect: string;
-  doctor: string;
-  abdm: string;
-  revocable: string;
-}> = {
-  English: {
-    title: 'Granular Data Sharing Consent',
-    isDraft: false,
-    collect: 'I consent to MedMap collecting my health responses and medical documents to prepare my clinical history. Voice recordings and audio, when used, are processed securely by an AI service.',
-    doctor: 'I consent to sharing my organized clinical history with treating physicians for medical consultation.',
-    abdm: 'I consent to simulated ABDM care-context exchange (optional, mock mode).',
-    revocable: 'You may revoke your consent or request your session data to be cleared at any time.'
-  },
-  Hindi: {
-    title: 'डेटा साझाकरण सहमति (सटीक सहमति)',
-    isDraft: true,
-    collect: 'मैं मेदमैप द्वारा मेरा स्वास्थ्य इतिहास और दस्तावेज़ एकत्र करने की सहमति देता/देती हूँ। ध्वनि रिकॉर्डिंग और ऑडियो का उपयोग करने पर, उन्हें एक AI सेवा द्वारा सुरक्षित रूप से संसाधित किया जाता है।',
-    doctor: 'मैं यह स्वास्थ्य जानकारी परामर्श हेतु डॉक्टर के साथ साझा करने की सहमति देता/देती हूँ।',
-    abdm: 'मैं आयुष्मान भारत डिजिटल मिशन (ABDM) सिमुलेशन में भाग लेने की सहमति देता/देती हूँ (वैकल्पिक)।',
-    revocable: 'आप किसी भी समय अपनी सहमति वापस ले सकते हैं या डिवाइस से डेटा मिटा सकते हैं।'
-  },
-  Kannada: {
-    title: 'ಡೇಟಾ ಹಂಚಿಕೆ ಸಮ್ಮತಿ',
-    isDraft: true,
-    collect: 'ವೈದ್ಯಕೀಯ ಇತಿಹಾಸ ಸಿದ್ಧಪಡಿಸಲು ಮೆಡ್‌ಮ್ಯಾಪ್ ನನ್ನ ಆರೋಗ್ಯ ವಿವರಗಳನ್ನು ಸಂಗ್ರಹಿಸಲು ಸಮ್ಮತಿಸುತ್ತೇನೆ. ಧ್ವನಿ ರೆಕಾರ್ಡಿಂಗ್‌ಗಳನ್ನು ಬಳಸಿದಾಗ, ಅವುಗಳನ್ನು AI ಸೇವೆಯ ಮೂಲಕ ಸುರಕ್ಷಿತವಾಗಿ ಪ್ರಕ್ರಿಯೆಗೊಳಿಸಲಾಗುತ್ತದೆ.',
-    doctor: 'ಈ ಮಾಹಿತಿಯನ್ನು ಚಿಕಿತ್ಸೆ ನೀಡುವ ವೈದ್ಯರೊಂದಿಗೆ ಹಂಚಿಕೊಳ್ಳಲು ಸಮ್ಮತಿಸುತ್ತೇನೆ.',
-    abdm: 'ಆಯುಷ್ಮಾನ್ ಭಾರತ್ ಡಿಜಿಟಲ್ ಮಿಷನ್ ಸಿಮ್ಯುಲೇಶನ್ ಡೇಟಾ ಹಂಚಿಕೆಗೆ ಸಮ್ಮತಿಸುತ್ತೇನೆ (ಐಚ್ಛಿಕ).',
-    revocable: 'ನಿಮ್ಮ ಸಮ್ಮತಿಯನ್ನು ನೀವು ಯಾವುದೇ ಸಮಯದಲ್ಲಿ ಹಿಂಪಡೆಯಬಹುದು ಅಥವಾ ಡೇಟಾವನ್ನು ಅಳಿಸಬಹುದು.'
-  }
-};
-
+import { normalizeLanguage, setSessionLanguage } from '../../utils/language';
 
 export function PatientOnboardingPage() {
   const [patientId, setPatientId] = useState('');
@@ -55,8 +20,7 @@ export function PatientOnboardingPage() {
   const [error, setError] = useState<string | null>(null);
 
   const normLang = normalizeLanguage(language);
-  const consentKey = normLang === 'kn' ? 'Kannada' : normLang === 'hi' ? 'Hindi' : 'English';
-  const consentCopy = CONSENT_TRANSLATIONS[consentKey] || CONSENT_TRANSLATIONS.English;
+  const isDraftConsent = normLang !== 'en';
 
   // ABDM Simulation State
   const [hasAbha, setHasAbha] = useState(false);
@@ -75,9 +39,14 @@ export function PatientOnboardingPage() {
     setCaseId(null);
   }, [setCaseId]);
 
+  const handleLanguageChange = (newLang: string) => {
+    setLanguage(newLang);
+    setSessionLanguage(newLang);
+  };
+
   const handleVerifyAbha = async () => {
     if (!abhaId.trim()) {
-      setAbhaError('Please enter an ABHA ID (e.g. 14-digit number or name@abdm)');
+      setAbhaError(t('abhaEnterError'));
       return;
     }
     setAbhaError(null);
@@ -91,10 +60,10 @@ export function PatientOnboardingPage() {
         });
         setAbhaStep('otp');
       } else {
-        setAbhaError('Verification returned negative result.');
+        setAbhaError(t('abhaNegativeError'));
       }
     } catch (err: any) {
-      setAbhaError(err.message || 'Failed to verify ABHA ID. Check format.');
+      setAbhaError(err.message || t('abhaFailedVerifyError'));
     } finally {
       setIsVerifyingAbha(false);
     }
@@ -102,11 +71,11 @@ export function PatientOnboardingPage() {
 
   const handleConfirmOtp = () => {
     if (!otpValue.trim()) {
-      setAbhaError('Please enter the 6-digit OTP');
+      setAbhaError(t('abhaEnterOtpError'));
       return;
     }
     if (otpValue.trim() !== '123456') {
-      setAbhaError('Invalid OTP for simulation. Please enter the demo OTP: 123456');
+      setAbhaError(t('abhaInvalidOtpError'));
       return;
     }
     setAbhaError(null);
@@ -134,8 +103,8 @@ export function PatientOnboardingPage() {
       const newCase = await createCase(patientId, language, hasConsent, consultationType, verifiedAbhaToLink);
       setCaseId(newCase.caseId);
       navigate('/patient/intake');
-    } catch (err) {
-      setError('Failed to create case. Please try again.');
+    } catch {
+      setError(t('abhaCreateCaseError'));
     } finally {
       setIsLoading(false);
     }
@@ -144,11 +113,11 @@ export function PatientOnboardingPage() {
   return (
     <div className="container">
       <header>
-        <div className="logo">Patient Onboarding</div>
+        <div className="logo">{t('onboardingLogo')}</div>
       </header>
       <main style={{ marginTop: '2rem', maxWidth: '480px' }}>
-        <h2>{t('onboardingHeading') || 'Welcome to MedMap'}</h2>
-        <p>{t('onboardingSubtitle') || 'Please enter your details to start.'}</p>
+        <h2>{t('onboardingHeading')}</h2>
+        <p>{t('onboardingSubtitle')}</p>
         
         <ErrorMessage message={error} />
 
@@ -171,7 +140,7 @@ export function PatientOnboardingPage() {
                     if (!e.target.checked) handleSkipAbha();
                   }}
                 />
-                Have an ABHA ID?
+                {t('abhaToggleLabel')}
               </label>
               <span style={{
                 fontSize: '0.72rem',
@@ -182,12 +151,12 @@ export function PatientOnboardingPage() {
                 color: '#92400e',
                 border: '1px solid #fde68a',
               }}>
-                Simulation: not connected to ABDM
+                {t('abhaSimBadge')}
               </span>
             </div>
 
             <p style={{ margin: '0 0 0.75rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
-              Link your Ayushman Bharat Health Account to simulate ABDM longitudinal health record integration.
+              {t('abhaDescription')}
             </p>
 
             {hasAbha && (
@@ -201,7 +170,7 @@ export function PatientOnboardingPage() {
                 {abhaStep === 'input' && (
                   <div>
                     <label htmlFor="input-abha-id" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                      ABHA ID / Address:
+                      {t('abhaIdLabel')}
                     </label>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <input
@@ -209,7 +178,7 @@ export function PatientOnboardingPage() {
                         type="text"
                         value={abhaId}
                         onChange={(e) => setAbhaId(e.target.value)}
-                        placeholder="e.g. 14-digit ABHA or user@abdm"
+                        placeholder={t('abhaIdPlaceholder')}
                         style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--color-border)', fontSize: '0.85rem' }}
                       />
                       <Button
@@ -219,7 +188,7 @@ export function PatientOnboardingPage() {
                         disabled={isVerifyingAbha || !abhaId.trim()}
                         style={{ fontSize: '0.82rem', padding: '0.4rem 0.8rem' }}
                       >
-                        Verify
+                        {t('abhaVerifyButton')}
                       </Button>
                     </div>
                     <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'flex-end' }}>
@@ -228,7 +197,7 @@ export function PatientOnboardingPage() {
                         onClick={handleSkipAbha}
                         style={{ background: 'none', border: 'none', color: 'var(--color-text-secondary)', fontSize: '0.78rem', cursor: 'pointer', textDecoration: 'underline' }}
                       >
-                        Skip ABHA / Continue without
+                        {t('abhaSkipButton')}
                       </button>
                     </div>
                   </div>
@@ -238,14 +207,14 @@ export function PatientOnboardingPage() {
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
                       <label htmlFor="input-abha-otp" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                        Enter 6-digit OTP:
+                        {t('abhaOtpLabel')}
                       </label>
                       <span style={{ fontSize: '0.72rem', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #bae6fd', fontWeight: 600 }}>
-                        Demo hint: 123456
+                        {t('abhaOtpHint')}
                       </span>
                     </div>
                     <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
-                      Simulated verification code sent to mobile linked with ABHA {verifiedAbhaProfile?.abhaId}.
+                      {t('abhaOtpNotice', { id: verifiedAbhaProfile?.abhaId || '' })}
                     </p>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <input
@@ -262,7 +231,7 @@ export function PatientOnboardingPage() {
                         onClick={handleConfirmOtp}
                         style={{ fontSize: '0.82rem', padding: '0.4rem 0.8rem', backgroundColor: 'var(--color-verify)', borderColor: 'var(--color-verify)' }}
                       >
-                        Confirm OTP
+                        {t('abhaConfirmOtp')}
                       </Button>
                     </div>
                     <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -271,14 +240,14 @@ export function PatientOnboardingPage() {
                         onClick={() => setAbhaStep('input')}
                         style={{ background: 'none', border: 'none', color: 'var(--color-text-secondary)', fontSize: '0.78rem', cursor: 'pointer', textDecoration: 'underline' }}
                       >
-                        ← Re-enter ABHA ID
+                        {t('abhaReEnter')}
                       </button>
                       <button
                         type="button"
                         onClick={handleSkipAbha}
                         style={{ background: 'none', border: 'none', color: 'var(--color-text-secondary)', fontSize: '0.78rem', cursor: 'pointer', textDecoration: 'underline' }}
                       >
-                        Skip for now
+                        {t('abhaSkipNow')}
                       </button>
                     </div>
                   </div>
@@ -287,9 +256,9 @@ export function PatientOnboardingPage() {
                 {abhaStep === 'verified' && (
                   <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '0.65rem 0.85rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ color: '#166534', fontSize: '0.85rem' }}>✓ ABHA Verified (Simulation)</strong>
+                      <strong style={{ color: '#166534', fontSize: '0.85rem' }}>{t('abhaVerified')}</strong>
                       <span style={{ fontSize: '0.72rem', color: '#166534', backgroundColor: '#dcfce7', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
-                        Linked
+                        {t('abhaLinked')}
                       </span>
                     </div>
                     <div style={{ fontSize: '0.8rem', color: '#15803d', marginTop: '0.25rem' }}>
@@ -300,7 +269,7 @@ export function PatientOnboardingPage() {
                       onClick={handleSkipAbha}
                       style={{ marginTop: '0.4rem', background: 'none', border: 'none', color: '#166534', fontSize: '0.75rem', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
                     >
-                      Change / Disconnect ABHA
+                      {t('abhaChange')}
                     </button>
                   </div>
                 )}
@@ -310,36 +279,36 @@ export function PatientOnboardingPage() {
 
           <div>
             <label htmlFor="patientId" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
-              {t('patientIdLabel') || 'Patient ID'}:
+              {t('patientIdLabel')}:
             </label>
             <input 
               id="patientId"
               type="text" 
               value={patientId} 
               onChange={(e) => setPatientId(e.target.value)}
-              placeholder={t('patientIdPlaceholder') || 'e.g. p-12345'}
+              placeholder={t('patientIdPlaceholder')}
               required
               style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
             />
           </div>
           <div>
             <label htmlFor="language" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
-              {t('languageLabel') || 'Preferred Language'}:
+              {t('languageLabel')}:
             </label>
             <select 
               id="language"
               value={language} 
-              onChange={(e) => setLanguage(e.target.value)}
+              onChange={(e) => handleLanguageChange(e.target.value)}
               style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
             >
-              <option value="English">English</option>
-              <option value="Hindi">हिंदी (Hindi)</option>
-              <option value="Kannada">ಕನ್ನಡ (Kannada)</option>
+              <option value="English">{t('languageEnglish')}</option>
+              <option value="Hindi">{t('languageHindi')}</option>
+              <option value="Kannada">{t('languageKannada')}</option>
             </select>
           </div>
           <div>
             <label htmlFor="consultationType" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
-              {t('consultationTypeLabel') || 'Consultation Type'}:
+              {t('consultationTypeLabel')}:
             </label>
             <select
               id="consultationType"
@@ -347,13 +316,13 @@ export function PatientOnboardingPage() {
               onChange={(e) => setConsultationType(e.target.value)}
               style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
             >
-              <option value="general">{t('consultationGeneral') || 'General Clinical History'}</option>
-              <option value="ayush">{t('consultationAyush') || 'AYUSH / Ayurveda History'}</option>
+              <option value="general">{t('consultationGeneral')}</option>
+              <option value="ayush">{t('consultationAyush')}</option>
             </select>
             <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
               {consultationType === 'ayush'
-                ? (t('consultationAyushHint') || 'AYUSH includes general clinical history first, followed by Ayurvedic Dashavidha Pariksha questionnaire.')
-                : (t('consultationGeneralHint') || 'Standard clinical history: symptoms, medications, allergies, and health background.')}
+                ? t('consultationAyushHint')
+                : t('consultationGeneralHint')}
             </p>
           </div>
           {/* Granular & Revocable Patient Consent Section */}
@@ -365,11 +334,11 @@ export function PatientOnboardingPage() {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.4rem' }}>
               <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--color-navy)' }}>
-                {consentCopy.title}
+                {t('consentTitle')}
               </span>
-              {consentCopy.isDraft && (
+              {isDraftConsent && (
                 <span style={{ fontSize: '0.7rem', backgroundColor: '#fef3c7', color: '#92400e', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #fde68a', fontWeight: 600 }}>
-                  {t('draftTranslationTag') || 'Draft translation'}
+                  {t('draftTranslationTag')}
                 </span>
               )}
             </div>
@@ -384,7 +353,7 @@ export function PatientOnboardingPage() {
                   style={{ marginTop: '0.2rem' }}
                 />
                 <span>
-                  <strong>1. {t('consent1Label') || 'Data Collection:'}</strong> {consentCopy.collect}
+                  <strong>1. {t('consent1Label')}</strong> {t('consent1Text')}
                 </span>
               </label>
 
@@ -397,7 +366,7 @@ export function PatientOnboardingPage() {
                   style={{ marginTop: '0.2rem' }}
                 />
                 <span>
-                  <strong>2. {t('consent2Label') || 'Doctor Sharing:'}</strong> {consentCopy.doctor}
+                  <strong>2. {t('consent2Label')}</strong> {t('consent2Text')}
                 </span>
               </label>
 
@@ -409,13 +378,13 @@ export function PatientOnboardingPage() {
                   style={{ marginTop: '0.2rem' }}
                 />
                 <span>
-                  <strong>3. {t('consent3Label') || 'ABDM Simulation (Optional):'}</strong> {consentCopy.abdm}
+                  <strong>3. {t('consent3Label')}</strong> {t('consent3Text')}
                 </span>
               </label>
             </div>
 
             <p style={{ margin: '0.75rem 0 0', fontSize: '0.78rem', color: 'var(--color-text-secondary)', borderTop: '1px solid var(--color-border)', paddingTop: '0.5rem', fontStyle: 'italic' }}>
-              <strong>Revocability:</strong> {consentCopy.revocable}
+              <strong>{t('consentRevocability')}</strong> {t('consentRevocable')}
             </p>
           </div>
 
@@ -425,7 +394,7 @@ export function PatientOnboardingPage() {
             disabled={isLoading || !hasConsent}
             style={{ width: '100%' }}
           >
-            {isLoading ? (t('creatingCase') || 'Creating case...') : (t('startIntakeButton') || 'Start Intake')}
+            {isLoading ? t('creatingCase') : t('startIntakeButton')}
           </Button>
         </form>
       </main>

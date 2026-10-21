@@ -1,4 +1,5 @@
 import React from 'react';
+import { useT } from '../i18n/useT';
 
 interface LoadingIndicatorProps {
   message?: string;
@@ -6,9 +7,12 @@ interface LoadingIndicatorProps {
 }
 
 export const LoadingIndicator: React.FC<LoadingIndicatorProps> = ({
-  message = 'Loading...',
+  message,
   className = '',
 }) => {
+  const { t } = useT();
+  const displayMessage = message !== undefined ? message : t('loading');
+
   return (
     <div
       role="status"
@@ -58,7 +62,7 @@ export const LoadingIndicator: React.FC<LoadingIndicatorProps> = ({
           />
         </path>
       </svg>
-      {message && <span>{message}</span>}
+      {displayMessage && <span>{displayMessage}</span>}
       <span
         style={{
           position: 'absolute',
@@ -72,7 +76,7 @@ export const LoadingIndicator: React.FC<LoadingIndicatorProps> = ({
           border: 0,
         }}
       >
-        {message}
+        {displayMessage}
       </span>
     </div>
   );

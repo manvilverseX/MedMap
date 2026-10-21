@@ -56,9 +56,9 @@ describe('Intake Robustness and Question Error Handling', () => {
     );
 
     // Should show error card with "Try again"
-    const retryBtn = await screen.findByRole('button', { name: /try again/i });
+    const retryBtn = await screen.findByRole('button', { name: /try again|ಮತ್ತೊಮ್ಮೆ ಪ್ರಯತ್ನಿಸಿ/i });
     expect(retryBtn).toBeInTheDocument();
-    expect(screen.getByText(/failed to load question\. please try again\./i)).toBeInTheDocument();
+    expect(screen.getByText(/failed to load question\. please try again\.|ಪ್ರಶ್ನೆಯನ್ನು ಲೋಡ್ ಮಾಡಲು ವಿಫಲವಾಗಿದೆ/i)).toBeInTheDocument();
 
     // getCase should only have been called ONCE for the initial load
     expect(api.getCase).toHaveBeenCalledTimes(1);
@@ -119,7 +119,7 @@ describe('Intake Robustness and Question Error Handling', () => {
     });
 
     // Question load failed on next question -> shows "Try again"
-    const retryBtn = await screen.findByRole('button', { name: /try again/i });
+    const retryBtn = await screen.findByRole('button', { name: /try again|ಮತ್ತೊಮ್ಮೆ ಪ್ರಯತ್ನಿಸಿ/i });
     expect(retryBtn).toBeInTheDocument();
 
     // Click "Try again"

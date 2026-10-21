@@ -9,6 +9,7 @@ import { ErrorMessage } from '../../components/ErrorMessage';
 import { LoadingIndicator } from '../../components/LoadingIndicator';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useT } from '../../i18n/useT';
+import { formatDate } from '../../utils/language';
 import './PatientIntakePage.css';
 
 interface CaseDocument {
@@ -24,7 +25,7 @@ interface CaseDocument {
 }
 
 function formatFileSize(bytes?: number): string {
-  if (bytes === undefined || bytes === null || isNaN(bytes)) return 'Unknown size';
+  if (bytes === undefined || bytes === null || isNaN(bytes)) return '0 B';
   if (bytes === 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
@@ -33,7 +34,7 @@ function formatFileSize(bytes?: number): string {
 }
 
 export function PatientVerificationPage() {
-  const { caseId } = useCase();
+  const { caseId, setCaseId } = useCase();
   const navigate = useNavigate();
 
   // Case state
@@ -64,11 +65,11 @@ export function PatientVerificationPage() {
       const data = await getCase(caseId);
       setClinicalCase(data);
     } catch (err: any) {
-      setError(err.message || "We couldn't load your case. Please check your connection and try again.");
+      setError(err.message || t('verificationLoadError'));
     } finally {
       setIsLoading(false);
     }
-  }, [caseId]);
+  }, [caseId, t]);
 
   const loadDocuments = useCallback(async () => {
     if (!caseId) return;
@@ -78,11 +79,11 @@ export function PatientVerificationPage() {
       const docs = await getCaseDocuments(caseId);
       setDocuments(docs);
     } catch (err: any) {
-      setDocumentsError(err.message || 'Failed to load attached documents.');
+      setDocumentsError(err.message || t('verificationDocsLoadError'));
     } finally {
       setIsDocumentsLoading(false);
     }
-  }, [caseId]);
+  }, [caseId, t]);
 
   useEffect(() => {
     if (!caseId) {
@@ -106,12 +107,12 @@ export function PatientVerificationPage() {
           setClinicalCase(updated);
         } catch (err: any) {
           console.error("Failed to update status to patient_verifying", err);
-          setUpdateError(err.message || "Failed to initialize verification. Please refresh the page.");
+          setUpdateError(err.message || t('verificationInitError'));
         }
       };
       transitionToVerifying();
     }
-  }, [clinicalCase, caseId, isUpdating]);
+  }, [clinicalCase, caseId, isUpdating, t]);
 
   const handleStartEdit = (question: string, currentAnswer: string) => {
     setEditingQuestionKey(question);
@@ -142,7 +143,7 @@ export function PatientVerificationPage() {
       setEditingQuestionKey(null);
       setDraftAnswer('');
     } catch (err: any) {
-      setSaveAnswerError(err.message || 'Failed to save answer. Your draft has been kept so you can try again.');
+      setSaveAnswerError(err.message || t('verificationSaveAnswerError'));
     } finally {
       setIsSavingAnswer(false);
     }
@@ -156,13 +157,11 @@ export function PatientVerificationPage() {
       const updatedCase = await updateCaseStatus(caseId, 'doctor_review');
       setClinicalCase(updatedCase);
     } catch (err: any) {
-      setUpdateError(err.message || 'Failed to update case. Please try again.');
+      setUpdateError(err.message || t('verificationSubmitError'));
     } finally {
       setIsUpdating(false);
     }
   };
-
-  const { setCaseId } = useCase();
 
   const handleFinishAndClear = async () => {
     await logout();
@@ -176,7 +175,7 @@ export function PatientVerificationPage() {
     return (
       <div className="container">
         <div className="intake-page" style={{ padding: '2rem' }}>
-          <LoadingIndicator message="Loading your case for verification..." />
+          <LoadingIndicator message={t('loading')} />
         </div>
       </div>
     );
@@ -187,14 +186,14 @@ export function PatientVerificationPage() {
       <div className="container">
         <div className="intake-page">
           <div className="intake-error-card" role="alert">
-            <h2>Something went wrong</h2>
-            <ErrorMessage message={error || 'Case not found.'} />
+            <h2>{t('error')}</h2>
+            <ErrorMessage message={error || t('errorCaseNotFound')} />
             <div className="intake-error-actions">
               <Button variant="primary" onClick={loadCase}>
-                Try Again
+                {t('tryAgain')}
               </Button>
               <Link to="/patient" className="intake-btn intake-btn-skip">
-                Back to Home
+                {t('back')}
               </Link>
             </div>
           </div>
@@ -234,13 +233,13 @@ export function PatientVerificationPage() {
     <div className="container">
       <div className="intake-page" style={{ maxWidth: '800px' }}>
         <Link to="/patient" className="intake-back-link">
-          ← Back to Home
+          {t('intakeBack')}
         </Link>
 
         <div className="intake-header">
-          <h1>{t('verificationHeading') || 'Verify Your Information'}</h1>
+          <h1>{t('verificationHeading')}</h1>
           <div className="intake-case-id" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-            <span>Case {clinicalCase.caseId}</span>
+            <span>{t('verificationCaseLabel', { id: clinicalCase.caseId })}</span>
             <StatusBadge status={clinicalCase.status} />
           </div>
         </div>
@@ -248,23 +247,23 @@ export function PatientVerificationPage() {
         {/* Case Demographics & Consent Overview */}
         <div style={{ marginBottom: '2rem', padding: '1.25rem', backgroundColor: 'var(--color-bg-alt)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(15, 23, 42, 0.1)' }}>
           <p style={{ margin: '0 0 0.75rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
-            {t('verificationSubtitle') || 'Please review the information you provided below. You can correct any response before confirming. This information will be shared with the reviewing physician. This is not an automated diagnosis.'}
+            {t('verificationSubtitle')}
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(15, 23, 42, 0.08)' }}>
             <div>
-              <strong style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'block' }}>Patient Identifier</strong>
+              <strong style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'block' }}>{t('verificationPatientIdentifier')}</strong>
               <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--color-navy)' }}>{clinicalCase.patientId}</span>
             </div>
             {clinicalCase.language && (
               <div>
-                <strong style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'block' }}>Preferred Language</strong>
+                <strong style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'block' }}>{t('languageLabel')}</strong>
                 <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--color-navy)' }}>{clinicalCase.language}</span>
               </div>
             )}
             <div>
-              <strong style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'block' }}>Data Sharing Consent</strong>
+              <strong style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'block' }}>{t('verificationDataConsent')}</strong>
               <span style={{ fontSize: '0.95rem', fontWeight: 600, color: clinicalCase.consentGranted ? 'var(--color-verify)' : 'var(--color-warning)' }}>
-                {clinicalCase.consentGranted ? 'Granted' : 'Not Granted'}
+                {clinicalCase.consentGranted ? t('verificationConsentGranted') : t('verificationConsentNotGranted')}
               </span>
             </div>
           </div>
@@ -283,16 +282,16 @@ export function PatientVerificationPage() {
         }}>
           <span style={{ fontSize: '1.25rem' }}>🛡️</span>
           <span style={{ fontSize: '0.88rem', color: '#166534', lineHeight: 1.4 }}>
-            <strong>AI assists, your doctor decides:</strong> MedMap organizes your reported symptoms and records to assist the physician. AI does not produce diagnoses. Your doctor makes all clinical decisions.
+            {t('aiNotice')}
           </span>
         </div>
 
         {/* Questionnaire Responses Section */}
         <div className="intake-question-card" style={{ marginBottom: '2rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-            <h2 className="intake-question-category" style={{ margin: 0 }}>Your Responses</h2>
+            <h2 className="intake-question-category" style={{ margin: 0 }}>{t('verificationAnswersSection')}</h2>
             <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-              {activeEntries.length} active question{activeEntries.length === 1 ? '' : 's'} recorded
+              {t('verificationActiveQuestions', { count: activeEntries.length })}
             </span>
           </div>
 
@@ -326,32 +325,32 @@ export function PatientVerificationPage() {
                         {/* Provided / Skipped Badge */}
                         {isProvided ? (
                           <span className="verification-badge verification-badge-provided">
-                            Provided
+                            {t('intakeBadgeProvided')}
                           </span>
                         ) : (
                           <span className="verification-badge verification-badge-skipped">
-                            Skipped
+                            {t('intakeBadgeSkipped')}
                           </span>
                         )}
 
                         {/* Clarified Badge */}
                         {isClarified && (
                           <span className="verification-badge verification-badge-clarified">
-                            Clarified
+                            {t('intakeBadgeClarified')}
                           </span>
                         )}
 
                         {/* Corrected Badge */}
                         {isCorrected && (
                           <span className="verification-badge verification-badge-edited">
-                            Corrected
+                            {t('intakeBadgeCorrected')}
                           </span>
                         )}
 
                         {/* Uncertain Badge */}
                         {isUncertain && (
                           <span className="verification-badge verification-badge-uncertain">
-                            Uncertain
+                            {t('intakeBadgeUncertain')}
                           </span>
                         )}
 
@@ -361,10 +360,10 @@ export function PatientVerificationPage() {
                             type="button"
                             onClick={() => handleStartEdit(question, answerText)}
                             disabled={isSavingAnswer || isUpdating}
-                            aria-label={`Edit response for "${question}"`}
+                            aria-label={t('edit')}
                             className="verification-edit-btn"
                           >
-                            {t('verificationEdit') || 'Edit'}
+                            {t('verificationEdit')}
                           </button>
                         )}
                       </div>
@@ -373,7 +372,7 @@ export function PatientVerificationPage() {
                     {isEditingThis ? (
                       <div className="verification-edit-box" style={{ marginTop: '0.75rem' }}>
                         <label htmlFor={`edit-input-${index}`} style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-navy)', marginBottom: '0.4rem' }}>
-                          Edit your response:
+                          {t('verificationEditResponseLabel')}
                         </label>
                         <textarea
                           id={`edit-input-${index}`}
@@ -383,7 +382,7 @@ export function PatientVerificationPage() {
                           rows={3}
                           className="intake-textarea"
                           style={{ marginBottom: '0.75rem', width: '100%', wordBreak: 'break-word' }}
-                          placeholder="Type your response here..."
+                          placeholder={t('intakePlaceholder')}
                         />
 
                         {saveAnswerError && (
@@ -400,7 +399,7 @@ export function PatientVerificationPage() {
                             disabled={isSavingAnswer}
                             style={{ padding: '0.4rem 0.9rem', fontSize: '0.85rem' }}
                           >
-                            {t('verificationCancel') || 'Cancel'}
+                            {t('verificationCancel')}
                           </Button>
                           <Button
                             type="button"
@@ -410,7 +409,7 @@ export function PatientVerificationPage() {
                             disabled={isSavingAnswer}
                             style={{ padding: '0.4rem 1.1rem', fontSize: '0.85rem' }}
                           >
-                            {isSavingAnswer ? 'Saving...' : (t('verificationSave') || 'Save Response')}
+                            {isSavingAnswer ? t('intakeSaving') : t('verificationSave')}
                           </Button>
                         </div>
                       </div>
@@ -419,7 +418,7 @@ export function PatientVerificationPage() {
                         {isProvided ? (
                           answerText
                         ) : (
-                          <em style={{ color: 'var(--color-text-secondary)', opacity: 0.7 }}>(No answer provided)</em>
+                          <em style={{ color: 'var(--color-text-secondary)', opacity: 0.7 }}>{t('verificationNoAnswerProvided')}</em>
                         )}
                       </p>
                     )}
@@ -428,17 +427,17 @@ export function PatientVerificationPage() {
               })}
             </ul>
           ) : (
-            <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>No responses recorded.</p>
+            <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>{t('verificationNoAnswers')}</p>
           )}
 
           {/* Inactive audit trail note if branch conditions changed */}
           {inactiveEntries.length > 0 && (
             <div style={{ marginTop: '1.5rem', padding: '0.75rem 1rem', backgroundColor: 'rgba(15, 23, 42, 0.04)', borderRadius: '8px', border: '1px dashed rgba(15, 23, 42, 0.15)' }}>
               <strong style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Inactive Branch History (Audit Trail)
+                {t('verificationAuditTrailTitle')}
               </strong>
               <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                {inactiveEntries.map(([k]) => k.replace(/_/g, ' ')).join(', ')} were previously answered but excluded because earlier answers (such as allergy status) were changed.
+                {t('verificationAuditTrailNotice', { questions: inactiveEntries.map(([k]) => k.replace(/_/g, ' ')).join(', ') })}
               </p>
             </div>
           )}
@@ -447,19 +446,19 @@ export function PatientVerificationPage() {
         {/* Attached Documents Review Section */}
         <div className="intake-question-card" style={{ marginBottom: '2rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-            <h2 className="intake-question-category" style={{ margin: 0 }}>Attached Documents</h2>
+            <h2 className="intake-question-category" style={{ margin: 0 }}>{t('verificationDocumentsSection')}</h2>
             <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-              {documentCount} document{documentCount === 1 ? '' : 's'}
+              {documentCount} {t('verificationDocumentsLabel')}
             </span>
           </div>
 
           <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
-            Review medical records, reports, or files attached to this case.
+            {t('verificationReviewRecords')}
           </p>
 
           {isDocumentsLoading ? (
             <div style={{ padding: '1rem 0' }}>
-              <LoadingIndicator message="Loading attached documents..." />
+              <LoadingIndicator message={t('loading')} />
             </div>
           ) : documentsError ? (
             <ErrorMessage
@@ -472,7 +471,7 @@ export function PatientVerificationPage() {
                 const filename = doc.filename || 'Unnamed document';
                 const fileSizeStr = formatFileSize(doc.sizeBytes ?? doc.size);
                 const uploadDate = doc.createdAt || doc.uploadedAt;
-                const formattedDate = uploadDate ? new Date(uploadDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : null;
+                const formattedDate = uploadDate ? formatDate(uploadDate, clinicalCase.language) : null;
 
                 return (
                   <li
@@ -499,7 +498,7 @@ export function PatientVerificationPage() {
                           {filename}
                         </div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                          {fileSizeStr} {formattedDate ? `• Uploaded ${formattedDate}` : ''}
+                          {fileSizeStr} {formattedDate && <>• {t('verificationUploadedDate', { date: formattedDate })}</>}
                         </div>
                       </div>
                     </div>
@@ -519,10 +518,10 @@ export function PatientVerificationPage() {
                           fontWeight: 500,
                         }}
                       >
-                        Open File ↗
+                        {t('verificationOpenFile')}
                       </a>
                       <span className="verification-badge" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: 'var(--color-verify)', color: 'var(--color-verify)' }}>
-                        Attached
+                        {t('verificationAttachedBadge')}
                       </span>
                     </div>
                   </li>
@@ -531,7 +530,7 @@ export function PatientVerificationPage() {
             </ul>
           ) : (
             <div style={{ padding: '0.75rem 1rem', backgroundColor: 'var(--color-bg)', borderRadius: '8px', border: '1px solid rgba(15, 23, 42, 0.08)', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
-              No documents are currently attached to this case.
+              {t('verificationNoDocuments')}
             </div>
           )}
         </div>
@@ -539,24 +538,24 @@ export function PatientVerificationPage() {
         {/* Factual Summary Bar */}
         <div style={{ marginBottom: '2rem', padding: '1rem 1.25rem', backgroundColor: 'var(--color-surface)', border: '2px solid var(--color-navy)', borderRadius: '12px', boxShadow: '3px 3px 0px rgba(15, 23, 42, 0.1)' }}>
           <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-navy)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Verification Review Summary
+            {t('verificationSummaryTitle')}
           </h3>
           <div className="verification-summary-grid">
             <div className="verification-summary-item">
               <span className="verification-summary-num" style={{ color: 'var(--color-verify)' }}>{providedCount}</span>
-              <span className="verification-summary-label">Provided</span>
+              <span className="verification-summary-label">{t('intakeBadgeProvided')}</span>
             </div>
             <div className="verification-summary-item">
               <span className="verification-summary-num" style={{ color: 'var(--color-warning)' }}>{skippedCount}</span>
-              <span className="verification-summary-label">Skipped</span>
+              <span className="verification-summary-label">{t('intakeBadgeSkipped')}</span>
             </div>
             <div className="verification-summary-item">
               <span className="verification-summary-num" style={{ color: 'var(--color-accent)' }}>{editedCount}</span>
-              <span className="verification-summary-label">Edited in Session</span>
+              <span className="verification-summary-label">{t('verificationEditedInSession')}</span>
             </div>
             <div className="verification-summary-item">
               <span className="verification-summary-num" style={{ color: 'var(--color-navy)' }}>{documentCount}</span>
-              <span className="verification-summary-label">Documents</span>
+              <span className="verification-summary-label">{t('verificationDocumentsLabel')}</span>
             </div>
           </div>
         </div>
@@ -572,8 +571,8 @@ export function PatientVerificationPage() {
         {isConfirmed ? (
           <div className="intake-complete-card">
             <div className="intake-complete-icon" aria-hidden="true">✓</div>
-            <h2>Information Verified</h2>
-            <p>Your responses have been confirmed and sent to the doctor for review.</p>
+            <h2>{t('verificationConfirmedTitle')}</h2>
+            <p>{t('verificationConfirmedBody')}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.25rem', width: '100%', maxWidth: '360px', margin: '1.25rem auto 0' }}>
               <Button
                 variant="primary"
@@ -591,28 +590,28 @@ export function PatientVerificationPage() {
                   fontWeight: 600,
                 }}
               >
-                🛡️ Finish & Clear This Device
+                🛡️ {t('privacyClearDevice')}
               </Button>
               <Link to="/doctor/cases" className="intake-btn-complete" style={{ padding: '0.65rem', fontSize: '0.88rem' }}>
-                View Doctor Dashboard (Demo) →
+                {t('verificationViewDoctorDemo')}
               </Link>
             </div>
             <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.75rem', display: 'block' }}>
-              Clearing the device safely logs out, revokes the active token, and removes local data for the next patient.
+              {t('verificationClearNotice')}
             </span>
           </div>
         ) : (
           <div className="intake-question-card" style={{ textAlign: 'center', backgroundColor: 'var(--color-surface)' }}>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-navy)', marginBottom: '0.5rem' }}>
-              Ready to Confirm?
+              {t('verificationReadyToConfirm')}
             </h2>
             <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginBottom: '1.5rem', lineHeight: '1.5' }}>
-              By clicking below, you confirm that you have reviewed the intake responses and attached documents above, and that the information accurately represents what you provided.
+              {t('verificationConfirmDisclaimer')}
             </p>
 
             {editingQuestionKey !== null && (
               <div style={{ marginBottom: '1rem', color: 'var(--color-warning)', fontSize: '0.85rem', fontWeight: 600 }}>
-                Please save or cancel your open response edit before confirming.
+                {t('verificationOpenEditWarning')}
               </div>
             )}
 
@@ -624,15 +623,14 @@ export function PatientVerificationPage() {
               className="intake-btn intake-btn-continue"
               style={{ width: '100%', padding: '0.85rem 1.5rem', fontSize: '1rem' }}
             >
-              {isUpdating ? 'Confirming...' : 'I Confirm This Information is Accurate'}
+              {isUpdating ? t('verificationSubmitting') : t('verificationConfirmButton')}
             </Button>
           </div>
         )}
       </div>
 
       {/* Auto-clear inactivity countdown timer */}
-      <InactivityCountdownBanner onClearDevice={handleFinishAndClear} />
+      <InactivityCountdownBanner onClearDevice={handleFinishAndClear} lang={clinicalCase.language} />
     </div>
   );
 }
-

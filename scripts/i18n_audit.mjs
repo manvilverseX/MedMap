@@ -33,8 +33,10 @@ function isAllowedWord(word) {
 
 function hasDisallowedLatin(text) {
   if (!text || typeof text !== 'string') return false;
+  // Strip template placeholders like {{seconds}}, {{count}}, {{time}}
+  const cleanText = text.replace(/\{\{[\w.]+\}\}/g, ' ');
   // Match words of 2 or more letters
-  const words = text.match(/[A-Za-z]{2,}/g) || [];
+  const words = cleanText.match(/[A-Za-z]{2,}/g) || [];
   for (const w of words) {
     if (!isAllowedWord(w)) {
       return true;
@@ -202,7 +204,8 @@ function auditFrontendFile(filePath) {
     // Check JSX Attributes like placeholder="...", title="...", aria-label="..."
     if (ts.isJsxAttribute(node)) {
       const attrName = node.name.getText(sourceFile);
-      if (UI_ATTRIBUTES.has(attrName) || attrName.startsWith('aria-')) {
+      const isUiTextAttr = UI_ATTRIBUTES.has(attrName) || ['aria-label', 'aria-description', 'aria-placeholder', 'aria-roledescription'].includes(attrName);
+      if (isUiTextAttr) {
         if (node.initializer) {
           if (ts.isStringLiteral(node.initializer)) {
             const val = node.initializer.text.trim();
@@ -252,14 +255,22 @@ function auditFrontendFile(filePath) {
           // Check if it's within a JSX element or return statement or variable
           let p = node.parent;
           let inJsx = false;
+          let isNonUiAttr = false;
           while (p) {
-            if (ts.isJsxElement(p) || ts.isJsxFragment(p) || ts.isJsxAttribute(p)) {
+            if (ts.isJsxAttribute(p)) {
+              const name = p.name.getText(sourceFile);
+              if (!UI_ATTRIBUTES.has(name) && !['aria-label', 'aria-description', 'aria-placeholder', 'aria-roledescription'].includes(name)) {
+                isNonUiAttr = true;
+                break;
+              }
+            }
+            if (ts.isJsxElement(p) || ts.isJsxFragment(p)) {
               inJsx = true;
               break;
             }
             p = p.parent;
           }
-          if (inJsx && !rawAttributes.some(a => a.line === getLine(node.getStart(sourceFile)))) {
+          if (inJsx && !isNonUiAttr && !rawAttributes.some(a => a.line === getLine(node.getStart(sourceFile)))) {
             dynamicConcat.push({ line: getLine(node.getStart(sourceFile)), text });
           }
         }
@@ -413,7 +424,7 @@ import { fileURLToPath } from 'url';
 // If run directly from CLI
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const { markdown, dictResults, fileResults, backendResults } = runAudit();
-  const outputPath = 'docs/I18N_AUDIT_BEFORE.md';
+  const outputPath = process.argv[2] || 'docs/I18N_AUDIT_REPORT.md';
   fs.writeFileSync(outputPath, markdown, 'utf-8');
   console.log(`Audit report generated at: ${outputPath}`);
   console.log(`Summary:`);

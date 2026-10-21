@@ -432,7 +432,7 @@ describe('Voice and touch fallback logic (Web Speech + Server-Side Speech)', () 
       </BrowserRouter>
     );
 
-    const micBtn = await screen.findByRole('button', { name: /ಮಾತನಾಡಲು ಟ್ಯಾಪ್ ಮಾಡಿ \(Kannada\)|Tap to Speak \(Kannada\)/i });
+    const micBtn = await screen.findByRole('button', { name: /ಮಾತನಾಡಲು (ಸ್ಪರ್ಶಿಸಿ|ಟ್ಯಾಪ್ ಮಾಡಿ) \(ಕನ್ನಡ\)|ಮಾತನಾಡಲು ಟ್ಯಾಪ್ ಮಾಡಿ \(Kannada\)|Tap to Speak \(Kannada\)/i });
     expect(micBtn).toBeInTheDocument();
 
     // Tap to start recording
@@ -459,7 +459,7 @@ describe('Voice and touch fallback logic (Web Speech + Server-Side Speech)', () 
     });
 
     // Verify AI transcription notice is displayed
-    expect(screen.getByText(/AI ಪ್ರತಿಲೇಖನ|AI ಟ್ರಾನ್ಸ್‌ಕ್ರಿಪ್ಷನ್|AI transcription/i)).toBeInTheDocument();
+    expect(screen.getByText(/(ಎಐ|AI) ಪ್ರತಿಲೇಖನ|AI ಟ್ರಾನ್ಸ್‌ಕ್ರಿಪ್ಷನ್|AI transcription/i)).toBeInTheDocument();
 
     // Verify that it did NOT auto-submit (continue button is enabled for user review)
     const continueBtn = screen.getByRole('button', { name: /ಮುಂದುವರಿಯಿರಿ|Continue/i });
@@ -497,7 +497,7 @@ describe('Voice and touch fallback logic (Web Speech + Server-Side Speech)', () 
       </BrowserRouter>
     );
 
-    const micBtn = await screen.findByRole('button', { name: /ಮಾತನಾಡಲು ಟ್ಯಾಪ್ ಮಾಡಿ \(Kannada\)|Tap to Speak \(Kannada\)/i });
+    const micBtn = await screen.findByRole('button', { name: /ಮಾತನಾಡಲು (ಸ್ಪರ್ಶಿಸಿ|ಟ್ಯಾಪ್ ಮಾಡಿ) \(ಕನ್ನಡ\)|ಮಾತನಾಡಲು ಟ್ಯಾಪ್ ಮಾಡಿ \(Kannada\)|Tap to Speak \(Kannada\)/i });
     await act(async () => {
       fireEvent.click(micBtn);
     });
@@ -525,7 +525,7 @@ describe('Voice and touch fallback logic (Web Speech + Server-Side Speech)', () 
       </BrowserRouter>
     );
 
-    const micBtn = await screen.findByRole('button', { name: /ಮಾತನಾಡಲು ಟ್ಯಾಪ್ ಮಾಡಿ \(Kannada\)|Tap to Speak \(Kannada\)/i });
+    const micBtn = await screen.findByRole('button', { name: /ಮಾತನಾಡಲು (ಸ್ಪರ್ಶಿಸಿ|ಟ್ಯಾಪ್ ಮಾಡಿ) \(ಕನ್ನಡ\)|ಮಾತನಾಡಲು ಟ್ಯಾಪ್ ಮಾಡಿ \(Kannada\)|Tap to Speak \(Kannada\)/i });
     await act(async () => {
       fireEvent.click(micBtn);
     });
@@ -551,7 +551,7 @@ describe('Voice and touch fallback logic (Web Speech + Server-Side Speech)', () 
       </BrowserRouter>
     );
 
-    const micBtn = await screen.findByRole('button', { name: /ಮಾತನಾಡಲು ಟ್ಯಾಪ್ ಮಾಡಿ \(Kannada\)|Tap to Speak \(Kannada\)/i });
+    const micBtn = await screen.findByRole('button', { name: /ಮಾತನಾಡಲು (ಸ್ಪರ್ಶಿಸಿ|ಟ್ಯಾಪ್ ಮಾಡಿ) \(ಕನ್ನಡ\)|ಮಾತನಾಡಲು ಟ್ಯಾಪ್ ಮಾಡಿ \(Kannada\)|Tap to Speak \(Kannada\)/i });
     await act(async () => {
       fireEvent.click(micBtn);
     });

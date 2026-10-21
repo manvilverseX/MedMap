@@ -8,7 +8,7 @@ import { ErrorMessage } from '../../components/ErrorMessage';
 import { LoadingIndicator } from '../../components/LoadingIndicator';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useT } from '../../i18n/useT';
-import { normalizeLanguage } from '../../utils/language';
+import { normalizeLanguage, setSessionLanguage, formatDate } from '../../utils/language';
 import './PatientIntakePage.css';
 
 interface IntakeQuestion {
@@ -118,7 +118,7 @@ export function PatientIntakePage() {
   const normLang = normalizeLanguage(clinicalCase?.language);
   const speechLang = normLang === 'hi' ? 'hi-IN' : normLang === 'kn' ? 'kn-IN' : 'en-IN';
   const isIndicLang = normLang === 'kn' || normLang === 'hi';
-  const speechLangName = normLang === 'hi' ? 'Hindi' : normLang === 'kn' ? 'Kannada' : 'English';
+  const speechLangName = normLang === 'hi' ? 'हिंदी' : normLang === 'kn' ? 'ಕನ್ನಡ' : 'English';
 
   const [hasVoiceForLang, setHasVoiceForLang] = useState(true);
 
@@ -500,7 +500,7 @@ export function PatientIntakePage() {
       }
     } catch {
       setQuestionError({
-        message: 'Failed to load question. Please try again.',
+        message: t('intakeFailedLoadQuestion'),
         retry: () => {
           refreshAdaptiveState(currentAnswers, mode, questionId);
         },
@@ -608,7 +608,7 @@ export function PatientIntakePage() {
       await refreshAdaptiveState(savedAnswers);
     } catch (err: any) {
       setQuestionError({
-        message: err?.message || 'Failed to save your answers. Please try again.',
+        message: err?.message || t('intakeSaveError'),
         retry: () => {
           handleAnswerSubmit(answerValue);
         },
@@ -622,7 +622,7 @@ export function PatientIntakePage() {
     if (sessionState?.currentQuestion?.options?.length === 0 || !sessionState?.currentQuestion?.options) {
       // Freetext path — run client-side meaningful-answer check
       if (isMeaninglessTextAnswer(currentAnswer)) {
-        setValidationError('Please describe your answer using words or numbers so your care team can understand.');
+        setValidationError(t('intakeValidationDescribe'));
         return;
       }
     }
@@ -661,7 +661,7 @@ export function PatientIntakePage() {
       await refreshAdaptiveState(answers, 'correction', sessionState.previousQuestionId);
     } catch {
       setQuestionError({
-        message: 'Failed to navigate to previous question.',
+        message: t('intakeNavPrevError'),
         retry: () => {
           handlePrevious();
         },
@@ -701,7 +701,7 @@ export function PatientIntakePage() {
       await refreshAdaptiveState(answers, 'correction', questionId);
     } catch {
       setQuestionError({
-        message: 'Failed to load question for correction.',
+        message: t('intakeLoadCorrectionError'),
         retry: () => {
           handleEdit(questionId);
         },
@@ -719,7 +719,7 @@ export function PatientIntakePage() {
       await updateCase(caseId, { status: 'patient_verifying' });
       navigate('/patient/documents');
     } catch {
-      setError('Failed to confirm your answers. Please try again.');
+      setError(t('intakeConfirmError'));
       setIsSubmitting(false);
     }
   };
@@ -742,7 +742,7 @@ export function PatientIntakePage() {
     return (
       <div className="container">
         <div className="intake-page">
-          <LoadingIndicator message={isSubmitting ? "Saving your answers…" : "Loading your intake…"} />
+          <LoadingIndicator message={isSubmitting ? t('intakeSavingAnswers') : t('intakeLoading')} />
         </div>
       </div>
     );
@@ -753,11 +753,11 @@ export function PatientIntakePage() {
       <div className="container">
         <div className="intake-page">
           <div className="intake-error-card" role="alert">
-            <h2>Something went wrong</h2>
-            <ErrorMessage message={error || 'Case not found.'} />
+            <h2>{t('somethingWentWrong')}</h2>
+            <ErrorMessage message={error || t('caseNotFound')} />
             <div className="intake-error-actions">
-              <Button variant="primary" onClick={loadCase}>Try again</Button>
-              <Link to="/" className="intake-btn intake-btn-skip">Back to Home</Link>
+              <Button variant="primary" onClick={loadCase}>{t('tryAgain')}</Button>
+              <Link to="/" className="intake-btn intake-btn-skip">{t('backToHome')}</Link>
             </div>
           </div>
         </div>
@@ -770,7 +770,7 @@ export function PatientIntakePage() {
       <div className="container">
         <div className="intake-page">
           <div className="intake-error-card" role="alert">
-            <h2>Something went wrong</h2>
+            <h2>{t('somethingWentWrong')}</h2>
             <ErrorMessage message={questionError.message} />
             <div className="intake-error-actions">
               <Button
@@ -781,9 +781,9 @@ export function PatientIntakePage() {
                   retryFn();
                 }}
               >
-                Try again
+                {t('tryAgain')}
               </Button>
-              <Link to="/" className="intake-btn intake-btn-skip">Back to Home</Link>
+              <Link to="/" className="intake-btn intake-btn-skip">{t('backToHome')}</Link>
             </div>
           </div>
         </div>
@@ -796,27 +796,29 @@ export function PatientIntakePage() {
   }
 
   if (showLongitudinalPrompt && unifiedCase?.previousVerified) {
-    const prevDate = new Date(unifiedCase.previousVerified.createdAt).toLocaleDateString();
+    const prevDate = unifiedCase.previousVerified.createdAt
+      ? formatDate(unifiedCase.previousVerified.createdAt, normLang)
+      : '';
     
     return (
       <div className="container">
         <div className="intake-page">
           <div className="intake-header">
-            <h1>Welcome Back</h1>
-            <p className="intake-case-id" style={{display: "flex", alignItems: "center", gap: "0.5rem"}}>Case {clinicalCase.caseId} <StatusBadge status={clinicalCase.status} /></p>
+            <h1>{t('intakeWelcomeBack')}</h1>
+            <p className="intake-case-id" style={{display: "flex", alignItems: "center", gap: "0.5rem"}}>{t('caseLabel')} {clinicalCase.caseId} <StatusBadge status={clinicalCase.status} /></p>
           </div>
           
           <div className="intake-review-card">
             <div style={{ backgroundColor: 'var(--color-background-alt)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid var(--color-border-subtle)'}}>
-              <p style={{ margin: 0, fontWeight: 600 }}>We have your verified medical information from your previous visit on {prevDate}.</p>
+              <p style={{ margin: 0, fontWeight: 600 }}>{t('intakePreviousVisitIntro')} {prevDate}.</p>
             </div>
             
-            <h2 className="intake-question-prompt">What has changed since your last visit?</h2>
-            <p className="intake-question-helper">Please tell us about any new symptoms, worsened conditions, or changes in your medications. If nothing has changed for a particular issue, you don't need to re-enter it.</p>
+            <h2 className="intake-question-prompt">{t('intakeWhatChangedPrompt')}</h2>
+            <p className="intake-question-helper">{t('intakeWhatChangedHelp')}</p>
             
             <textarea
               className={`intake-textarea${validationError ? ' intake-input--error' : ''}`}
-              placeholder="e.g. My fever is gone but I have a new cough. I started taking cough syrup."
+              placeholder={t('intakeWhatChangedPlaceholder')}
               value={currentAnswer}
               onChange={(e) => { setCurrentAnswer(e.target.value); setValidationError(null); }}
               rows={4}
@@ -831,13 +833,13 @@ export function PatientIntakePage() {
             <div className="intake-actions" style={{marginTop: '2rem'}}>
               {error && <ErrorMessage message={error} />}
               <Button variant="outline" onClick={() => { setShowLongitudinalPrompt(false); setCurrentAnswer(''); setValidationError(null); }} className="intake-btn intake-btn-skip">
-                Skip / Start Fresh
+                {t('intakeSkipStartFresh')}
               </Button>
               <Button
                 variant="primary"
                 onClick={async () => {
                   if (isMeaninglessTextAnswer(currentAnswer)) {
-                    setValidationError('Please describe your answer using words or numbers so your care team can understand.');
+                    setValidationError(t('intakeValidationDescribe'));
                     return;
                   }
                   if (currentAnswer.trim().length > 0) {
@@ -850,7 +852,7 @@ export function PatientIntakePage() {
                 className="intake-btn-continue"
                 disabled={isSubmitting || currentAnswer.trim().length === 0 || isMeaninglessTextAnswer(currentAnswer)}
               >
-                {isSubmitting ? 'Saving...' : 'Save & Continue →'}
+                {isSubmitting ? t('intakeSaving') : t('intakeSaveContinue')}
               </Button>
             </div>
           </div>
@@ -868,13 +870,13 @@ export function PatientIntakePage() {
       <div className="container">
         <div className="intake-page">
           <div className="intake-header">
-            <h1>Review Your Medical History</h1>
-            <p className="intake-case-id" style={{display: "flex", alignItems: "center", gap: "0.5rem"}}>Case {clinicalCase.caseId} <StatusBadge status={clinicalCase.status} /></p>
+            <h1>{t('intakeReviewHistoryHeading')}</h1>
+            <p className="intake-case-id" style={{display: "flex", alignItems: "center", gap: "0.5rem"}}>{t('caseLabel')} {clinicalCase.caseId} <StatusBadge status={clinicalCase.status} /></p>
           </div>
 
           <div className="intake-review-card">
             <p className="intake-review-intro">
-              Please review the information you have provided below. You can edit any answer or continue to document verification.
+              {t('intakeReviewHistorySubtitle')}
             </p>
             
             <div className="intake-review-list">
@@ -889,20 +891,20 @@ export function PatientIntakePage() {
                       <strong>{qId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</strong>
                       <p>
                         {isSkipped ? (
-                          <em style={{opacity: 0.6}}>Skipped</em>
+                          <em style={{opacity: 0.6}}>{t('intakeBadgeSkipped')}</em>
                         ) : (
                           <span>
                             {answerText}
                             {isUncertain && (
                               <span className="verification-badge" style={{ marginLeft: '0.5rem', fontSize: '0.75rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#b45309', border: '1px solid var(--color-warning)' }}>
-                                Uncertain
+                                {t('intakeBadgeUncertain')}
                               </span>
                             )}
                           </span>
                         )}
                       </p>
                     </div>
-                    <Button variant="outline" onClick={() => handleEdit(qId)} className="intake-btn-edit">Edit</Button>
+                    <Button variant="outline" onClick={() => handleEdit(qId)} className="intake-btn-edit">{t('edit')}</Button>
                   </div>
                 );
               })}
@@ -922,7 +924,7 @@ export function PatientIntakePage() {
                         retryFn();
                       }}
                     >
-                      Try again
+                      {t('tryAgain')}
                     </Button>
                   </div>
                 </div>
@@ -935,7 +937,7 @@ export function PatientIntakePage() {
                 disabled={isSubmitting}
                 style={{width: '100%', textAlign: 'center', display: 'block'}}
               >
-                {isSubmitting ? 'Confirming...' : 'Confirm & Continue to Documents →'}
+                {isSubmitting ? t('loading') : t('intakeConfirmContinueDocuments')}
               </Button>
             </div>
           </div>
@@ -950,28 +952,28 @@ export function PatientIntakePage() {
       <div className="container">
         <div className="intake-page">
           <div className="intake-header">
-            <h1>Urgent Clinical Notice</h1>
+            <h1>{t('safetyNoticeHeading')}</h1>
             <p className="intake-case-id" style={{display: "flex", alignItems: "center", gap: "0.5rem", justifyContent: "center"}}>
-              Case {clinicalCase.caseId} <StatusBadge status={clinicalCase.status} />
+              {t('caseLabel')} {clinicalCase.caseId} <StatusBadge status={clinicalCase.status} />
             </p>
           </div>
 
           <div className="intake-safety-card" role="alert">
             <div className="intake-safety-header">
               <span className="intake-safety-icon" aria-hidden="true">🚨</span>
-              <h2>{escalation.headline || 'Immediate Medical Attention Recommended'}</h2>
+              <h2>{(escalation as any).headlineLocalized || escalation.headline || t('safetyImmediateAttention')}</h2>
             </div>
 
-            <p className="intake-safety-message">{escalation.reason}</p>
+            <p className="intake-safety-message">{(escalation as any).reasonLocalized || escalation.reason}</p>
 
             <div className="intake-safety-instructions">
-              <strong>Recommended Action</strong>
-              <p>{escalation.guidance}</p>
+              <strong>{t('safetyRecommendedAction')}</strong>
+              <p>{(escalation as any).guidanceLocalized || escalation.guidance}</p>
             </div>
 
             {escalation.redFlagsDetected && escalation.redFlagsDetected.length > 0 && (
               <div className="intake-safety-flags">
-                <strong>Symptoms of Clinical Concern:</strong>
+                <strong>{t('safetySymptomsConcern')}</strong>
                 <ul>
                   {escalation.redFlagsDetected.map((flag, idx) => (
                     <li key={idx}>{flag}</li>
@@ -981,12 +983,12 @@ export function PatientIntakePage() {
             )}
 
             <p className="intake-safety-disclaimer">
-              Deterministic clinical safety alert: MedMap pre-consultation intake does not provide emergency treatment or replace an in-person emergency evaluation.
+              {t('safetyDeterministicNotice')}
             </p>
 
             <div className="intake-safety-actions">
               <a href="tel:112" className="intake-btn intake-btn-emergency" id="btn-call-emergency">
-                📞 Call Emergency Services (112 / 911)
+                {t('safetyCallEmergency')}
               </a>
               {sessionState.previousQuestionId && (
                 <button
@@ -995,7 +997,7 @@ export function PatientIntakePage() {
                   className="intake-btn intake-btn-edit"
                   disabled={isSubmitting}
                 >
-                  Edit My Last Answer
+                  {t('safetyEditLastAnswer')}
                 </button>
               )}
               <Button
@@ -1003,7 +1005,7 @@ export function PatientIntakePage() {
                 onClick={() => setIsReviewing(true)}
                 className="intake-btn intake-btn-skip"
               >
-                Review Answers Recorded So Far
+                {t('safetyReviewSoFar')}
               </Button>
             </div>
           </div>
@@ -1017,19 +1019,19 @@ export function PatientIntakePage() {
       <div className="container">
         <div className="intake-page">
           <div className="intake-header">
-            <h1>Intake Threshold Reached</h1>
+            <h1>{t('intakeThresholdReachedTitle')}</h1>
             <p className="intake-case-id" style={{display: "flex", alignItems: "center", gap: "0.5rem", justifyContent: "center"}}>
-              Case {clinicalCase.caseId} <StatusBadge status={clinicalCase.status} />
+              {t('caseLabel')} {clinicalCase.caseId} <StatusBadge status={clinicalCase.status} />
             </p>
           </div>
 
           <div className="intake-question-card" style={{ borderColor: 'var(--color-accent)' }}>
-            <h2 className="intake-question-category">Clinical Safeguard Limit</h2>
+            <h2 className="intake-question-category">{t('intakeClinicalSafeguardLimit')}</h2>
             <p className="intake-question-prompt">
-              We have collected comprehensive background information for your visit.
+              {t('intakeSafeguardIntro')}
             </p>
             <p className="intake-question-helper">
-              To protect the accuracy of your clinical intake and prevent repetitive questions, online questioning has been paused. All information you have provided has been securely preserved and will be reviewed directly by your doctor during your consultation.
+              {t('intakeSafeguardDetails')}
             </p>
 
             <div className="intake-actions" style={{ marginTop: '2rem' }}>
@@ -1039,7 +1041,7 @@ export function PatientIntakePage() {
                 className="intake-btn-complete"
                 style={{ width: '100%', textAlign: 'center' }}
               >
-                Proceed to Review & Verify Answers →
+                {t('intakeProceedToVerify')}
               </Button>
             </div>
           </div>
@@ -1057,43 +1059,43 @@ export function PatientIntakePage() {
     ? Math.min(100, Math.max(10, Math.round((clinicalProgress.resolvedGaps / clinicalProgress.totalRelevantGaps) * 100)))
     : Math.min(100, Math.max(10, Math.round((currentIdx / Math.max(total, 1)) * 100)));
   const progressLabel = clinicalProgress
-    ? `${clinicalProgress.activeDomain || currentQuestion.category} (Point ${clinicalProgress.resolvedGaps + 1} of ~${clinicalProgress.totalRelevantGaps})`
-    : `Question ${currentIdx} of ${total} (${answeredCount} answered)`;
-
+    ? `${clinicalProgress.activeDomain || currentQuestion.categoryLocalized || currentQuestion.category} (${t('intakeProgressPoint', { current: clinicalProgress.resolvedGaps + 1, total: clinicalProgress.totalRelevantGaps })})`
+    : `(${answeredCount} / ${total})`;
 
   return (
     <div className="container">
       <div className="intake-page">
         <div className="intake-nav-controls">
-          <Link to="/" className="intake-back-link" style={{ margin: 0 }}>← Back to Home</Link>
+          <Link to="/" className="intake-back-link" style={{ margin: 0 }}>← {t('backToHome')}</Link>
           {previousQuestionId && (
             <button
               type="button"
               onClick={handlePrevious}
               className="intake-btn-nav-back"
               disabled={isSubmitting}
-              aria-label="Go to previous question"
+              aria-label={t('intakePrevQuestionAria')}
             >
-              ← Previous Question
+              {t('intakePrevQuestion')}
             </button>
           )}
         </div>
 
         <div className="intake-header">
-          <h1>{t('intakeHeading') || 'Medical History'}</h1>
+          <h1>{t('intakeHeading')}</h1>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.25rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
             <p className="intake-case-id" style={{display: "flex", alignItems: "center", gap: "0.5rem", margin: 0}}>
-              Case {clinicalCase.caseId} <StatusBadge status={clinicalCase.status} />
+              {t('caseLabel')} {clinicalCase.caseId} <StatusBadge status={clinicalCase.status} />
             </p>
             <div className="intake-lang-switch">
               <label htmlFor="intake-lang-select" style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                {t('languageLabel') || 'Language'}:
+                {t('languageLabel')}:
               </label>
               <select
                 id="intake-lang-select"
                 value={normLang === 'kn' ? 'Kannada' : normLang === 'hi' ? 'Hindi' : 'English'}
                 onChange={async (e) => {
                   const newLang = e.target.value;
+                  setSessionLanguage(newLang);
                   if (clinicalCase && caseId) {
                     setClinicalCase({ ...clinicalCase, language: newLang });
                     await updateCase(caseId, { language: newLang });
@@ -1102,9 +1104,9 @@ export function PatientIntakePage() {
                 }}
                 className="intake-lang-select"
               >
-                <option value="English">English</option>
-                <option value="Hindi">हिंदी (Hindi)</option>
-                <option value="Kannada">ಕನ್ನಡ (Kannada)</option>
+                <option value="English">{t('languageEnglish')}</option>
+                <option value="Hindi">{t('languageHindi')}</option>
+                <option value="Kannada">{t('languageKannada')}</option>
               </select>
             </div>
           </div>
@@ -1114,9 +1116,9 @@ export function PatientIntakePage() {
         <div className="intake-voice-bar">
           <div className="intake-voice-toggle-group">
             <div>
-              <span className="intake-voice-label">Voice & Audio Mode</span>
+              <span className="intake-voice-label">{t('intakeVoiceMode')}</span>
               <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                Browser-based speech (Web Speech API) &middot; {speechLangName}
+                {t('intakeVoiceSubtext', { lang: speechLangName })}
               </p>
             </div>
             <button
@@ -1130,7 +1132,7 @@ export function PatientIntakePage() {
               aria-pressed={voiceMode}
               id="btn-toggle-voice-mode"
             >
-              {voiceMode ? '🔊 Voice Mode: ON' : '🔈 Voice Mode: OFF'}
+              {voiceMode ? <span>🔊 {t('intakeVoiceModeOn')}</span> : <span>🔈 {t('intakeVoiceModeOff')}</span>}
             </button>
           </div>
           {speechError && (
@@ -1149,7 +1151,7 @@ export function PatientIntakePage() {
             <div className="intake-progress-fill" style={{ width: `${progressPercent}%` }} />
           </div>
           {clinicalProgress && (
-            <div className="intake-progress-chips" aria-label="Clinical Domains Explored">
+            <div className="intake-progress-chips" aria-label={t('intakeDomainsExplored')}>
               {clinicalProgress.exploredDomains?.map((domain) => (
                 <span key={domain} className="intake-chip intake-chip--done">
                   ✓ {domain}
@@ -1179,7 +1181,7 @@ export function PatientIntakePage() {
 
           {state === 'clarification' && sessionState.originalAnswer && (
             <div className="intake-original-box">
-              <div className="intake-original-box-label">Your Previous Response</div>
+              <div className="intake-original-box-label">{t('intakePreviousResponse')}</div>
               <div className="intake-original-box-val">"{sessionState.originalAnswer}"</div>
             </div>
           )}
@@ -1207,7 +1209,7 @@ export function PatientIntakePage() {
                 aria-label={isSpeaking ? t('stopAudio') : t('readAloud')}
                 id="btn-read-aloud-question"
               >
-                {isAudioLoading ? `⏳ ${t('audioLoading')}` : isSpeaking ? `⏹ ${t('stopAudio')}` : `🔊 ${t('readAloud')}`}
+                {isAudioLoading ? <span>⏳ {t('audioLoading')}</span> : isSpeaking ? <span>⏹ {t('stopAudio')}</span> : <span>🔊 {t('readAloud')}</span>}
               </button>
             )}
           </div>
@@ -1219,7 +1221,7 @@ export function PatientIntakePage() {
           )}
           {isSpeaking && (
             <div className="intake-audio-status intake-audio-status--playing" role="status" style={{ fontSize: '0.8rem', color: 'var(--color-success, #16a34a)', marginTop: '0.35rem' }}>
-              🔊 {isIndicLang ? (normLang === 'kn' ? 'ಧ್ವನಿ ಪ್ಲೇ ಆಗುತ್ತಿದೆ (AI voice)' : 'ऑडियो चल रहा है (AI voice)') : 'Playing via browser voice'}
+              🔊 {isIndicLang ? (normLang === 'kn' ? 'ಧ್ವನಿ ಪ್ಲೇ ಆಗುತ್ತಿದೆ (AI voice)' : 'ऑडियो चल रहा है (AI voice)') : t('intakePlayingBrowserVoice')}
             </div>
           )}
           {audioError && (
@@ -1242,7 +1244,7 @@ export function PatientIntakePage() {
           {/* Quick Option Pills */}
           {currentQuestion.options && currentQuestion.options.length > 0 && (
             <div className="intake-options-group">
-              <div className="intake-options-title">Suggested Options</div>
+              <div className="intake-options-title">{t('intakeSuggestedOptions')}</div>
               <div className="intake-pills-container">
                 {currentQuestion.options.map((opt: any, idx: number) => {
                   const optValue = typeof opt === 'string' ? opt : (opt.value || opt.label || opt.id || String(opt));
@@ -1268,7 +1270,7 @@ export function PatientIntakePage() {
           {/* Clarification Specific Option Pills */}
           {state === 'clarification' && currentQuestion.clarificationOptions && currentQuestion.clarificationOptions.length > 0 && (
             <div className="intake-options-group">
-              <div className="intake-options-title">Suggested Clarifications</div>
+              <div className="intake-options-title">{t('intakeSuggestedClarifications')}</div>
               <div className="intake-pills-container">
                 {currentQuestion.clarificationOptions.map((opt: any, idx: number) => {
                   const optValue = typeof opt === 'string' ? opt : (opt.value || opt.label || opt.id || String(opt));
@@ -1310,7 +1312,7 @@ export function PatientIntakePage() {
                     ? t('stopAudio')
                     : micRecordState === 'transcribing'
                     ? t('micTranscribing')
-                    : `${t('micTapToSpeak')} (${speechLangName})`
+                    : t('micTapToSpeakLang', { lang: speechLangName })
                 }
                 id="btn-mic-input"
               >
@@ -1319,15 +1321,15 @@ export function PatientIntakePage() {
                 </span>
                 <span>
                   {micRecordState === 'recording'
-                    ? `${t('micRecording')} (${30 - recordingSeconds}s)`
+                    ? t('micRecording', { seconds: 30 - recordingSeconds })
                     : micRecordState === 'transcribing'
                     ? t('micTranscribing')
-                    : `${t('micTapToSpeak')} (${speechLangName})`}
+                    : t('micTapToSpeakLang', { lang: speechLangName })}
                 </span>
               </button>
               {micRecordState === 'recording' && (
                 <p className="intake-listening-hint" aria-live="polite">
-                  {speechLangName} {t('micRecording')} — {30 - recordingSeconds}s remaining. Tap button when finished.
+                  {speechLangName} {t('micRecording')} — {t('micSecondsRemaining', { seconds: 30 - recordingSeconds })}
                 </p>
               )}
               {speechError && (
@@ -1343,15 +1345,15 @@ export function PatientIntakePage() {
                 className={`intake-mic-btn ${isListening ? 'intake-mic-btn--listening' : ''}`}
                 onClick={isListening ? stopListening : startListening}
                 disabled={isSubmitting}
-                aria-label={isListening ? "Stop listening" : "Tap to speak answer"}
+                aria-label={isListening ? t('stopAudio') : t('micTapToSpeakLang', { lang: speechLangName })}
                 id="btn-mic-input"
               >
                 <span aria-hidden="true">{isListening ? '⏹️' : '🎙️'}</span>
-                <span>{isListening ? 'Listening... Tap to Stop' : `Tap to Speak (${speechLangName})`}</span>
+                <span>{isListening ? t('micListening') : t('micTapToSpeakLang', { lang: speechLangName })}</span>
               </button>
               {isListening && (
                 <p className="intake-listening-hint" aria-live="polite">
-                  Listening in {speechLangName}... Speak clearly, then review your transcript below.
+                  {t('intakeVoiceListeningHint', { lang: speechLangName })}
                 </p>
               )}
               {speechError && (
@@ -1362,7 +1364,7 @@ export function PatientIntakePage() {
             </div>
           ) : (
             <p className="intake-speech-unsupported-note">
-              🎙️ Speech recognition not supported in this browser. Please use touch or typing below.
+              🎙️ {t('intakeSpeechUnsupported')}
             </p>
           )}
 
@@ -1389,8 +1391,8 @@ export function PatientIntakePage() {
           {speechTranscript && (
             <div className="intake-transcript-banner" aria-live="polite">
               <div className="intake-transcript-header">
-                <span className="intake-transcript-tag">Recognized Voice Answer</span>
-                <span className="intake-transcript-hint">Edit in the box below if needed</span>
+                <span className="intake-transcript-tag">{t('intakeVoiceAnswerTag')}</span>
+                <span className="intake-transcript-hint">{t('intakeVoiceAnswerHint')}</span>
               </div>
               <div className="intake-transcript-content">"{speechTranscript}"</div>
             </div>
@@ -1401,13 +1403,13 @@ export function PatientIntakePage() {
             <div className="intake-critical-confirmation-card" role="dialog" aria-modal="true">
               <div className="intake-critical-header">
                 <span aria-hidden="true">⚠️</span>
-                <h3>Confirm {pendingCriticalConfirmation.category}</h3>
+                <h3>{t('intakeConfirmCategory', { category: pendingCriticalConfirmation.category })}</h3>
               </div>
               <p className="intake-critical-desc">
-                Medicines and allergies are critical to your safety. Please verify what was understood before proceeding:
+                {t('intakeCriticalSafetyDesc')}
               </p>
               <div className="intake-critical-value-box">
-                <strong>Understood Answer:</strong> "{pendingCriticalConfirmation.answer}"
+                <strong>{t('intakeUnderstoodAnswer')}</strong> "{pendingCriticalConfirmation.answer}"
               </div>
               <div className="intake-critical-actions">
                 <Button
@@ -1419,7 +1421,7 @@ export function PatientIntakePage() {
                   className="intake-btn-confirm-critical"
                   id="intake-btn-confirm-critical"
                 >
-                  ✓ Confirm This Is Correct
+                  {t('intakeConfirmCorrect')}
                 </Button>
                 <Button
                   variant="outline"
@@ -1430,7 +1432,7 @@ export function PatientIntakePage() {
                   className="intake-btn-edit-critical"
                   id="intake-btn-edit-critical"
                 >
-                  ✏️ Correct / Edit Answer
+                  {t('intakeCorrectEdit')}
                 </Button>
               </div>
             </div>
@@ -1447,7 +1449,7 @@ export function PatientIntakePage() {
               aria-describedby={currentQuestion.helperText ? `helper-${currentQuestion.id}` : undefined}
               aria-label={currentQuestion.prompt}
               aria-invalid={!!validationError}
-              placeholder="Type your response here..."
+              placeholder={t('intakeTypePlaceholder')}
             />
           ) : (
             <input
@@ -1461,7 +1463,7 @@ export function PatientIntakePage() {
               aria-describedby={currentQuestion.helperText ? `helper-${currentQuestion.id}` : undefined}
               aria-label={currentQuestion.prompt}
               aria-invalid={!!validationError}
-              placeholder="Type your response here..."
+              placeholder={t('intakeTypePlaceholder')}
             />
           )}
           {questionError && (
@@ -1476,7 +1478,7 @@ export function PatientIntakePage() {
                     retryFn();
                   }}
                 >
-                  Try again
+                  {t('tryAgain')}
                 </Button>
               </div>
             </div>
@@ -1490,7 +1492,7 @@ export function PatientIntakePage() {
                 className="intake-btn intake-btn-skip"
                 disabled={isSubmitting}
               >
-                Skip this question
+                {t('intakeSkipThis')}
               </Button>
               {sessionState.allowUncertainty !== false && (
                 <button
@@ -1498,9 +1500,9 @@ export function PatientIntakePage() {
                   onClick={handleUncertain}
                   className="intake-btn-uncertain"
                   disabled={isSubmitting}
-                  title="Indicate uncertainty without penalty"
+                  title={t('intakeUncertaintyTooltip')}
                 >
-                  I'm not sure / Unknown
+                  {t('intakeNotSure')}
                 </button>
               )}
             </div>
@@ -1516,7 +1518,7 @@ export function PatientIntakePage() {
               id="intake-btn-continue"
               className="intake-btn intake-btn-continue"
             >
-              {state === 'clarification' ? 'Save Clarification →' : 'Continue →'}
+              {state === 'clarification' ? t('intakeSaveClarification') : t('intakeContinue')}
             </Button>
           </div>
         </div>

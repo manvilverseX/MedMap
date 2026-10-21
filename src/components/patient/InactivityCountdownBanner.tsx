@@ -1,16 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useT } from '../../i18n/useT';
 
 interface InactivityCountdownBannerProps {
   timeoutSeconds?: number;
   warningThresholdSeconds?: number;
   onClearDevice: () => void;
+  lang?: string | null;
 }
 
 export function InactivityCountdownBanner({
   timeoutSeconds = 300, // 5 minutes
   warningThresholdSeconds = 60, // 1 minute warning
   onClearDevice,
+  lang,
 }: InactivityCountdownBannerProps) {
+  const { t } = useT(lang);
   const [secondsLeft, setSecondsLeft] = useState(timeoutSeconds);
 
   const resetTimer = useCallback(() => {
@@ -91,10 +95,10 @@ export function InactivityCountdownBanner({
       <div style={{ flex: 1, minWidth: '220px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, fontSize: '0.95rem' }}>
           <span>⏱️</span>
-          <span>Shared Device Inactivity Warning ({timeFormatted})</span>
+          <span>{t('inactivityWarning', { time: timeFormatted })}</span>
         </div>
         <p style={{ margin: '0.25rem 0 0', fontSize: '0.82rem', color: '#fecaca', lineHeight: 1.4 }}>
-          To protect your medical privacy on shared kiosks, this session will reset and clear all data.
+          {t('inactivityDescription')}
         </p>
       </div>
 
@@ -113,7 +117,7 @@ export function InactivityCountdownBanner({
             cursor: 'pointer',
           }}
         >
-          Keep Working
+          {t('inactivityStay')}
         </button>
         <button
           type="button"
@@ -129,7 +133,7 @@ export function InactivityCountdownBanner({
             cursor: 'pointer',
           }}
         >
-          Clear Device Now
+          {t('inactivityClear')}
         </button>
       </div>
     </div>

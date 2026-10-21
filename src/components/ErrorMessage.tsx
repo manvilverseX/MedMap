@@ -1,4 +1,5 @@
 import React from 'react';
+import { useT } from '../i18n/useT';
 
 export interface ErrorMessageProps {
   message?: string | null;
@@ -13,6 +14,7 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({
   onDismiss,
   onRetry,
 }) => {
+  const { t } = useT();
   if (!message) return null;
 
   return (
@@ -58,7 +60,7 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({
             <button
               type="button"
               onClick={onRetry}
-              aria-label="Retry action"
+              aria-label={t('retryAction')}
               style={{
                 padding: '0.2rem 0.55rem',
                 fontSize: '0.8rem',
@@ -71,7 +73,7 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({
                 cursor: 'pointer',
               }}
             >
-              Retry
+              {t('retry')}
             </button>
           </div>
         )}
@@ -80,7 +82,7 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({
         <button
           type="button"
           onClick={onDismiss}
-          aria-label="Dismiss error"
+          aria-label={t('dismissError')}
           style={{
             background: 'none',
             border: 'none',

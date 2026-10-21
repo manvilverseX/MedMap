@@ -4,6 +4,7 @@ import { useCase } from '../../context/CaseContext';
 import { uploadDocument, extractDocument } from '../../utils/api';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { compressImageIfNeeded } from '../../utils/imageCompressor';
+import { useT } from '../../i18n/useT';
 
 // Max file size: 10 MB
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -20,13 +21,14 @@ type DocumentStatus = 'idle' | 'selected' | 'processing' | 'success';
 export function PatientDocumentsPage() {
   const { caseId } = useCase();
   const navigate = useNavigate();
+  const { t } = useT();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [status, setStatus] = useState<DocumentStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState<boolean>(false);
-  const [processingMessage, setProcessingMessage] = useState<string>('Uploading securely to server... Please wait.');
+  const [processingMessage, setProcessingMessage] = useState<string>(() => t('documentsUploadingWait'));
 
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024 * 1024) {
@@ -46,11 +48,11 @@ export function PatientDocumentsPage() {
     const isExtValid = ALLOWED_EXTENSIONS.includes(ext);
 
     if (!isMimeValid && !isExtValid) {
-      return `Unsupported file format "${ext || 'unknown'}". Supported formats are: PDF, PNG, JPG, JPEG, and WEBP.`;
+      return t('documentsUnsupportedFormat');
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      return `File size (${formatFileSize(file.size)}) exceeds the maximum limit of 10 MB. Please choose a smaller file.`;
+      return t('documentsFileSizeExceeded');
     }
 
     return null;
@@ -116,26 +118,26 @@ export function PatientDocumentsPage() {
 
   const handleStartProcessing = async () => {
     if (!selectedFile || !caseId) {
-      if (!caseId) setError("No active case ID found. Please restart intake.");
+      if (!caseId) setError(t('documentsNoActiveCase'));
       return;
     }
 
     setStatus('processing');
     setError(null);
-    setProcessingMessage('Uploading securely to server... Please wait.');
+    setProcessingMessage(t('documentsUploadingWait'));
 
     try {
       let finalFile = selectedFile;
       finalFile = await compressImageIfNeeded(finalFile);
       const uploadedDoc = await uploadDocument(caseId, finalFile);
 
-      setProcessingMessage('Extracting medical details... This may take up to 30 seconds.');
+      setProcessingMessage(t('documentsExtractingWait'));
       await extractDocument(caseId, uploadedDoc.id);
 
       setStatus('success');
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred during processing.");
-      setStatus('selected'); // Revert back so user can try again or remove
+      setError(err.message || t('documentsUnexpectedError'));
+      setStatus('selected');
     }
   };
 
@@ -158,22 +160,22 @@ export function PatientDocumentsPage() {
   return (
     <div className="container">
       <header>
-        <div className="logo">Document Upload</div>
+        <div className="logo">{t('documentsHeading')}</div>
         <nav style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-          <Link to="/">Home</Link>
-          <Link to="/patient/intake">Intake</Link>
-          <Link to="/patient/verification">Next: Verification</Link>
+          <Link to="/">{t('documentsNavHome')}</Link>
+          <Link to="/patient/intake">{t('documentsNavIntake')}</Link>
+          <Link to="/patient/verification">{t('documentsNavVerification')}</Link>
         </nav>
       </header>
 
       <main className="doc-intake-container">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <div className="doc-step-indicator">
-            <span>Step 2 of 3</span> • <span>Patient Document Intake</span>
+            <span>{t('documentsStepIndicator')}</span>
           </div>
           {caseId && (
             <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-              Active Case: <strong>{caseId}</strong>
+              {t('documentsActiveCase', { caseId })}
             </div>
           )}
         </div>
@@ -181,10 +183,10 @@ export function PatientDocumentsPage() {
         <section className="doc-upload-card">
           <div style={{ marginBottom: '1.5rem' }}>
             <h2 style={{ fontFamily: 'var(--font-hand)', fontSize: '2rem', marginBottom: '0.5rem', color: 'var(--color-navy)' }}>
-              Upload Medical Documents
+              {t('documentsHeading')}
             </h2>
             <p style={{ color: 'var(--color-text-secondary)', fontSize: '1rem', lineHeight: '1.6' }}>
-              Upload your past lab reports, hospital discharge summaries, or diagnostic records to assist your doctor during your consultation.
+              {t('documentsSubtitle')}
             </p>
           </div>
 
@@ -204,7 +206,7 @@ export function PatientDocumentsPage() {
             accept=".pdf,.png,.jpg,.jpeg,.webp"
             onChange={handleInputChange}
             style={{ display: 'none' }}
-            aria-label="Choose medical document file to upload"
+            aria-label={t('documentsChooseFile')}
           />
 
           {/* Upload Dropzone (idle or drag state) */}
@@ -218,7 +220,7 @@ export function PatientDocumentsPage() {
               onDrop={handleDrop}
               tabIndex={0}
               role="button"
-              aria-label="Medical document drag and drop area. Click or press Enter to select a file."
+              aria-label={t('documentsDragDropDesc')}
             >
               <div className="doc-dropzone-icon">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -230,15 +232,15 @@ export function PatientDocumentsPage() {
 
               <div>
                 <h3 className="doc-dropzone-title">
-                  {dragActive ? 'Drop file here' : 'Upload Medical Documents'}
+                  {dragActive ? t('documentsDropPrompt') : t('documentsHeading')}
                 </h3>
                 <p className="doc-dropzone-desc" style={{ marginTop: '0.3rem' }}>
-                  Drag & drop your file here, or click to browse your computer
+                  {t('documentsDragDropDesc')}
                 </p>
               </div>
 
               <div className="doc-supported-specs">
-                Supported: PDF, JPG, PNG, WEBP • Max 10 MB (Large images are automatically optimized)
+                {t('documentsSupportedSpecs')}
               </div>
 
               <button
@@ -250,7 +252,7 @@ export function PatientDocumentsPage() {
                   fileInputRef.current?.click();
                 }}
               >
-                📁 Choose File
+                {t('documentsChooseFileBtn')}
               </button>
             </div>
           )}
@@ -263,7 +265,7 @@ export function PatientDocumentsPage() {
                 className="doc-btn doc-btn-secondary"
                 onClick={() => navigate('/patient/verification')}
               >
-                Skip & Continue to Verification →
+                {t('documentsSkipToVerification')}
               </button>
             </div>
           )}
@@ -281,7 +283,7 @@ export function PatientDocumentsPage() {
                     <div className="doc-file-meta">
                       <span>{formatFileSize(selectedFile.size)}</span>
                       <span>•</span>
-                      <span>Type: {getFileExtension(selectedFile.name).toUpperCase().replace('.', '')}</span>
+                      <span>{t('documentsFileTypeLabel')} {getFileExtension(selectedFile.name).toUpperCase().replace('.', '')}</span>
                     </div>
                   </div>
                 </div>
@@ -289,17 +291,17 @@ export function PatientDocumentsPage() {
                 <div>
                   {status === 'selected' && (
                     <span className="doc-badge doc-badge-ready">
-                      ● Ready to process
+                      {t('documentsReadyToProcess')}
                     </span>
                   )}
                   {status === 'processing' && (
                     <span className="doc-badge doc-badge-processing">
-                      <span className="spinner"></span> Processing...
+                      <span className="spinner"></span> {t('documentsProcessing')}
                     </span>
                   )}
                   {status === 'success' && (
                     <span className="doc-badge doc-badge-success">
-                      ✓ Document ready
+                      {t('documentsDocumentReady')}
                     </span>
                   )}
                 </div>
@@ -317,9 +319,9 @@ export function PatientDocumentsPage() {
                 <div className="doc-alert doc-alert-success" style={{ marginTop: '1.25rem', marginBottom: '0' }} role="status">
                   <span style={{ fontSize: '1.2rem' }}>✅</span>
                   <div>
-                    <strong>Upload & Extraction Complete</strong>
+                    <strong>{t('documentsUploadComplete')}</strong>
                     <div style={{ marginTop: '0.2rem', fontSize: '0.9rem' }}>
-                      Document uploaded securely and AI-assisted extraction is complete. Details will be reviewed by your doctor.
+                      {t('documentsUploadCompleteDesc')}
                     </div>
                   </div>
                 </div>
@@ -334,7 +336,7 @@ export function PatientDocumentsPage() {
                       className="doc-btn doc-btn-accent"
                       onClick={handleStartProcessing}
                     >
-                      ⚙️ Upload Document
+                      ⚙️ {t('documentsUpload')}
                     </button>
 
                     <button
@@ -342,7 +344,7 @@ export function PatientDocumentsPage() {
                       className="doc-btn doc-btn-danger"
                       onClick={handleRemove}
                     >
-                      🗑️ Remove File
+                      🗑️ {t('documentsRemoveFile')}
                     </button>
                   </>
                 )}
@@ -360,7 +362,7 @@ export function PatientDocumentsPage() {
                       className="doc-btn doc-btn-success"
                       onClick={() => navigate('/patient/verification')}
                     >
-                      Next: Go to Verification ➔
+                      {t('documentsGoToVerification')}
                     </button>
 
                     <button
@@ -368,7 +370,7 @@ export function PatientDocumentsPage() {
                       className="doc-btn doc-btn-secondary"
                       onClick={handleRemove}
                     >
-                      🔄 Upload Another Document
+                      {t('documentsUploadAnother')}
                     </button>
                   </>
                 )}
@@ -378,11 +380,10 @@ export function PatientDocumentsPage() {
 
           {/* AI Extraction Note */}
           <div className="doc-prototype-notice">
-            ℹ️ <strong>MedMap Processing Notice:</strong> Documents are securely uploaded and processed using AI-assisted extraction. Extracted information is not a diagnosis and requires doctor review.
+            ℹ️ <strong>{t('documentsNoticePrefix')}</strong> {t('documentsNotice')}
           </div>
         </section>
       </main>
     </div>
   );
 }
-

@@ -60,3 +60,50 @@ export function normalizeLanguage(raw?: string | null): SupportedLanguage {
 
 export const normaliseLang = normalizeLanguage;
 
+const SESSION_LANG_KEY = 'medmap_patient_language';
+
+export function getSessionLanguage(): SupportedLanguage {
+  try {
+    const stored = sessionStorage.getItem(SESSION_LANG_KEY);
+    return normalizeLanguage(stored);
+  } catch {
+    return 'en';
+  }
+}
+
+export function setSessionLanguage(lang: string): void {
+  try {
+    const norm = normalizeLanguage(lang);
+    sessionStorage.setItem(SESSION_LANG_KEY, norm);
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = norm;
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('medmap_language_change', { detail: { lang: norm } }));
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export function getLocale(lang?: string | null): string {
+  const norm = normalizeLanguage(lang);
+  if (norm === 'kn') return 'kn-IN';
+  if (norm === 'hi') return 'hi-IN';
+  return 'en-IN';
+}
+
+export function formatDate(date: string | number | Date, lang?: string | null): string {
+  try {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return String(date);
+    return new Intl.DateTimeFormat(getLocale(lang), {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    }).format(d);
+  } catch {
+    return String(date);
+  }
+}
+

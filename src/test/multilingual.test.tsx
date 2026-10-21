@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter, MemoryRouter, Routes, Route } from 'react-router-dom';
-import { t, getSupportedLanguages, setCachedStrings } from '../i18n/strings';
+import { t, getSupportedLanguages, setCachedStrings, EN_STRINGS } from '../i18n/strings';
 import { PatientIntakePage } from '../pages/patient/PatientIntakePage';
 import { DoctorCaseDetailPage } from '../pages/doctor/DoctorCaseDetailPage';
 import { DoctorCaseCard } from '../components/doctor/DoctorCaseCard';
@@ -31,7 +31,9 @@ describe('Multilingual i18n & Patient/Doctor views', () => {
     });
 
     it('falls back to English when a string is not yet translated', () => {
-      expect(t('back', 'kn')).toBe('Back');
+      (EN_STRINGS as any).untranslatedTestKey = 'Untranslated Test';
+      expect(t('untranslatedTestKey' as any, 'kn')).toBe('Untranslated Test');
+      delete (EN_STRINGS as any).untranslatedTestKey;
     });
 
     it('lists supported languages with en, hi, kn', () => {
