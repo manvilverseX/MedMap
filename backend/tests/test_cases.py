@@ -82,6 +82,58 @@ class CaseSchemaTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValidationError):
                 CaseUpdate(intakeAnswers=value)
 
+    def test_intake_answers_wrong_types_rejected(self):
+        wrong_type_cases = [
+            {"q1": 42},
+            {"q1": 3.14},
+            {"q1": True},
+            {"q1": False},
+            {"q1": ["symptom1", "symptom2"]},
+            {"q1": None},
+            {"q1": {"value": 123, "lang": "hi"}},  # non-string value in dict
+        ]
+        for bad_val in wrong_type_cases:
+            with self.subTest(bad_val=bad_val), self.assertRaises(ValidationError):
+                CaseUpdate(intakeAnswers=bad_val)
+
+    def test_intake_answers_oversized_values_rejected(self):
+        oversized_str = "x" * 5001
+        oversized_cases = [
+            {"q1": oversized_str},
+            {"q1": {"value": oversized_str, "lang": "hi", "translated": True}},
+            {"q1": {"value": "valid", "original": oversized_str, "lang": "hi"}},
+        ]
+        for bad_val in oversized_cases:
+            with self.subTest(bad_val=bad_val), self.assertRaises(ValidationError):
+                CaseUpdate(intakeAnswers=bad_val)
+
+    def test_intake_answers_unknown_structures_rejected(self):
+        unknown_structure_cases = [
+            {"q1": {"random_key": "val"}},
+            {"q1": {"value": "valid", "unrecognized_field": "injected"}},
+            {"q1": {"original": "only_original_no_value"}},
+        ]
+        for bad_val in unknown_structure_cases:
+            with self.subTest(bad_val=bad_val), self.assertRaises(ValidationError):
+                CaseUpdate(intakeAnswers=bad_val)
+
+    def test_intake_answers_valid_multilingual_accepted(self):
+        valid_answers = {
+            "chief_complaint": {
+                "value": "Severe headache",
+                "original": "बहुत तेज सिरदर्द",
+                "lang": "hi",
+                "translated": True,
+            },
+            "duration": {
+                "value": "2 days",
+                "clarification_needed": False,
+            },
+            "regular": "Simple string answer",
+        }
+        cu = CaseUpdate(intakeAnswers=valid_answers)
+        self.assertEqual(cu.intakeAnswers, valid_answers)
+
     def test_null_language_is_accepted(self):
         self.assertEqual(
             CaseUpdate(language=None).model_dump(exclude_unset=True),

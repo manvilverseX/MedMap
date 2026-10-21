@@ -31,6 +31,19 @@ class CaseCreate(BaseModel):
     intakeAnswers: Optional[Dict[str, Any]] = None
 
 
+MAX_ANSWER_LENGTH = 5000
+ALLOWED_ANSWER_DICT_KEYS = {
+    "value",
+    "clarification_needed",
+    "original",
+    "lang",
+    "translated",
+    "translationFailed",
+    "uncertain",
+    "clarification_attempts",
+}
+
+
 class CaseUpdate(BaseModel):
     status: Optional[CaseStatus] = None
     language: Optional[str] = None
@@ -56,14 +69,26 @@ class CaseUpdate(BaseModel):
             raise ValueError("intakeAnswers must be a dict")
         for k, val in v.items():
             if isinstance(val, str):
+                if len(val) > MAX_ANSWER_LENGTH:
+                    raise ValueError(f"Answer for {k} exceeds maximum length of {MAX_ANSWER_LENGTH} characters")
                 continue
             if isinstance(val, dict):
+                unknown_keys = set(val.keys()) - ALLOWED_ANSWER_DICT_KEYS
+                if unknown_keys:
+                    raise ValueError(f"Unknown structure for {k}: unrecognized keys {sorted(unknown_keys)}")
+                if "value" not in val or not isinstance(val["value"], str):
+                    raise ValueError(f"Invalid value type for {k}: dict must contain string 'value'")
+                if len(val["value"]) > MAX_ANSWER_LENGTH:
+                    raise ValueError(f"Answer for {k} exceeds maximum length of {MAX_ANSWER_LENGTH} characters")
+                if "original" in val and isinstance(val["original"], str) and len(val["original"]) > MAX_ANSWER_LENGTH:
+                    raise ValueError(f"Original answer for {k} exceeds maximum length of {MAX_ANSWER_LENGTH} characters")
+
                 has_clarification = "clarification_needed" in val
                 has_multilingual = "original" in val or "lang" in val or "translated" in val or "translationFailed" in val
-                if "value" in val and (has_clarification or has_multilingual):
+                if has_clarification or has_multilingual:
                     continue
                 raise ValueError(f"Invalid value type for {k}")
-            raise ValueError(f"Invalid value type for {k}")
+            raise ValueError(f"Invalid value type for {k}: expected string or valid answer dict")
         return v
 
 

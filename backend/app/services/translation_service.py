@@ -19,11 +19,13 @@ import hashlib
 import json
 import logging
 import os
+import re
+import time
 from collections import OrderedDict
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Any
 
-from groq import Groq
+from groq import Groq, RateLimitError, APITimeoutError, APIConnectionError
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -138,7 +140,7 @@ Input strings:
 
 
 def _call_groq_translate(texts: list[str], source_lang: str, target_lang: str) -> list[str]:
-    """Call Groq API to translate a batch of texts. Returns translated list or raises."""
+    """Call Groq API to translate a batch of texts with retry on 429/timeout. Returns translated list or raises."""
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("GROQ_API_KEY not set")
@@ -154,37 +156,88 @@ def _call_groq_translate(texts: list[str], source_lang: str, target_lang: str) -
         input_json=json.dumps(texts, ensure_ascii=False),
     )
 
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        timeout=20.0,
-    )
-    raw = (response.choices[0].message.content or "").strip()
+    call_kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "timeout": 15.0,
+    }
+    if "gpt-oss" in model.lower():
+        call_kwargs["reasoning_effort"] = "low"
 
-    # Extract JSON array from markdown code fences or surrounding text
-    if "```" in raw:
-        parts = raw.split("```")
-        if len(parts) >= 3:
-            block = parts[1]
-            if block.startswith("json"):
-                block = block[4:]
-            raw = block.strip()
+    max_retries = 3
+    last_exc = None
 
-    # Extract bracketed JSON array if model included thoughts/preamble
-    start_bracket = raw.find("[")
-    end_bracket = raw.rfind("]")
-    if start_bracket != -1 and end_bracket != -1 and end_bracket > start_bracket:
-        raw = raw[start_bracket : end_bracket + 1]
+    for attempt in range(max_retries):
+        try:
+            response = client.chat.completions.create(**call_kwargs)
+            raw = (response.choices[0].message.content or "").strip()
 
-    result = json.loads(raw)
+            # Extract JSON array from markdown code fences or surrounding text
+            if "```" in raw:
+                parts = raw.split("```")
+                if len(parts) >= 3:
+                    block = parts[1]
+                    if block.startswith("json"):
+                        block = block[4:]
+                    raw = block.strip()
 
-    if not isinstance(result, list):
-        raise ValueError("Translation response was not a JSON array")
-    if len(result) != len(texts):
-        raise ValueError(
-            f"Translation length mismatch: expected {len(texts)}, got {len(result)}"
-        )
-    return [str(t) for t in result]
+            # Extract bracketed JSON array if model included thoughts/preamble
+            start_bracket = raw.find("[")
+            end_bracket = raw.rfind("]")
+            if start_bracket != -1 and end_bracket != -1 and end_bracket > start_bracket:
+                raw = raw[start_bracket : end_bracket + 1]
+
+            result = json.loads(raw)
+
+            if not isinstance(result, list):
+                raise ValueError("Translation response was not a JSON array")
+            if len(result) != len(texts):
+                raise ValueError(
+                    f"Translation length mismatch: expected {len(texts)}, got {len(result)}"
+                )
+            return [str(t) for t in result]
+
+        except (RateLimitError, APITimeoutError, APIConnectionError) as exc:
+            last_exc = exc
+            if attempt == max_retries - 1:
+                break
+
+            # Exponential backoff by default: 0.5s, 1.0s
+            retry_delay = 0.5 * (2 ** attempt)
+
+            if isinstance(exc, RateLimitError):
+                resp = getattr(exc, "response", None)
+                retry_header = None
+                if resp is not None and hasattr(resp, "headers"):
+                    retry_header = resp.headers.get("retry-after") or resp.headers.get("Retry-After")
+
+                if retry_header:
+                    try:
+                        retry_delay = float(retry_header)
+                    except ValueError:
+                        pass
+                else:
+                    msg = str(exc).lower()
+                    m_ms = re.search(r"try again in (\d+(?:\.\d+)?)ms", msg)
+                    m_s = re.search(r"try again in (\d+(?:\.\d+)?)s", msg)
+                    if m_ms:
+                        retry_delay = float(m_ms.group(1)) / 1000.0
+                    elif m_s:
+                        retry_delay = float(m_s.group(1))
+
+            # Cap individual sleep between 0.1s and 3.0s to ensure short total wait
+            sleep_time = min(max(retry_delay, 0.1), 3.0)
+            logger.info(
+                "Groq translation rate-limit/timeout on attempt %d/%d; retrying in %.2fs: %s",
+                attempt + 1,
+                max_retries,
+                sleep_time,
+                exc,
+            )
+            time.sleep(sleep_time)
+
+    if last_exc:
+        raise last_exc
 
 
 
