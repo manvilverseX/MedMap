@@ -5,6 +5,7 @@ import { createCase, verifyAbha } from '../../utils/api';
 import { Button } from '../../components/Button';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { useT } from '../../i18n/useT';
+import { normalizeLanguage } from '../../utils/language';
 
 const CONSENT_TRANSLATIONS: Record<string, {
   title: string;
@@ -53,7 +54,9 @@ export function PatientOnboardingPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const consentCopy = CONSENT_TRANSLATIONS[language] || CONSENT_TRANSLATIONS.English;
+  const normLang = normalizeLanguage(language);
+  const consentKey = normLang === 'kn' ? 'Kannada' : normLang === 'hi' ? 'Hindi' : 'English';
+  const consentCopy = CONSENT_TRANSLATIONS[consentKey] || CONSENT_TRANSLATIONS.English;
 
   // ABDM Simulation State
   const [hasAbha, setHasAbha] = useState(false);

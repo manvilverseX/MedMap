@@ -8,6 +8,7 @@ import { ErrorMessage } from '../../components/ErrorMessage';
 import { LoadingIndicator } from '../../components/LoadingIndicator';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useT } from '../../i18n/useT';
+import { normalizeLanguage } from '../../utils/language';
 import './PatientIntakePage.css';
 
 interface IntakeQuestion {
@@ -114,15 +115,10 @@ export function PatientIntakePage() {
   const { t } = useT(clinicalCase?.language);
 
   // Speech language mapping (en-IN, hi-IN, kn-IN)
-  const rawLang = clinicalCase?.language?.toLowerCase().trim() || '';
-  const speechLang = (rawLang.startsWith('hi') || rawLang === 'hindi')
-    ? 'hi-IN'
-    : (rawLang.startsWith('kn') || rawLang === 'kannada' || rawLang.startsWith('ka'))
-    ? 'kn-IN'
-    : 'en-IN';
-  const normLang = speechLang.slice(0, 2).toLowerCase();
+  const normLang = normalizeLanguage(clinicalCase?.language);
+  const speechLang = normLang === 'hi' ? 'hi-IN' : normLang === 'kn' ? 'kn-IN' : 'en-IN';
   const isIndicLang = normLang === 'kn' || normLang === 'hi';
-  const speechLangName = speechLang === 'hi-IN' ? 'Hindi' : speechLang === 'kn-IN' ? 'Kannada' : 'English';
+  const speechLangName = normLang === 'hi' ? 'Hindi' : normLang === 'kn' ? 'Kannada' : 'English';
 
   const [hasVoiceForLang, setHasVoiceForLang] = useState(true);
 
@@ -1095,7 +1091,7 @@ export function PatientIntakePage() {
               </label>
               <select
                 id="intake-lang-select"
-                value={clinicalCase?.language || 'English'}
+                value={normLang === 'kn' ? 'Kannada' : normLang === 'hi' ? 'Hindi' : 'English'}
                 onChange={async (e) => {
                   const newLang = e.target.value;
                   if (clinicalCase && caseId) {

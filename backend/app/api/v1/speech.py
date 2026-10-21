@@ -38,20 +38,12 @@ VOICE_MAP = {
 
 
 
+from app.core.languages import normalize_language, normalise_speech_lang
+
+
 class TTSRequest(BaseModel):
     text: str = Field(..., description="Text to synthesize into spoken audio (max 500 characters)")
     language: str = Field(..., description="Language code ('kn' or 'hi')")
-
-
-def normalise_speech_lang(lang: str) -> str:
-    l = (lang or "").strip().lower()
-    if l.startswith("kn") or l == "kannada":
-        return "kn"
-    elif l.startswith("hi") or l == "hindi":
-        return "hi"
-    elif l.startswith("en") or l == "english":
-        return "en"
-    return l
 
 
 @router.post("/tts")
@@ -79,7 +71,7 @@ async def text_to_speech(
             },
         )
 
-    norm_lang = normalise_speech_lang(payload.language)
+    norm_lang = normalise_speech_lang(payload.language, default=None)
     if norm_lang not in ["kn", "hi"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -166,7 +158,7 @@ async def speech_to_text(
     Uses Sarvam AI Saaras v3 as primary model for Indian languages.
     Falls back to Groq whisper-large-v3 if Sarvam is unavailable or fails.
     """
-    norm_lang = normalise_speech_lang(language)
+    norm_lang = normalise_speech_lang(language, default=None)
     if norm_lang not in ["kn", "hi", "en"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

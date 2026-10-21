@@ -7,6 +7,7 @@ import type { ClinicalCase } from '../../types/case';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { Button } from '../../components/Button';
 import { useNavigate } from 'react-router-dom';
+import { normalizeLanguage } from '../../utils/language';
 import '../../components/doctor/doctorDashboard.css';
 import '../../components/doctor/doctorDetail.css';
 
@@ -39,12 +40,7 @@ export function DoctorCaseDetailPage() {
   const fetchTranslatedSummary = async (targetCase?: ClinicalCase) => {
     const c = targetCase || caseDetail;
     if (!c?.aiSummary || !c.language) return;
-    const langLower = (c.language || '').toLowerCase().trim();
-    const langCode = (langLower.startsWith('hi') || langLower === 'hindi')
-      ? 'hi'
-      : (langLower.startsWith('kn') || langLower === 'kannada' || langLower.startsWith('ka'))
-      ? 'kn'
-      : 'en';
+    const langCode = normalizeLanguage(c.language);
     if (langCode === 'en') return;
     if (translatedSummary) return;
 
@@ -65,12 +61,13 @@ export function DoctorCaseDetailPage() {
         },
         body: JSON.stringify({
           strings: summaryFields,
+          lang: langCode,
           targetLang: langCode,
         }),
       });
       if (res.ok) {
         const data = await res.json();
-        setTranslatedSummary(data.translations || summaryFields);
+        setTranslatedSummary(data.strings || data.translations || summaryFields);
       }
     } catch {
       // fallback gracefully
@@ -708,7 +705,7 @@ export function DoctorCaseDetailPage() {
           )}
 
           {/* Multilingual View Toggle (Doctor Side) */}
-          {caseDetail.language && !caseDetail.language.toLowerCase().startsWith('en') && (
+          {caseDetail.language && normalizeLanguage(caseDetail.language) !== 'en' && (
             <div className="doctor-lang-toggle" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '1rem', padding: '0.65rem 1rem', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1.5px solid var(--color-navy)', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--color-navy)' }}>🌐 Language View:</span>

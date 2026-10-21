@@ -221,7 +221,7 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
         by_id = {q.id: q for q in INTAKE_QUESTIONS}
 
         # Determine case language for answer translation
-        case_lang = normalise_lang(getattr(current_case, 'language', None))
+        case_lang = normalise_lang(case_in.language or getattr(current_case, 'language', None))
 
         # Invalidate / exclude dependent answers that are no longer eligible
         sanitized_answers, _ = sanitize_active_answers(case_in.intakeAnswers)
@@ -327,7 +327,7 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
     unscreened_answers = [
         {"questionId": k, "original": v.get("original", ""), "lang": v.get("lang", getattr(case, "language", "non-en"))}
         for k, v in active_intake_answers.items()
-        if isinstance(v, dict) and (v.get("translationFailed") is True or (v.get("translated") is False and v.get("lang") and v.get("lang") != "en"))
+        if isinstance(v, dict) and (v.get("translationFailed") is True or (v.get("translated") is False and v.get("lang") and normalise_lang(v.get("lang")) != "en"))
     ]
     translation_screening_incomplete = len(unscreened_answers) > 0
     derived["translationScreeningIncomplete"] = translation_screening_incomplete

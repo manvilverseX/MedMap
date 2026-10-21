@@ -21,13 +21,15 @@ router = APIRouter()
 
 
 class UITranslationRequest(BaseModel):
-    lang: str  # "hi" or "kn" (or "Hindi" / "Kannada")
+    lang: Optional[str] = None  # "hi" or "kn" (or "Hindi" / "Kannada")
+    targetLang: Optional[str] = None  # Frontend alias
     strings: Dict[str, str]  # key -> English text
 
 
 class UITranslationResponse(BaseModel):
     lang: str
     strings: Dict[str, str]  # key -> translated text
+    translations: Optional[Dict[str, str]] = None  # Frontend alias
     translated: bool
     fallbackNotice: Optional[str] = None
     aiTranslationTag: Optional[str] = None
@@ -39,16 +41,23 @@ def translate_ui_strings(
     payload: UITranslationRequest,
     db: Session = Depends(get_db),
 ):
-    lang = normalise_lang(payload.lang)
+    raw_lang = payload.lang or payload.targetLang
+    lang = normalise_lang(raw_lang)
     if lang == "en":
         return UITranslationResponse(
             lang=lang,
             strings=payload.strings,
+            translations=payload.strings,
             translated=True,
         )
 
     if not payload.strings:
-        return UITranslationResponse(lang=lang, strings={}, translated=True)
+        return UITranslationResponse(
+            lang=lang,
+            strings={},
+            translations={},
+            translated=True,
+        )
 
     keys = list(payload.strings.keys())
     texts = [payload.strings[k] for k in keys]
@@ -60,6 +69,7 @@ def translate_ui_strings(
     return UITranslationResponse(
         lang=lang,
         strings=result_dict,
+        translations=result_dict,
         translated=was_translated,
         fallbackNotice=None if was_translated else FALLBACK_NOTICE.get(lang),
         aiTranslationTag=AI_TRANSLATION_TAG.get(lang) if was_translated else None,

@@ -26,6 +26,7 @@ import {
   interpolate,
 } from "./strings";
 import { API_BASE_URL } from "../utils/api";
+import { normalizeLanguage } from "../utils/language";
 
 export interface UseTResult {
   t: (key: StringKey, vars?: Record<string, string | number>) => string;
@@ -35,16 +36,8 @@ export interface UseTResult {
   lang: LangCode;
 }
 
-function normaliseLang(raw?: string | null): LangCode {
-  if (!raw) return "en";
-  const lower = raw.toLowerCase();
-  if (lower.startsWith("hi")) return "hi";
-  if (lower.startsWith("kn") || lower === "kannada") return "kn";
-  return "en";
-}
-
 export function useT(rawLang?: string | null): UseTResult {
-  const lang = normaliseLang(rawLang);
+  const lang = normalizeLanguage(rawLang);
 
   const [localizedStrings, setLocalizedStrings] = useState<Record<string, string> | null>(() =>
     lang === "en" ? null : getCachedStrings(lang)

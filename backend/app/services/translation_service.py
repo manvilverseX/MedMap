@@ -30,17 +30,8 @@ from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
-# ── Language code normalisation ───────────────────────────────────────────────
+from app.core.languages import normalize_language, LANG_NAME, normalise_lang
 
-LANG_NAME = {"en": "English", "hi": "Hindi", "kn": "Kannada"}
-LANG_CODE = {
-    "english": "en",
-    "hindi": "hi",
-    "kannada": "kn",
-    "en": "en",
-    "hi": "hi",
-    "kn": "kn",
-}
 
 # Fallback notice shown in the patient's language when translation unavailable.
 FALLBACK_NOTICE = {
@@ -243,11 +234,9 @@ def _call_groq_translate(texts: list[str], source_lang: str, target_lang: str) -
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def normalise_lang(lang: Optional[str]) -> str:
-    """Map 'English'/'Hindi'/'Kannada' or 'en'/'hi'/'kn' to lowercase 2-char code."""
-    if not lang:
-        return "en"
-    return LANG_CODE.get(lang.lower(), "en")
+# Canonical normalizer exported from app.core.languages
+__all__ = ["normalize_language", "normalise_lang", "translate_texts", "translate_to_english", "translate_text"]
+
 
 
 def translate_texts(
