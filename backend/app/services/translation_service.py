@@ -116,6 +116,9 @@ def _db_set(db: Session, text_hash: str, target_lang: str, translated: str) -> N
 
 # ── Groq translation call ─────────────────────────────────────────────────────
 
+
+# ── Groq translation call ─────────────────────────────────────────────────────
+
 _TRANSLATION_PROMPT = """You are a certified medical interpreter. Translate the following list of strings from {source_lang} into {target_lang}.
 
 Rules (non-negotiable):
@@ -130,8 +133,14 @@ Input strings:
 {input_json}"""
 
 
-def _call_groq_translate(texts: list[str], source_lang: str, target_lang: str) -> list[str]:
-    """Call Groq API to translate a batch of texts with retry on 429/timeout. Returns translated list or raises."""
+def _call_groq_single_chunk(
+    texts: list[str],
+    source_lang: str,
+    target_lang: str,
+    timeout: float = 8.0,
+    can_split: bool = True,
+) -> list[str]:
+    """Call Groq API to translate a single chunk (<=40 strings). Retries with split on JSON failure."""
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("GROQ_API_KEY not set")
@@ -150,12 +159,14 @@ def _call_groq_translate(texts: list[str], source_lang: str, target_lang: str) -
     call_kwargs: dict[str, Any] = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
-        "timeout": 15.0,
+        "max_tokens": 4096,
+        "temperature": 0.1,
+        "timeout": timeout,
     }
     if "gpt-oss" in model.lower():
         call_kwargs["reasoning_effort"] = "low"
 
-    max_retries = 3
+    max_retries = 2
     last_exc = None
 
     for attempt in range(max_retries):
@@ -172,7 +183,6 @@ def _call_groq_translate(texts: list[str], source_lang: str, target_lang: str) -
                         block = block[4:]
                     raw = block.strip()
 
-            # Extract bracketed JSON array if model included thoughts/preamble
             start_bracket = raw.find("[")
             end_bracket = raw.rfind("]")
             if start_bracket != -1 and end_bracket != -1 and end_bracket > start_bracket:
@@ -192,51 +202,81 @@ def _call_groq_translate(texts: list[str], source_lang: str, target_lang: str) -
             last_exc = exc
             if attempt == max_retries - 1:
                 break
-
-            # Exponential backoff by default: 0.5s, 1.0s
-            retry_delay = 0.5 * (2 ** attempt)
-
-            if isinstance(exc, RateLimitError):
-                resp = getattr(exc, "response", None)
-                retry_header = None
-                if resp is not None and hasattr(resp, "headers"):
-                    retry_header = resp.headers.get("retry-after") or resp.headers.get("Retry-After")
-
-                if retry_header:
-                    try:
-                        retry_delay = float(retry_header)
-                    except ValueError:
-                        pass
-                else:
-                    msg = str(exc).lower()
-                    m_ms = re.search(r"try again in (\d+(?:\.\d+)?)ms", msg)
-                    m_s = re.search(r"try again in (\d+(?:\.\d+)?)s", msg)
-                    if m_ms:
-                        retry_delay = float(m_ms.group(1)) / 1000.0
-                    elif m_s:
-                        retry_delay = float(m_s.group(1))
-
-            # Cap individual sleep between 0.1s and 3.0s to ensure short total wait
-            sleep_time = min(max(retry_delay, 0.1), 3.0)
-            logger.info(
-                "Groq translation rate-limit/timeout on attempt %d/%d; retrying in %.2fs: %s",
-                attempt + 1,
-                max_retries,
-                sleep_time,
-                exc,
-            )
+            sleep_time = 0.5 * (2 ** attempt)
+            logger.info("Groq retry attempt %d/%d (%.2fs): %s", attempt + 1, max_retries, sleep_time, exc)
             time.sleep(sleep_time)
+
+        except json.JSONDecodeError as exc:
+            last_exc = exc
+            # If the chunk was more than 1 string, split in half and retry each half once
+            if can_split and len(texts) > 1:
+                logger.info(
+                    "Groq reply truncated or malformed JSON for %d items (%s); splitting chunk in half",
+                    len(texts),
+                    exc,
+                )
+                mid = len(texts) // 2
+                first_half = _call_groq_single_chunk(
+                    texts[:mid], source_lang, target_lang, timeout=timeout, can_split=False
+                )
+                second_half = _call_groq_single_chunk(
+                    texts[mid:], source_lang, target_lang, timeout=timeout, can_split=False
+                )
+                return first_half + second_half
+            else:
+                if attempt == max_retries - 1:
+                    break
+                time.sleep(0.5)
+
+        except ValueError as exc:
+            last_exc = exc
+            if attempt == max_retries - 1:
+                break
+            time.sleep(0.5)
 
     if last_exc:
         raise last_exc
+    raise RuntimeError("Translation failed without exception")
 
+
+def _call_groq_translate(
+    texts: list[str], source_lang: str, target_lang: str
+) -> tuple[list[str], bool]:
+    """Call Groq API to translate a list of texts, chunking into batches of at most 40 strings.
+    Never drops the whole payload if one chunk fails: failed chunks fall back to original text.
+    Returns (all_translated, at_least_one_chunk_succeeded_or_empty).
+    """
+    if not texts:
+        return [], True
+
+    CHUNK_SIZE = 40
+    all_translated: list[str] = []
+    chunk_failures = 0
+    total_chunks = (len(texts) + CHUNK_SIZE - 1) // CHUNK_SIZE
+
+    for i in range(0, len(texts), CHUNK_SIZE):
+        chunk = texts[i : i + CHUNK_SIZE]
+        try:
+            chunk_translated = _call_groq_single_chunk(chunk, source_lang, target_lang)
+            all_translated.extend(chunk_translated)
+        except Exception as exc:
+            chunk_failures += 1
+            logger.warning(
+                "Chunk %d/%d (%d texts) failed Groq translation: %s. Using original texts for this chunk.",
+                (i // CHUNK_SIZE) + 1,
+                total_chunks,
+                len(chunk),
+                exc,
+            )
+            all_translated.extend(chunk)
+
+    all_failed = (chunk_failures == total_chunks)
+    return all_translated, not all_failed
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-# Canonical normalizer exported from app.core.languages
 __all__ = ["normalize_language", "normalise_lang", "translate_texts", "translate_to_english", "translate_text"]
-
 
 
 def translate_texts(
@@ -248,56 +288,81 @@ def translate_texts(
 ) -> tuple[list[str], bool]:
     """
     Translate a list of English strings into target_lang.
+    Uses static dictionary first, then LRU cache, then DB cache, then Groq (chunked).
 
     Returns:
         (translated_list, was_translated)
         was_translated=False means Groq was unavailable; originals are returned.
     """
+    t_start = time.perf_counter()
     target_lang = normalise_lang(target_lang)
     if target_lang == "en" or not texts:
-        return texts, True  # Nothing to do
+        return texts, True
 
     results: list[Optional[str]] = [None] * len(texts)
     uncached_indices: list[int] = []
     uncached_texts: list[str] = []
 
-    # --- Phase 1: check both caches ---
+    # --- Phase 1: check LRU and DB cache ---
     for i, text in enumerate(texts):
         if not text or not text.strip():
             results[i] = text
             continue
+
+        clean_text = text.strip()
+
+        # 1. LRU cache
         h = _text_hash(text)
         cached = _lru_get((h, target_lang))
         if cached is not None:
             results[i] = cached
             continue
+
+        # 3. DB cache
         if db:
             db_cached = _db_get(db, h, target_lang)
             if db_cached is not None:
                 _lru_set((h, target_lang), db_cached)
                 results[i] = db_cached
                 continue
+
         uncached_indices.append(i)
         uncached_texts.append(text)
 
+    from_cache_count = len(texts) - len(uncached_texts)
+
     if not uncached_texts:
+        t_elapsed = time.perf_counter() - t_start
+        logger.info("[TIMING] translate_texts took %.4fs (100%% cached, %d items)", t_elapsed, len(texts))
         return [r if r is not None else "" for r in results], True
 
-    # --- Phase 2: call Groq for uncached strings ---
+    # --- Phase 2: call Groq for uncached strings (chunked & split-resilient) ---
     try:
-        translated_batch = _call_groq_translate(uncached_texts, "en", target_lang)
+        translated_batch, ok = _call_groq_translate(uncached_texts, "en", target_lang)
         for idx, (orig_i, translated) in enumerate(zip(uncached_indices, translated_batch)):
             results[orig_i] = translated
-            h = _text_hash(uncached_texts[idx])
-            _lru_set((h, target_lang), translated)
-            if db:
-                _db_set(db, h, target_lang, translated)
-        return [r if r is not None else "" for r in results], True
+            if ok and translated != uncached_texts[idx]:
+                h = _text_hash(uncached_texts[idx])
+                _lru_set((h, target_lang), translated)
+                if db:
+                    _db_set(db, h, target_lang, translated)
+        t_elapsed = time.perf_counter() - t_start
+        logger.info(
+            "[TIMING] translate_texts took %.3fs for %d items (%d cached, %d via Groq, ok=%s)",
+            t_elapsed,
+            len(texts),
+            from_cache_count,
+            len(uncached_texts),
+            ok,
+        )
+        return [r if r is not None else "" for r in results], ok
 
     except Exception as exc:
+        t_elapsed = time.perf_counter() - t_start
         logger.warning(
-            "Translation to '%s' failed (%s). Returning English originals.",
+            "[TIMING] Translation to '%s' failed after %.3fs (%s). Returning English originals.",
             target_lang,
+            t_elapsed,
             exc,
         )
         for i in uncached_indices:
@@ -313,11 +378,11 @@ def translate_to_english(
 ) -> tuple[str, bool]:
     """
     Translate a patient's free-text answer from source_lang into English.
-
     Returns:
         (english_text, was_translated)
         was_translated=False means Groq was unavailable; original text returned.
     """
+    t_start = time.perf_counter()
     source_lang = normalise_lang(source_lang)
     if source_lang == "en" or not text or not text.strip():
         return text, True
@@ -326,24 +391,32 @@ def translate_to_english(
     h = _text_hash(text)
     cached = _lru_get((h, "en_from_" + source_lang))
     if cached is not None:
+        t_elapsed = time.perf_counter() - t_start
+        logger.info("[TIMING] translate_to_english (LRU cache) took %.4fs", t_elapsed)
         return cached, True
     if db:
         db_cached = _db_get(db, h + "_from_" + source_lang, "en")
         if db_cached is not None:
             _lru_set((h, "en_from_" + source_lang), db_cached)
+            t_elapsed = time.perf_counter() - t_start
+            logger.info("[TIMING] translate_to_english (DB cache) took %.4fs", t_elapsed)
             return db_cached, True
 
     try:
-        translated_list = _call_groq_translate([text], source_lang, "en")
+        translated_list = _call_groq_single_chunk([text], source_lang, "en", timeout=8.0)
         english = translated_list[0]
         _lru_set((h, "en_from_" + source_lang), english)
         if db:
             _db_set(db, h + "_from_" + source_lang, "en", english)
+        t_elapsed = time.perf_counter() - t_start
+        logger.info("[TIMING] translate_to_english (Groq) took %.3fs", t_elapsed)
         return english, True
     except Exception as exc:
+        t_elapsed = time.perf_counter() - t_start
         logger.warning(
-            "to-English translation from '%s' failed (%s). Returning original.",
+            "[TIMING] to-English translation from '%s' failed after %.3fs (%s). Returning original.",
             source_lang,
+            t_elapsed,
             exc,
         )
         return text, False

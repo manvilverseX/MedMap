@@ -1,6 +1,9 @@
 from typing import List, Optional, Dict, Any
 import os
+import time
 import logging
+
+logger = logging.getLogger(__name__)
 from fastapi import APIRouter, HTTPException, Depends, Query, Header, UploadFile, File, Form
 from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
@@ -57,6 +60,9 @@ def get_adaptive_intake_state(
 ):
     if current_user.get("role") == "patient" and current_user.get("case_id") != case_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this case")
+
+    import time
+    t_start = time.perf_counter()
 
     case = case_service.get_case(db, case_id)
     if not case:
@@ -217,10 +223,14 @@ def get_adaptive_intake_state(
 
         session_state = session_state.model_copy(update=updates)
 
+    logger.info("[TIMING] GET /cases/%s/adaptive-intake finished in %.3fs", case_id, time.perf_counter() - t_start)
     return session_state
 
 @router.put("/{case_id}", response_model=CaseResponse)
 def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(require_patient_or_doctor)):
+    import time
+    t_start = time.perf_counter()
+
     current_case = case_service.get_case(db, case_id)
     if not current_case:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -300,7 +310,9 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
             old_answer = old_record.get("value") if isinstance(old_record, dict) else old_record
             attempts = int(old_record.get("clarification_attempts", 0)) if isinstance(old_record, dict) else 0
 
-            if old_answer == answer:
+            # Idempotency: if answer is identical and previously accepted (not in clarification), keep existing record
+            if old_answer == answer and isinstance(old_record, dict) and "clarification_needed" not in old_record:
+                case_in.intakeAnswers[q_id] = old_record
                 continue
 
             # ── Translate non-English free-text answers to English ──────────
@@ -311,13 +323,16 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
             translation_was_successful = True
 
             if case_lang != "en":
-                english_answer, translation_was_successful = translate_to_english(
-                    answer, case_lang, db=db
-                )
-                # If translation failed, english_answer == original; safety still runs on original
-                # (best effort; cannot translate = treat as english-ish)
+                try:
+                    english_answer, translation_was_successful = translate_to_english(
+                        answer, case_lang, db=db
+                    )
+                except Exception as exc:
+                    logger.warning("Translation to English failed (%s)", exc)
+                    english_answer = answer
+                    translation_was_successful = False
 
-            # Store bilingual answer if successfully translated
+            # Store bilingual answer
             if case_lang != "en":
                 case_in.intakeAnswers[q_id] = {
                     "value": english_answer,         # English for clinical logic
@@ -325,6 +340,7 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
                     "lang": case_lang,
                     "translated": translation_was_successful,
                     "translationFailed": not translation_was_successful,
+                    "translationPending": not translation_was_successful,
                 }
                 # Use english_answer for all subsequent validation
                 answer = english_answer
@@ -471,6 +487,7 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
     if case_in.status == CaseStatus.COMPLETED and current_case.status != CaseStatus.COMPLETED.value:
         log_clinical_event(db, case_id, "case_finalized", {"reviewerId": current_user.get("sub"), "doctor": current_user.get("username", "doctor"), "actor": "doctor"})
 
+    logger.info("[TIMING] PUT /cases/%s finished in %.3fs", case_id, time.perf_counter() - t_start)
     return case
 
 @router.post("/{case_id}/documents", response_model=DocumentResponse, status_code=201)

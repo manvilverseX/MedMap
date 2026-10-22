@@ -96,6 +96,25 @@ export function useT(rawLang?: string | null): UseTResult {
       if (fetchingRef.current === targetLang) return;
       fetchingRef.current = targetLang;
 
+      // Only request strings missing from static dictionaries and session cache
+      const dict = targetLang === "kn" ? KN_STRINGS : targetLang === "hi" ? HI_STRINGS : {};
+      const cached = getCachedStrings(targetLang) || {};
+      const missingStrings: Record<string, string> = {};
+
+      for (const [key, enText] of Object.entries(EN_STRINGS)) {
+        if (!(dict as any)[key] && !(cached as any)[key]) {
+          missingStrings[key] = enText;
+        }
+      }
+
+      // If all keys are satisfied by static dictionary and cache, zero network latency is required
+      if (Object.keys(missingStrings).length === 0) {
+        setLocalizedStrings(cached);
+        setReady(true);
+        fetchingRef.current = null;
+        return;
+      }
+
       const token = sessionStorage.getItem("token") || localStorage.getItem("medmap_token");
       try {
         const resp = await fetch(`${API_BASE_URL}/translate/ui`, {
@@ -106,18 +125,17 @@ export function useT(rawLang?: string | null): UseTResult {
           },
           body: JSON.stringify({
             lang: targetLang,
-            strings: EN_STRINGS as Record<string, string>,
+            strings: missingStrings,
           }),
         });
         if (!resp.ok) throw new Error(`translate/ui ${resp.status}`);
         const data = await resp.json();
-        if (data.strings) {
-          setCachedStrings(targetLang, data.strings);
-          setLocalizedStrings(data.strings);
-          setFallbackNotice(data.fallbackNotice ?? null);
-          setAiTranslationTag(data.aiTranslationTag ?? null);
-          setReady(true);
-        }
+        const merged = { ...cached, ...(data.strings || {}) };
+        setCachedStrings(targetLang, merged);
+        setLocalizedStrings(merged);
+        setFallbackNotice(data.fallbackNotice ?? null);
+        setAiTranslationTag(data.aiTranslationTag ?? null);
+        setReady(true);
       } catch {
         // Translation failed — show English with fallback notice
         setReady(true);

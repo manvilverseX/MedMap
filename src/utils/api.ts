@@ -91,8 +91,11 @@ export function mapApiErrorToKey(error: any): StringKey {
   if (code.includes('create_case') || msg.includes('create case')) {
     return 'errorFailedCreateCase';
   }
-  if (code.includes('load_case') || msg.includes('load case') || msg.includes('load adaptive')) {
+  if (code.includes('load_case') || msg.includes('load case')) {
     return 'errorFailedLoadCase';
+  }
+  if (code.includes('load_adaptive') || msg.includes('load adaptive') || msg.includes('adaptive intake')) {
+    return 'intakeFailedLoadQuestion';
   }
   if (status === 400 || code.includes('invalid') || code.includes('meaningless') || msg.includes('meaningless')) {
     return 'errorInvalidInput';
@@ -101,6 +104,31 @@ export function mapApiErrorToKey(error: any): StringKey {
     return 'errorNetwork';
   }
   return 'somethingWentWrong';
+}
+
+export async function fetchWithRetry(
+  url: string,
+  options: RequestInit = {},
+  maxRetries = 2,
+  baseBackoffMs = 400
+): Promise<Response> {
+  let lastError: any;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      if ((response.status === 502 || response.status === 503 || response.status === 504) && attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, baseBackoffMs * Math.pow(2, attempt)));
+        continue;
+      }
+      return response;
+    } catch (err: any) {
+      lastError = err;
+      if (attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, baseBackoffMs * Math.pow(2, attempt)));
+      }
+    }
+  }
+  throw lastError;
 }
 
 export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1').replace(/\/+$/, '');
@@ -151,7 +179,7 @@ export const createCase = async (
 };
 
 export const getCase = async (caseId: string): Promise<ClinicalCase> => {
-  const response = await fetch(`${API_BASE_URL}/cases/${caseId}`, {
+  const response = await fetchWithRetry(`${API_BASE_URL}/cases/${caseId}`, {
     headers: {
       ...getAuthHeaders(),
     },
@@ -180,7 +208,7 @@ export const getAdaptiveIntakeState = async (caseId: string, mode?: string, ques
   if (questionId) params.append('question_id', questionId);
   const qs = params.toString() ? `?${params.toString()}` : '';
 
-  const response = await fetch(`${API_BASE_URL}/cases/${caseId}/adaptive-intake${qs}`, {
+  const response = await fetchWithRetry(`${API_BASE_URL}/cases/${caseId}/adaptive-intake${qs}`, {
     headers: {
       ...getAuthHeaders(),
     },
@@ -198,7 +226,7 @@ export const updateCaseStatus = async (caseId: string, status: string): Promise<
 };
 
 export const updateCase = async (caseId: string, data: Partial<ClinicalCase>): Promise<ClinicalCase> => {
-  const response = await fetch(`${API_BASE_URL}/cases/${caseId}`, {
+  const response = await fetchWithRetry(`${API_BASE_URL}/cases/${caseId}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',

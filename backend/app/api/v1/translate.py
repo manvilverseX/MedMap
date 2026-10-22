@@ -41,6 +41,8 @@ def translate_ui_strings(
     payload: UITranslationRequest,
     db: Session = Depends(get_db),
 ):
+    import time
+    t_start = time.perf_counter()
     raw_lang = payload.lang or payload.targetLang
     lang = normalise_lang(raw_lang)
     if lang == "en":
@@ -64,7 +66,19 @@ def translate_ui_strings(
 
     translated_list, was_translated = translate_texts(texts, lang, db=db)
 
-    result_dict = {k: t for k, t in zip(keys, translated_list)}
+    result_dict: dict[str, str] = {}
+    for k, orig, t in zip(keys, texts, translated_list):
+        result_dict[k] = t if (t and t.strip()) else orig
+
+    t_elapsed = time.perf_counter() - t_start
+    import logging
+    logging.getLogger(__name__).info(
+        "[TIMING] POST /translate/ui (%s) translated %d strings in %.3fs (was_translated=%s)",
+        lang,
+        len(keys),
+        t_elapsed,
+        was_translated,
+    )
 
     return UITranslationResponse(
         lang=lang,
@@ -74,3 +88,4 @@ def translate_ui_strings(
         fallbackNotice=None if was_translated else FALLBACK_NOTICE.get(lang),
         aiTranslationTag=AI_TRANSLATION_TAG.get(lang) if was_translated else None,
     )
+

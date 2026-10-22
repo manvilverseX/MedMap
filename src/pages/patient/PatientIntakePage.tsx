@@ -587,7 +587,7 @@ export function PatientIntakePage() {
 
   // ── Handlers ──────────────────────────────────────────────────────────
   const handleAnswerSubmit = async (answerValue: string) => {
-    if (!sessionState?.currentQuestion || !caseId) return;
+    if (!sessionState?.currentQuestion || !caseId || isSubmitting) return;
     
     stopSpeaking();
     stopListening();
@@ -607,6 +607,7 @@ export function PatientIntakePage() {
       setAnswers(savedAnswers);
       await refreshAdaptiveState(savedAnswers);
     } catch (err: any) {
+      setCurrentAnswer(answerValue);
       setQuestionError({
         message: err?.message || t('intakeSaveError'),
         retry: () => {
