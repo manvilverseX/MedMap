@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.core.database import SessionLocal
+from app.core.database import SessionLocal, get_db
 from app.core.security import create_access_token
 from app.models.case import ClinicalCase
 from app.models.document import PatientDocument
@@ -14,6 +14,9 @@ from app.models.document import PatientDocument
 class DocumentFileAccessTests(unittest.TestCase):
     def setUp(self):
         self.db = SessionLocal()
+        def override_get_db():
+            yield self.db
+        app.dependency_overrides[get_db] = override_get_db
         self.client = TestClient(app)
 
         # Create two cases
@@ -99,6 +102,7 @@ class DocumentFileAccessTests(unittest.TestCase):
         ).delete()
         self.db.commit()
         self.db.close()
+        app.dependency_overrides.pop(get_db, None)
 
     def test_unauthorized_access_denied(self):
         # No token
