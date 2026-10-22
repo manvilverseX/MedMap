@@ -88,4 +88,3 @@ def translate_ui_strings(
         fallbackNotice=None if was_translated else FALLBACK_NOTICE.get(lang),
         aiTranslationTag=AI_TRANSLATION_TAG.get(lang) if was_translated else None,
     )
-

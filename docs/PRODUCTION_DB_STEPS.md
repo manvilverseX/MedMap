@@ -12,10 +12,10 @@
 Run the following query using `psql` or the database provider's SQL console:
 
 ```sql
-SELECT 
+SELECT
     EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
         AND table_name = 'translation_cache'
     ) AS table_exists;
 ```

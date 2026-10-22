@@ -46,7 +46,7 @@ class PdfHighlightTests(unittest.TestCase):
         p1.insert_text((50, 100), "Prescription Record")
         p1.insert_text((50, 140), "Metformin 500 mg twice daily")
         p1.insert_text((50, 180), "Atorvastatin - 10 mg once daily")
-        
+
         p2 = doc_pdf.new_page(width=612, height=792)
         p2.insert_text((50, 100), "Laboratory Investigations")
         p2.insert_text((50, 140), "HbA1c: 7.2 %")
