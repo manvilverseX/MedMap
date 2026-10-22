@@ -383,6 +383,48 @@ export const openDocumentFile = async (caseId: string, documentId: string): Prom
   }
 };
 
+export interface HighlightRect {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+export interface DocumentHighlightResponse {
+  page: number;
+  pageWidth: number;
+  pageHeight: number;
+  rects: HighlightRect[];
+  matchType: 'exact' | 'fuzzy' | 'page_only' | 'none';
+}
+
+export const getDocumentHighlight = async (
+  caseId: string,
+  documentId: string,
+  snippet?: string,
+  entityId?: string,
+  page?: number
+): Promise<DocumentHighlightResponse> => {
+  const params = new URLSearchParams();
+  if (snippet) params.set('snippet', snippet);
+  if (entityId) params.set('entity_id', entityId);
+  if (page) params.set('page', String(page));
+
+  const response = await fetch(
+    `${API_BASE_URL}/cases/${caseId}/documents/${documentId}/highlight?${params.toString()}`,
+    {
+      method: 'GET',
+      headers: { ...getAuthHeaders() },
+    }
+  );
+
+  if (!response.ok) {
+    throw await parseApiError(response, 'Failed to fetch document highlight');
+  }
+
+  return response.json();
+};
+
 export const extractDocument = async (caseId: string, documentId: string): Promise<any> => {
   const response = await fetch(`${API_BASE_URL}/cases/${caseId}/documents/${documentId}/extract`, {
     method: 'POST',

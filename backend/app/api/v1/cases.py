@@ -725,6 +725,98 @@ def get_case_document_file(
     )
 
 
+@router.get("/{case_id}/documents/{document_id}/highlight")
+def get_case_document_highlight(
+    case_id: str,
+    document_id: str,
+    snippet: Optional[str] = Query(None),
+    entity_id: Optional[str] = Query(None),
+    page: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(require_doctor)
+):
+    import re
+    doc = db.query(PatientDocument).filter(
+        PatientDocument.id == document_id,
+        PatientDocument.caseId == case_id
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    search_snippet = snippet
+    if not search_snippet and entity_id:
+        from app.models.evidence import Evidence
+        ev = db.query(Evidence).filter(
+            (Evidence.evidenceId == entity_id) | (Evidence.eventId == entity_id),
+            Evidence.sourceDocumentId == document_id
+        ).first()
+        if ev and ev.snippet:
+            search_snippet = ev.snippet
+            if not page and ev.pageLocation:
+                m = re.search(r'page\s*(\d+)', ev.pageLocation, re.I)
+                if m:
+                    page = int(m.group(1))
+
+    if not search_snippet:
+        search_snippet = ""
+
+    # Non-PDF documents (e.g. images)
+    if doc.mimeType != "application/pdf" and not (doc.filename and doc.filename.lower().endswith(".pdf")):
+        return {
+            "page": page or 1,
+            "pageWidth": 0.0,
+            "pageHeight": 0.0,
+            "rects": [],
+            "matchType": "page_only"
+        }
+
+    # Fetch document bytes
+    file_bytes = None
+    if doc.storagePath.startswith("http://") or doc.storagePath.startswith("https://"):
+        import urllib.request
+        token = os.environ.get("BLOB_READ_WRITE_TOKEN")
+        headers = {"User-Agent": "MedMap-Backend/1.0"}
+        if "private.blob.vercel-storage.com" in doc.storagePath and token:
+            headers["Authorization"] = f"Bearer {token}"
+        try:
+            req = urllib.request.Request(doc.storagePath, headers=headers)
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                if resp.status == 200:
+                    file_bytes = resp.read()
+                else:
+                    raise HTTPException(
+                        status_code=404,
+                        detail="This file is no longer available, ask the patient to upload again"
+                    )
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(
+                status_code=404,
+                detail="This file is no longer available, ask the patient to upload again"
+            )
+    else:
+        local_path = doc.storagePath
+        if local_path.startswith("local://"):
+            local_path = local_path.replace("local://", "")
+        if not os.path.exists(local_path):
+            raise HTTPException(
+                status_code=404,
+                detail="This file is no longer available, ask the patient to upload again"
+            )
+        try:
+            with open(local_path, "rb") as f:
+                file_bytes = f.read()
+        except Exception:
+            raise HTTPException(
+                status_code=404,
+                detail="This file is no longer available, ask the patient to upload again"
+            )
+
+    from app.services.pdf_highlight_service import get_cached_pdf_highlights
+    return get_cached_pdf_highlights(doc.id, search_snippet, page, file_bytes)
+
+
 @router.post("/{case_id}/documents/{document_id}/extract", response_model=DocumentResponse)
 def trigger_document_extraction(
     case_id: str,

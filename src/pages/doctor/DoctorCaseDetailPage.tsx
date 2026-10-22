@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { normalizeLanguage } from '../../utils/language';
 import '../../components/doctor/doctorDashboard.css';
 import '../../components/doctor/doctorDetail.css';
+import { PdfEvidenceViewer } from '../../components/doctor/PdfEvidenceViewer';
 
 export function DoctorCaseDetailPage() {
   const { caseId } = useParams<{ caseId: string }>();
@@ -97,6 +98,7 @@ export function DoctorCaseDetailPage() {
     documentId?: string;
     originalAnswer?: string;
   } | null>(null);
+  const [evidenceModalTab, setEvidenceModalTab] = useState<'evidence' | 'pdf'>('evidence');
 
   // Phase 7: ABDM Simulation Modal state
   const [isAbdmModalOpen, setIsAbdmModalOpen] = useState(false);
@@ -842,6 +844,7 @@ export function DoctorCaseDetailPage() {
                           {diagnoses.map((dx, i) => (
                             renderItemReviewControls("diagnoses", i, typeof dx === 'string' ? dx : String(dx), {
                               sourceType: "document",
+                              sourceDocumentId: documents[0]?.id || documents[0]?.documentId,
                               snippet: `Diagnosis identified from medical record: ${dx}`,
                               pageLocation: "Medical Records",
                             })
@@ -859,6 +862,7 @@ export function DoctorCaseDetailPage() {
                             const medText = typeof m === 'string' ? m : [m.name, m.dose, m.frequency, m.route].filter(Boolean).join(' — ');
                             return renderItemReviewControls("medications", i, medText, {
                               sourceType: "document",
+                              sourceDocumentId: documents[0]?.id || documents[0]?.documentId,
                               snippet: `Prescription entry: ${medText}`,
                               pageLocation: "Prescription",
                             });
@@ -876,6 +880,7 @@ export function DoctorCaseDetailPage() {
                             const invText = typeof inv === 'string' ? inv : [inv.testName, [inv.value, inv.unit].filter(Boolean).join(' '), inv.referenceRange ? `(Ref: ${inv.referenceRange})` : ''].filter(Boolean).join(' — ');
                             return renderItemReviewControls("investigations", i, invText, {
                               sourceType: "document",
+                              sourceDocumentId: documents[0]?.id || documents[0]?.documentId,
                               snippet: `Laboratory investigation result: ${invText}`,
                               pageLocation: "Lab Report",
                             });
@@ -1603,117 +1608,180 @@ export function DoctorCaseDetailPage() {
       )}
       {/* Evidence Source Preview Modal */}
       {evidenceModalItem && (
-        <div className="fhir-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="evidence-modal-title">
-          <div className="fhir-modal-content" style={{ maxWidth: '650px' }}>
-            <div className="fhir-modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '1.25rem' }}>🔍</span>
-                <h2 id="evidence-modal-title" style={{ margin: 0, fontSize: '1.15rem', color: 'var(--color-navy)' }}>
-                  Source Evidence & Provenance
-                </h2>
+        <div
+          className="fhir-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="evidence-modal-title"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setEvidenceModalItem(null);
+          }}
+        >
+          <div className="fhir-modal-content" style={{ maxWidth: evidenceModalTab === 'pdf' ? '920px' : '650px', width: '95%' }}>
+            <div className="fhir-modal-header" style={{ paddingBottom: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '1.25rem' }}>🔍</span>
+                  <h2 id="evidence-modal-title" style={{ margin: 0, fontSize: '1.15rem', color: 'var(--color-navy)' }}>
+                    Source Evidence & Provenance
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEvidenceModalItem(null)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    fontSize: '1.5rem',
+                    lineHeight: 1,
+                    cursor: 'pointer',
+                    color: 'var(--color-text-secondary)',
+                    padding: '0.25rem 0.5rem',
+                  }}
+                  aria-label="Close Evidence Modal"
+                >
+                  ✕
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setEvidenceModalItem(null)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  fontSize: '1.5rem',
-                  lineHeight: 1,
-                  cursor: 'pointer',
-                  color: 'var(--color-text-secondary)',
-                  padding: '0.25rem 0.5rem',
-                }}
-                aria-label="Close Evidence Modal"
-              >
-                ✕
-              </button>
+
+              {/* Tabs: Evidence vs View PDF */}
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', borderBottom: '1px solid var(--color-border)' }}>
+                <button
+                  type="button"
+                  id="tab-evidence-quote"
+                  onClick={() => setEvidenceModalTab('evidence')}
+                  style={{
+                    padding: '0.4rem 0.85rem',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    border: 'none',
+                    borderBottom: evidenceModalTab === 'evidence' ? '2.5px solid var(--color-primary)' : '2.5px solid transparent',
+                    background: 'none',
+                    cursor: 'pointer',
+                    color: evidenceModalTab === 'evidence' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                  }}
+                >
+                  Evidence
+                </button>
+                {(evidenceModalItem.documentId || (documents.length > 0 && (documents[0].id || documents[0].documentId))) && (
+                  <button
+                    type="button"
+                    id="tab-view-pdf"
+                    onClick={() => setEvidenceModalTab('pdf')}
+                    style={{
+                      padding: '0.4rem 0.85rem',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      border: 'none',
+                      borderBottom: evidenceModalTab === 'pdf' ? '2.5px solid var(--color-primary)' : '2.5px solid transparent',
+                      background: 'none',
+                      cursor: 'pointer',
+                      color: evidenceModalTab === 'pdf' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                    }}
+                  >
+                    View PDF
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="fhir-modal-body">
-              <div>
-                <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Clinical Entity
-                </span>
-                <h3 style={{ margin: '0.25rem 0 0', fontSize: '1.05rem', color: 'var(--color-navy)' }}>
-                  {evidenceModalItem.title}
-                </h3>
-              </div>
-
-              <div style={{ padding: '0.85rem', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
-                <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>
-                  Source Provenance
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <span className="fhir-chip" style={{ backgroundColor: '#e0f2fe', color: '#0369a1' }}>
-                    {evidenceModalItem.sourceType === 'intake' ? 'Patient Self-Reported Intake' : 'Uploaded Medical Document'}
-                  </span>
-                  {evidenceModalItem.pageLocation && (
-                    <span className="fhir-chip">
-                      📍 {evidenceModalItem.pageLocation}
+              {evidenceModalTab === 'evidence' ? (
+                <>
+                  <div>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', fontWeight: 700 }}>
+                      Clinical Entity
                     </span>
+                    <h3 style={{ margin: '0.25rem 0 0', fontSize: '1.05rem', color: 'var(--color-navy)' }}>
+                      {evidenceModalItem.title}
+                    </h3>
+                  </div>
+
+                  <div style={{ padding: '0.85rem', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>
+                      Source Provenance
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <span className="fhir-chip" style={{ backgroundColor: '#e0f2fe', color: '#0369a1' }}>
+                        {evidenceModalItem.sourceType === 'intake' ? 'Patient Self-Reported Intake' : 'Uploaded Medical Document'}
+                      </span>
+                      {evidenceModalItem.pageLocation && (
+                        <span className="fhir-chip">
+                          📍 {evidenceModalItem.pageLocation}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                      Canonical Clinical Interpretation (English)
+                    </span>
+                    <blockquote style={{
+                      margin: 0,
+                      padding: '0.85rem 1rem',
+                      backgroundColor: '#fffbeb',
+                      borderLeft: '4px solid #f59e0b',
+                      borderRadius: '4px',
+                      fontFamily: 'inherit',
+                      fontSize: '0.9rem',
+                      lineHeight: 1.5,
+                      color: '#78350f',
+                    }}>
+                      "{evidenceModalItem.snippet || 'No raw snippet recorded'}"
+                    </blockquote>
+                  </div>
+
+                  {evidenceModalItem.originalAnswer && (
+                    <div style={{ marginTop: '0.75rem' }}>
+                      <span style={{ fontSize: '0.78rem', color: '#166534', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                        Patient's Original Statement ({caseDetail?.language || 'Original Language'})
+                      </span>
+                      <blockquote style={{
+                        margin: 0,
+                        padding: '0.85rem 1rem',
+                        backgroundColor: '#f0fdf4',
+                        borderLeft: '4px solid #10b981',
+                        borderRadius: '4px',
+                        fontFamily: 'inherit',
+                        fontSize: '0.9rem',
+                        lineHeight: 1.5,
+                        color: '#14532d',
+                      }}>
+                        "{evidenceModalItem.originalAnswer}"
+                      </blockquote>
+                    </div>
                   )}
-                </div>
-              </div>
 
-              <div>
-                <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
-                  Canonical Clinical Interpretation (English)
-                </span>
-                <blockquote style={{
-                  margin: 0,
-                  padding: '0.85rem 1rem',
-                  backgroundColor: '#fffbeb',
-                  borderLeft: '4px solid #f59e0b',
-                  borderRadius: '4px',
-                  fontFamily: 'inherit',
-                  fontSize: '0.9rem',
-                  lineHeight: 1.5,
-                  color: '#78350f',
-                }}>
-                  "{evidenceModalItem.snippet || 'No raw snippet recorded'}"
-                </blockquote>
-              </div>
-
-              {evidenceModalItem.originalAnswer && (
-                <div style={{ marginTop: '0.75rem' }}>
-                  <span style={{ fontSize: '0.78rem', color: '#166534', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
-                    Patient's Original Statement ({caseDetail?.language || 'Original Language'})
-                  </span>
-                  <blockquote style={{
-                    margin: 0,
-                    padding: '0.85rem 1rem',
-                    backgroundColor: '#f0fdf4',
-                    borderLeft: '4px solid #10b981',
-                    borderRadius: '4px',
-                    fontFamily: 'inherit',
-                    fontSize: '0.9rem',
-                    lineHeight: 1.5,
-                    color: '#14532d',
-                  }}>
-                    "{evidenceModalItem.originalAnswer}"
-                  </blockquote>
-                </div>
-              )}
-
-              {evidenceModalItem.documentId && caseDetail && (
-                <div style={{ marginTop: '0.5rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => openDocumentFile(caseDetail.caseId, evidenceModalItem.documentId || '')}
-                    className="btn-back-link"
-                    style={{
-                      fontSize: '0.85rem',
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: 0,
-                      textDecoration: 'underline',
-                    }}
-                  >
-                    📄 Open Original Document File ↗
-                  </button>
-                </div>
+                  {evidenceModalItem.documentId && caseDetail && (
+                    <div style={{ marginTop: '0.5rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => openDocumentFile(caseDetail.caseId, evidenceModalItem.documentId || '')}
+                        className="btn-back-link"
+                        style={{
+                          fontSize: '0.85rem',
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: 0,
+                          textDecoration: 'underline',
+                        }}
+                      >
+                        📄 Open Original Document File ↗
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                caseDetail && (
+                  <PdfEvidenceViewer
+                    caseId={caseDetail.caseId}
+                    documentId={evidenceModalItem.documentId || (documents[0]?.id || documents[0]?.documentId) || ''}
+                    snippet={evidenceModalItem.snippet || evidenceModalItem.title}
+                    onClose={() => setEvidenceModalItem(null)}
+                  />
+                )
               )}
             </div>
 
