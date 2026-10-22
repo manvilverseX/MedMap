@@ -330,7 +330,7 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
             attempts = int(old_record.get("clarification_attempts", 0)) if isinstance(old_record, dict) else 0
 
             # Idempotency: if answer is identical and previously accepted (not in clarification), keep existing record
-            if old_answer == answer and isinstance(old_record, dict) and "clarification_needed" not in old_record:
+            if old_answer == answer and (not isinstance(old_record, dict) or "clarification_needed" not in old_record):
                 case_in.intakeAnswers[q_id] = old_record
                 continue
 
@@ -384,52 +384,61 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
             reason_code = None
             relevance_unchecked = False
 
+            is_none_matched = False
             if safety_check.is_escalated:
                 # Emergency content is accepted without clarification to trigger immediate escalation
                 needs_clar = False
             else:
-                # 2. Choice Questions Check: value must be one of the allowed options
-                q_obj = by_id.get(q_id)
-                if q_obj and q_obj.options and q_obj.inputType in ("choice", "radio", "select"):
-                    allowed_opts = [opt.casefold() for opt in q_obj.options]
-                    if english_answer.strip().casefold() not in allowed_opts:
-                        needs_clar = True
-                        reason_code = "ANSWER_INVALID"
-                        clar_prompt = "Please select one of the provided options."
+                from app.services.interview_engine.none_answers import allows_none, is_none_answer, get_canonical_none_value
 
-                # 3. Deterministic Free-Text Validation
-                if not needs_clar:
-                    val_res = validate_clinical_answer(
-                        q_id,
-                        english_answer,
-                        previous_attempts=attempts,
-                    )
-                    if val_res.needs_clarification:
-                        needs_clar = True
-                        clar_prompt = val_res.message
-                        reason_code = val_res.reason_code or "ANSWER_INVALID"
-
-                # 4. Relevance Check using Groq (when deterministic checks pass)
-                if not needs_clar:
-                    try:
-                        from app.services.interview_engine.policy_engine import CURATED_GAP_QUESTIONS
-                        if q_id in by_id:
-                            q_prompt = by_id[q_id].prompt
-                        elif q_id in CURATED_GAP_QUESTIONS:
-                            q_prompt = CURATED_GAP_QUESTIONS[q_id]["prompt"]
-                        else:
-                            q_prompt = "Patient answer:"
-
-                        llm_val = validate_answer_with_llm(q_prompt, english_answer)
-                        if llm_val.needs_clarification:
+                # Negative / None answer handling for questions with allowsNone=True
+                if allows_none(q_id) and (is_none_answer(original_lang_answer) or is_none_answer(english_answer)):
+                    needs_clar = False
+                    is_none_matched = True
+                    english_answer = get_canonical_none_value(q_id, original_lang_answer)
+                else:
+                    # 2. Choice Questions Check: value must be one of the allowed options
+                    q_obj = by_id.get(q_id)
+                    if q_obj and q_obj.options and q_obj.inputType in ("choice", "radio", "select"):
+                        allowed_opts = [opt.casefold() for opt in q_obj.options]
+                        if english_answer.strip().casefold() not in allowed_opts:
                             needs_clar = True
-                            clar_prompt = llm_val.clarifying_question or clar_prompt
-                            reason_code = llm_val.reason_code or "ANSWER_NOT_RELEVANT"
-                        if getattr(llm_val, "relevance_unchecked", False):
+                            reason_code = "ANSWER_INVALID"
+                            clar_prompt = "Please select one of the provided options."
+
+                    # 3. Deterministic Free-Text Validation
+                    if not needs_clar:
+                        val_res = validate_clinical_answer(
+                            q_id,
+                            english_answer,
+                            previous_attempts=attempts,
+                        )
+                        if val_res.needs_clarification:
+                            needs_clar = True
+                            clar_prompt = val_res.message
+                            reason_code = val_res.reason_code or "ANSWER_INVALID"
+
+                    # 4. Relevance Check using Groq (when deterministic checks pass)
+                    if not needs_clar:
+                        try:
+                            from app.services.interview_engine.policy_engine import CURATED_GAP_QUESTIONS
+                            if q_id in by_id:
+                                q_prompt = by_id[q_id].prompt
+                            elif q_id in CURATED_GAP_QUESTIONS:
+                                q_prompt = CURATED_GAP_QUESTIONS[q_id]["prompt"]
+                            else:
+                                q_prompt = "Patient answer:"
+
+                            llm_val = validate_answer_with_llm(q_prompt, english_answer)
+                            if llm_val.needs_clarification:
+                                needs_clar = True
+                                clar_prompt = llm_val.clarifying_question or clar_prompt
+                                reason_code = llm_val.reason_code or "ANSWER_NOT_RELEVANT"
+                            if getattr(llm_val, "relevance_unchecked", False):
+                                relevance_unchecked = True
+                        except Exception as e:
+                            logger.warning("Groq relevance check error: %s", e)
                             relevance_unchecked = True
-                    except Exception as e:
-                        logger.warning("Groq relevance check error: %s", e)
-                        relevance_unchecked = True
 
             # Format localized friendly message on rejection
             MESSAGES = {
@@ -471,7 +480,7 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
                 case_in.intakeAnswers[q_id] = record
             else:
                 # Valid answer accepted
-                if case_lang == "en":
+                if case_lang == "en" and not is_none_matched:
                     case_in.intakeAnswers[q_id] = english_answer
                 else:
                     record = {
@@ -480,9 +489,9 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
                         "originalValue": original_lang_answer,
                         "lang": case_lang,
                         "clarification_attempts": attempts,
-                        "translated": translation_was_successful,
-                        "translationFailed": not translation_was_successful,
-                        "translationPending": not translation_was_successful,
+                        "translated": True if is_none_matched else translation_was_successful,
+                        "translationFailed": False if is_none_matched else not translation_was_successful,
+                        "translationPending": False if is_none_matched else not translation_was_successful,
                     }
                     if relevance_unchecked:
                         record["relevanceUnchecked"] = True

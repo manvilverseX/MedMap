@@ -137,8 +137,9 @@ class AnswerValidation(BaseModel):
 def validate_answer_with_llm(question_prompt: str, answer_text: str) -> AnswerValidation:
     """Validate if a patient's answer is relevant and clinically plausible for this question."""
     # Fast path for obvious valid answers
+    from app.services.interview_engine.none_answers import is_none_answer
     stripped = answer_text.strip().casefold()
-    if not stripped or stripped in (
+    if not stripped or is_none_answer(answer_text) or stripped in (
         "no", "none", "n/a", "na", "nothing", "yes", "denies",
         "not sure", "don't know", "dont know", "never", "unknown"
     ):

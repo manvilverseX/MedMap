@@ -16,6 +16,9 @@ export interface IntakeQuestion {
 
   /** Placeholder text for the input field */
   placeholder: string;
+
+  /** Whether negative answers (e.g. none, no symptoms) are valid */
+  allowsNone?: boolean;
 }
 
 export const INTAKE_QUESTIONS: IntakeQuestion[] = [

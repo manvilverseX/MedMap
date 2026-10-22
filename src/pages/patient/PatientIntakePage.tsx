@@ -25,6 +25,7 @@ interface IntakeQuestion {
   clarificationOptions?: string[];
   clarificationOptionsLocalized?: string[];
   isOptional?: boolean;
+  allowsNone?: boolean;
 }
 
 interface IntakeSessionState {
@@ -476,14 +477,20 @@ export function PatientIntakePage() {
     const trimmed = value.trim().toLowerCase();
     if (trimmed.length === 0) return false;
 
-    // Allowed legitimate short direct answers
+    // Allowed legitimate short direct answers (including negative "none" answers)
     const allowed = new Set([
       "no", "none", "yes", "n/a", "na", "nil", "nothing", "never",
+      "no symptoms", "no other symptoms", "no associated symptoms",
+      "no known allergies", "no allergies", "no prior medical conditions", "no previous surgeries",
       "not sure", "dont know", "don't know", "unsure", "unknown",
-      "ಇಲ್ಲ", "ಗೊತ್ತಿಲ್ಲ", "ಯಾವುದೂ ಇಲ್ಲ", "ಹೌದು", "ತಿಳಿದಿಲ್ಲ",
-      "नहीं", "पता नहीं", "कुछ नहीं", "हाँ", "मालूम नहीं", "ना"
+      "ಇಲ್ಲ", "ಗೊತ್ತಿಲ್ಲ", "ಯಾವುದೂ ಇಲ್ಲ", "ಹೌದು", "ತಿಳಿದಿಲ್ಲ", "ಯಾವುದೇ ಲಕ್ಷಣಗಳಿಲ್ಲ", "ಏನೂ ಇಲ್ಲ", "ಯಾವ ಲಕ್ಷಣವೂ ಇಲ್ಲ", "ಯಾವುದೇ ಇತರ ಲಕ್ಷಣಗಳಿಲ್ಲ",
+      "नहीं", "पता नहीं", "कुछ नहीं", "हाँ", "मालूम नहीं", "ना", "कोई लक्षण नहीं", "नहीं है", "कोई अन्य लक्षण नहीं", "कोई नहीं",
+      "nahi", "nahin", "kuch nahi", "kuch nahin", "koi nahi", "koi lakshan nahi", "illa", "yavude illa", "enu illa"
     ]);
     if (allowed.has(trimmed)) return false;
+    const cleanAlpha = trimmed.replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+    if (allowed.has(cleanAlpha)) return false;
+    if (/^(no|none|nil|nothing|na|n a)(\s+(other\s+|associated\s+)?(symptoms?|issues?|problems?|allergies|medications?|conditions?|surgeries))?$/.test(cleanAlpha)) return false;
 
     // 1. Punctuation / emoji only
     if (!/[\p{L}\p{N}]/u.test(trimmed)) return true;
@@ -1293,11 +1300,11 @@ export function PatientIntakePage() {
           )}
 
           {/* Quick Option Pills */}
-          {currentQuestion.options && currentQuestion.options.length > 0 && (
+          {((currentQuestion.options && currentQuestion.options.length > 0) || currentQuestion.allowsNone) && (
             <div className="intake-options-group">
               <div className="intake-options-title">{t('intakeSuggestedOptions')}</div>
               <div className="intake-pills-container">
-                {currentQuestion.options.map((opt: any, idx: number) => {
+                {currentQuestion.options?.map((opt: any, idx: number) => {
                   const optValue = typeof opt === 'string' ? opt : (opt.value || opt.label || opt.id || String(opt));
                   const rawDisplay = currentQuestion.optionsLocalized?.[idx] || opt;
                   const displayLabel = typeof rawDisplay === 'string' ? rawDisplay : (rawDisplay.label || rawDisplay.value || String(rawDisplay));
@@ -1314,6 +1321,22 @@ export function PatientIntakePage() {
                     </button>
                   );
                 })}
+                {currentQuestion.allowsNone && !currentQuestion.options?.some((opt: any) => {
+                  const s = (typeof opt === 'string' ? opt : (opt.value || opt.label || '')).toLowerCase();
+                  return s.includes('no ') || s.includes('none') || s.includes('ಯಾವುದೇ') || s.includes('ಇಲ್ಲ') || s.includes('कोई') || s.includes('नहीं');
+                }) && (
+                  <button
+                    type="button"
+                    className={`intake-option-pill ${currentAnswer.trim().toLowerCase() === 'no other symptoms' || currentAnswer.trim().toLowerCase() === (normLang === 'kn' ? 'ಯಾವುದೇ ಇತರ ಲಕ್ಷಣಗಳಿಲ್ಲ' : normLang === 'hi' ? 'कोई अन्य लक्षण नहीं' : 'no other symptoms') ? 'intake-option-pill--selected' : ''}`}
+                    onClick={() => {
+                      const noneText = normLang === 'kn' ? 'ಯಾವುದೇ ಇತರ ಲಕ್ಷಣಗಳಿಲ್ಲ' : normLang === 'hi' ? 'कोई अन्य लक्षण नहीं' : 'No other symptoms';
+                      handleSelectOption('No other symptoms', noneText);
+                    }}
+                    disabled={isSubmitting}
+                  >
+                    {normLang === 'kn' ? 'ಯಾವುದೇ ಇತರ ಲಕ್ಷಣಗಳಿಲ್ಲ' : normLang === 'hi' ? 'कोई अन्य लक्षण नहीं' : 'No other symptoms'}
+                  </button>
+                )}
               </div>
             </div>
           )}

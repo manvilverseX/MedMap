@@ -310,6 +310,7 @@ class InterviewPolicyEngine:
         if not cc_text.strip():
             # Must ask Chief Complaint first
             q_dict = CURATED_GAP_QUESTIONS[ClinicalGap.CHIEF_COMPLAINT]
+            from app.services.interview_engine.none_answers import allows_none
             question = IntakeQuestion(
                 id=q_dict["id"],
                 category=q_dict["category"],
@@ -319,6 +320,7 @@ class InterviewPolicyEngine:
                 options=q_dict.get("options"),
                 gapExplored=ClinicalGap.CHIEF_COMPLAINT,
                 purpose="Establish primary reason for consultation",
+                allowsNone=allows_none(q_dict["id"]),
             )
             return IntakeState.QUESTION, question, None, None
 
@@ -400,6 +402,7 @@ class InterviewPolicyEngine:
             return IntakeState.COMPLETE, None, None, ai_plan.completion_reason or "ai_and_policy_agreed_complete"
 
         # 9. Construct the Authoritative Question
+        from app.services.interview_engine.none_answers import allows_none
         if use_ai_question and ai_plan and ai_plan.proposed_question:
             canonical_id = curated_template["id"]
             q_id = canonical_id if canonical_id not in answers else f"{canonical_id}_followup"
@@ -414,6 +417,7 @@ class InterviewPolicyEngine:
                 options=opts_tuple,
                 gapExplored=target_gap,
                 purpose=ai_plan.clinical_rationale or f"Explore {target_gap.replace('_', ' ')}",
+                allowsNone=allows_none(canonical_id),
             )
         else:
             # Curated Deterministic Fallback Question
@@ -427,6 +431,7 @@ class InterviewPolicyEngine:
                 options=curated_template.get("options"),
                 gapExplored=target_gap,
                 purpose=f"Deterministic fallback inquiry for {target_gap.replace('_', ' ')}",
+                allowsNone=allows_none(q_id),
             )
 
         return IntakeState.QUESTION, question, None, None

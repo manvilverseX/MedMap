@@ -45,6 +45,7 @@ class IntakeQuestion(BaseModel):
     optionsLocalized: Optional[tuple[str, ...]] = None
     clarificationOptionsLocalized: Optional[tuple[str, ...]] = None
     categoryLocalized: Optional[str] = None
+    allowsNone: bool = False
 
 
 class SafetyEscalation(BaseModel):

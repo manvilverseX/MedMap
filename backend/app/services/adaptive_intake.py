@@ -308,6 +308,16 @@ def validate_clinical_answer(
     if is_uncertain_answer(cleaned):
         return ValidationResult(False, None, None)
 
+    from app.services.interview_engine.none_answers import is_none_answer, allows_none
+
+    # Chief complaint requires a specific symptom or reason for visit, cannot be "none"
+    if question_id == "chief_complaint" and is_none_answer(cleaned):
+        return ValidationResult(True, "Please describe what symptom you are experiencing or the main reason for your visit today.", "ANSWER_INVALID")
+
+    # If the question allows negative/none responses and the answer is recognized in the lexicon:
+    if allows_none(question_id) and is_none_answer(cleaned):
+        return ValidationResult(False, None, None)
+
     # Common valid direct responses across English, Kannada, and Hindi
     valid_direct_responses = {
         # English
