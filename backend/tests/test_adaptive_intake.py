@@ -223,14 +223,20 @@ def test_uncertainty_is_respected_without_clarification_loop():
 
 
 def test_clarification_attempts_prevent_endless_loops():
+    """Updated for Issue B fix: Invalid/vague text must NEVER be accepted on resubmission.
+    Submitting the same invalid text repeatedly must continue to be rejected.
+    """
     from app.services.adaptive_intake import validate_clinical_answer
     # First attempt with vague answer triggers clarification
     needs_clar, _ = validate_clinical_answer("chief_complaint", "pain", previous_attempts=0)
     assert needs_clar is True
 
-    # Second attempt (after patient responded) accepts it to prevent frustration
+    # Resubmission of the same invalid answer must STILL be rejected (no pass-through)
     needs_clar, _ = validate_clinical_answer("chief_complaint", "pain", previous_attempts=1)
-    assert needs_clar is False
+    assert needs_clar is True
+
+    needs_clar, _ = validate_clinical_answer("chief_complaint", "pain", previous_attempts=2)
+    assert needs_clar is True
 
 
 def test_structured_intake_provenance():

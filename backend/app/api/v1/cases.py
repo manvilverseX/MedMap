@@ -345,52 +345,122 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
                 # Use english_answer for all subsequent validation
                 answer = english_answer
 
-            # Deterministic clinical validation (always on English)
-            needs_clar, clar_prompt = validate_clinical_answer(
-                q_id,
-                answer,
-                previous_attempts=attempts,
-            )
+            # ── Layered Answer Validation ──────────────────────────────────
+            # 1. Emergency / Red-Flag Safety Check: MUST RUN FIRST!
+            # Never block emergency content: if it triggers, accept and escalate immediately.
+            from app.services.interview_engine import evaluate_emergency_safety
+            tentative_for_safety = dict(current_case.intakeAnswers or {})
+            tentative_for_safety[q_id] = english_answer
+            safety_check = evaluate_emergency_safety(tentative_for_safety)
 
-            # Optional LLM validation if deterministic passed on first attempt
-            if not needs_clar and attempts == 0:
-                try:
-                    from app.services.interview_engine import CURATED_GAP_QUESTIONS
-                    if q_id in by_id:
-                        q_prompt = by_id[q_id].prompt
-                    elif q_id in CURATED_GAP_QUESTIONS:
-                        q_prompt = CURATED_GAP_QUESTIONS[q_id]["prompt"]
-                    else:
-                        q_prompt = "Patient answer:"
-                    val = validate_answer_with_llm(q_prompt, answer)
-                    if val.needs_clarification:
+            needs_clar = False
+            clar_prompt = None
+            reason_code = None
+            relevance_unchecked = False
+
+            if safety_check.is_escalated:
+                # Emergency content is accepted without clarification to trigger immediate escalation
+                needs_clar = False
+            else:
+                # 2. Choice Questions Check: value must be one of the allowed options
+                q_obj = by_id.get(q_id)
+                if q_obj and q_obj.options and q_obj.inputType in ("choice", "radio", "select"):
+                    allowed_opts = [opt.casefold() for opt in q_obj.options]
+                    if english_answer.strip().casefold() not in allowed_opts:
                         needs_clar = True
-                        clar_prompt = val.clarifying_question or "Please clarify this answer."
-                except Exception:
-                    pass
+                        reason_code = "ANSWER_INVALID"
+                        clar_prompt = "Please select one of the provided options."
+
+                # 3. Deterministic Free-Text Validation
+                if not needs_clar:
+                    val_res = validate_clinical_answer(
+                        q_id,
+                        english_answer,
+                        previous_attempts=attempts,
+                    )
+                    if val_res.needs_clarification:
+                        needs_clar = True
+                        clar_prompt = val_res.message
+                        reason_code = val_res.reason_code or "ANSWER_INVALID"
+
+                # 4. Relevance Check using Groq (when deterministic checks pass)
+                if not needs_clar:
+                    try:
+                        from app.services.interview_engine.policy_engine import CURATED_GAP_QUESTIONS
+                        if q_id in by_id:
+                            q_prompt = by_id[q_id].prompt
+                        elif q_id in CURATED_GAP_QUESTIONS:
+                            q_prompt = CURATED_GAP_QUESTIONS[q_id]["prompt"]
+                        else:
+                            q_prompt = "Patient answer:"
+
+                        llm_val = validate_answer_with_llm(q_prompt, english_answer)
+                        if llm_val.needs_clarification:
+                            needs_clar = True
+                            clar_prompt = llm_val.clarifying_question or clar_prompt
+                            reason_code = llm_val.reason_code or "ANSWER_NOT_RELEVANT"
+                        if getattr(llm_val, "relevance_unchecked", False):
+                            relevance_unchecked = True
+                    except Exception as e:
+                        logger.warning("Groq relevance check error: %s", e)
+                        relevance_unchecked = True
+
+            # Format localized friendly message on rejection
+            MESSAGES = {
+                "ANSWER_INVALID": {
+                    "en": "Please describe your symptoms using clear words so your care team can understand. (Example: 'Throbbing headache for 2 days')",
+                    "kn": "ನಿಮ್ಮ ವೈದ್ಯರಿಗೆ ಅರ್ಥವಾಗಲು ದಯವಿಟ್ಟು ಸ್ಪಷ್ಟವಾದ ಪದಗಳಲ್ಲಿ ವಿವರಿಸಿ. (ಉದಾಹರಣೆ: '೨ ದಿನಗಳಿಂದ ತಲೆನೋವು')",
+                    "hi": "अपने डॉक्टर को समझने में मदद के लिए कृपया स्पष्ट शब्दों में बताएं। (उदाहरण: '२ दिनों से तेज सिरदर्द')",
+                },
+                "ANSWER_NOT_RELEVANT": {
+                    "en": "Your answer does not seem related to this question. Please answer what was asked, or type 'Not sure'. (Example: 'Fever since yesterday')",
+                    "kn": "ನಿಮ್ಮ ಉತ್ತರವು ಈ ಪ್ರಶ್ನೆಗೆ ಸಂಬಂಧಪಟ್ಟಿಲ್ಲ ಎಂದು ತೋರುತ್ತಿದೆ. ದಯವಿಟ್ಟು ಕೇಳಿದ ಪ್ರಶ್ನೆಗೆ ಉತ್ತರಿಸಿ, ಅಥವಾ 'ಗೊತ್ತಿಲ್ಲ' ಎಂದು ತಿಳಿಸಿ. (ಉದಾಹರಣೆ: 'ನಿನ್ನೆಯಿಂದ ಜ್ವರ')",
+                    "hi": "आपका उत्तर इस प्रश्न से संबंधित नहीं लगता है। कृपया पूछे गए प्रश्न का उत्तर दें, या 'पता नहीं' लिखें। (उदाहरण: 'कल से बुखार')",
+                },
+                "ANSWER_TOO_SHORT": {
+                    "en": "Your answer is too short. Please describe your symptoms in a few words. (Example: 'Throat pain while swallowing')",
+                    "kn": "ನಿಮ್ಮ ಉತ್ತರ ತುಂಬಾ ಚಿಕ್ಕದಾಗಿದೆ. ದಯವಿಟ್ಟು ನಿಮ್ಮ ಲಕ್ಷಣಗಳನ್ನು ಕೆಲವು ಪದಗಳಲ್ಲಿ ವಿವರಿಸಿ. (ಉದಾಹರಣೆ: 'ನುಂಗುವಾಗ ಗಂಟಲು ನೋವು')",
+                    "hi": "आपका उत्तर बहुत छोटा है। कृपया अपने लक्षणों का कुछ शब्दों में वर्णन करें। (उदाहरण: 'निगलते समय गले में दर्द')",
+                },
+            }
 
             if needs_clar:
-                if case_lang != "en":
-                    # Keep original-language structure, add clarification
-                    existing = case_in.intakeAnswers.get(q_id, {})
-                    if isinstance(existing, dict):
-                        existing["clarification_needed"] = clar_prompt or "Please clarify this answer."
-                        existing["clarification_attempts"] = attempts + 1
-                        case_in.intakeAnswers[q_id] = existing
-                    else:
-                        case_in.intakeAnswers[q_id] = {
-                            "value": answer,
-                            "originalValue": original_lang_answer,
-                            "clarification_needed": clar_prompt or "Please clarify this answer.",
-                            "clarification_attempts": attempts + 1,
-                        }
+                code_msgs = MESSAGES.get(reason_code or "ANSWER_INVALID", MESSAGES["ANSWER_INVALID"])
+                friendly_msg = code_msgs.get(case_lang, clar_prompt or code_msgs["en"])
+
+                record = {
+                    "value": english_answer,
+                    "original": original_lang_answer,
+                    "originalValue": original_lang_answer,
+                    "lang": case_lang,
+                    "clarification_needed": friendly_msg,
+                    "reason_code": reason_code or "ANSWER_INVALID",
+                    "clarification_attempts": attempts + 1,
+                    "translated": translation_was_successful,
+                    "translationFailed": not translation_was_successful,
+                    "translationPending": not translation_was_successful,
+                }
+                if relevance_unchecked:
+                    record["relevanceUnchecked"] = True
+                case_in.intakeAnswers[q_id] = record
+            else:
+                # Valid answer accepted
+                if case_lang == "en":
+                    case_in.intakeAnswers[q_id] = english_answer
                 else:
-                    case_in.intakeAnswers[q_id] = {
-                        "value": answer,
-                        "originalValue": answer,
-                        "clarification_needed": clar_prompt or "Please clarify this answer.",
-                        "clarification_attempts": attempts + 1,
+                    record = {
+                        "value": english_answer,
+                        "original": original_lang_answer,
+                        "originalValue": original_lang_answer,
+                        "lang": case_lang,
+                        "clarification_attempts": attempts,
+                        "translated": translation_was_successful,
+                        "translationFailed": not translation_was_successful,
+                        "translationPending": not translation_was_successful,
                     }
+                    if relevance_unchecked:
+                        record["relevanceUnchecked"] = True
+                    case_in.intakeAnswers[q_id] = record
 
 
     case = case_service.update_case(db, case_id, case_in)

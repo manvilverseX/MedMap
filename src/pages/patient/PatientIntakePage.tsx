@@ -470,10 +470,33 @@ export function PatientIntakePage() {
    * Only applied to text / textarea inputs; option-pill selections are always valid.
    */
   const isMeaninglessTextAnswer = (value: string): boolean => {
-    const trimmed = value.trim();
-    if (trimmed.length === 0) return false; // empty is handled by the existing disabled check
-    // Allow any letter or number across Unicode (English, Hindi, Kannada, etc.)
-    return !/[\p{L}\p{N}]/u.test(trimmed);
+    const trimmed = value.trim().toLowerCase();
+    if (trimmed.length === 0) return false;
+
+    // Allowed legitimate short direct answers
+    const allowed = new Set([
+      "no", "none", "yes", "n/a", "na", "nil", "nothing", "never",
+      "not sure", "dont know", "don't know", "unsure", "unknown",
+      "ಇಲ್ಲ", "ಗೊತ್ತಿಲ್ಲ", "ಯಾವುದೂ ಇಲ್ಲ", "ಹೌದು", "ತಿಳಿದಿಲ್ಲ",
+      "नहीं", "पता नहीं", "कुछ नहीं", "हाँ", "मालूम नहीं", "ना"
+    ]);
+    if (allowed.has(trimmed)) return false;
+
+    // 1. Punctuation / emoji only
+    if (!/[\p{L}\p{N}]/u.test(trimmed)) return true;
+
+    // 2. URLs
+    if (/(https?:\/\/|www\.|\.com\b|\.org\b|\.net\b|\.in\b)/i.test(trimmed)) return true;
+
+    // 3. Repeated characters (e.g. aaaa, ಅಅಅಅ)
+    if (/(.)\1{3,}/u.test(trimmed)) return true;
+
+    // 4. Keyboard mash patterns
+    if (/(asdf|sdfg|dfgh|fghj|ghjk|hjkl|qwerty|zxcv)/i.test(trimmed)) return true;
+    if (/[bcdfghjklmnpqrstvwxyz]{5,}/i.test(trimmed)) return true;
+    if (/[a-z]/i.test(trimmed) && !/[aeiouy]/i.test(trimmed) && trimmed.length >= 4) return true;
+
+    return false;
   };
 
   const refreshAdaptiveState = useCallback(async (currentAnswers: Record<string, any>, mode?: string, questionId?: string) => {

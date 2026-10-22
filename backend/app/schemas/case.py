@@ -35,11 +35,18 @@ MAX_ANSWER_LENGTH = 5000
 ALLOWED_ANSWER_DICT_KEYS = {
     "value",
     "clarification_needed",
+    "reason_code",
     "original",
+    "originalValue",
     "lang",
     "translated",
     "translationFailed",
+    "translationPending",
+    "relevanceUnchecked",
     "uncertain",
+    "isClarified",
+    "isCorrected",
+    "isUncertain",
     "clarification_attempts",
 }
 

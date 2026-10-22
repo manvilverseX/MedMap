@@ -275,75 +275,96 @@ def is_uncertain_answer(text: str) -> bool:
     return any(marker in cleaned for marker in uncertain_markers)
 
 
+class ValidationResult(tuple):
+    """Subclass of tuple (needs_clarification, message) with reason_code.
+    Fully backwards-compatible with 2-tuple unpacking: `needs_clar, msg = validate_clinical_answer(...)`.
+    """
+    def __new__(cls, needs_clar: bool, message: Optional[str] = None, reason_code: Optional[str] = None):
+        return super().__new__(cls, (needs_clar, message))
+
+    def __init__(self, needs_clar: bool, message: Optional[str] = None, reason_code: Optional[str] = None):
+        self.needs_clarification = needs_clar
+        self.message = message
+        self.reason_code = reason_code
+
+
 def validate_clinical_answer(
     question_id: str,
     answer_text: str,
     previous_attempts: int = 0,
-) -> tuple[bool, Optional[str]]:
-    """Deterministic clinical validator to identify incomplete or ambiguous answers."""
-    # Never loop endlessly: if patient already attempted clarification once, accept their answer
-    if previous_attempts >= 1:
-        return False, None
-
+) -> ValidationResult:
+    """Deterministic clinical validator to identify incomplete, invalid, or ambiguous answers.
+    Strict answer validity: never accepts invalid answers on resubmission.
+    """
     cleaned = answer_text.strip().casefold()
     if not cleaned:
-        return False, None
+        return ValidationResult(False, None, None)
 
-    # Reject answers that contain no alphanumeric characters (e.g. ".", "...", "!?!").
-    # These are meaningless inputs that cannot convey any clinical information.
-    # This check runs before uncertainty/valid-response whitelists because those
-    # responses always contain at least one letter.
-    if not re.search(r"[a-z0-9]", cleaned):
-        return True, "Please describe your answer using words or numbers so your care team can understand."
+    # Reject answers that contain no alphanumeric or Indic script characters (e.g. ".", "...", "!?!", emoji only)
+    if not re.search(r"[\w\u0900-\u097F\u0C80-\u0CFF]", cleaned):
+        return ValidationResult(True, "Please describe your answer using words or numbers so your care team can understand.", "ANSWER_INVALID")
 
     # Never penalize uncertainty: if patient says they don't know, accept it without clarification
     if is_uncertain_answer(cleaned):
-        return False, None
+        return ValidationResult(False, None, None)
 
-    # Common valid negative or affirmative responses
+    # Common valid direct responses across English, Kannada, and Hindi
     valid_direct_responses = {
-        "no",
-        "none",
-        "no known allergies",
-        "no allergies",
-        "n/a",
-        "na",
-        "nil",
-        "nothing",
-        "never",
-        "denies",
+        # English
+        "no", "none", "no known allergies", "no allergies", "n/a", "na",
+        "nil", "nothing", "never", "denies", "yes", "i do", "i don't",
+        "dont know", "not sure", "unknown", "unsure",
+        # Kannada
+        "ಇಲ್ಲ", "ಗೊತ್ತಿಲ್ಲ", "ಯಾವುದೂ ಇಲ್ಲ", "ಹೌದು", "ತಿಳಿದಿಲ್ಲ", "ಇಲ್ಲವೇ ಇಲ್ಲ",
+        # Hindi
+        "नहीं", "पता नहीं", "कुछ नहीं", "हाँ", "मालूम नहीं", "ना",
     }
     if cleaned in valid_direct_responses:
-        return False, None
+        return ValidationResult(False, None, None)
 
-    # Deterministic nonsensical / uninterpretable input detection (e.g. keyboard mash 'asdfghjkl', consonant clusters, repeated chars)
-    has_repeated = bool(re.search(r"(.)\1{3,}", cleaned))
+    # URL / link rejection
+    if re.search(r"(https?://|www\.|\.com\b|\.org\b|\.net\b|\.in\b)", cleaned):
+        return ValidationResult(True, "Please describe your symptoms in words instead of web links.", "ANSWER_INVALID")
+
+    # Deterministic nonsensical / uninterpretable input detection
+    has_repeated_chars = bool(re.search(r"(.)\1{3,}", cleaned))
+    has_repeated_words = bool(re.search(r"\b(\w{2,})\s+\1\s+\1\b", cleaned))
     has_consonant_cluster = bool(re.search(r"[bcdfghjklmnpqrstvwxyz]{5,}", cleaned))
     has_row_mash = bool(re.search(r"(asdf|sdfg|dfgh|fghj|ghjk|hjkl|qwerty|zxcv)", cleaned))
     has_no_vowels = bool(re.search(r"[a-z]", cleaned)) and not bool(re.search(r"[aeiouy]", cleaned)) and len(cleaned) >= 4
-    if has_repeated or has_consonant_cluster or has_row_mash or has_no_vowels:
-        return True, "Could you please describe your symptoms in clear words so your care team can understand?"
+    if has_repeated_chars or has_repeated_words or has_consonant_cluster or has_row_mash or has_no_vowels:
+        return ValidationResult(True, "Could you please describe your symptoms in clear words so your care team can understand?", "ANSWER_INVALID")
+
+    # Digits-only check: allowed for questions that accept numeric input (duration, severity, age)
+    numeric_questions = {"age", "duration", "severity", "pain_scale", "symptom_duration", "blood_pressure", "weight", "present_illness"}
+    if re.fullmatch(r"[\d\s\.,/-]+", cleaned):
+        if question_id not in numeric_questions:
+            return ValidationResult(True, "Please describe your symptoms using words, not just numbers.", "ANSWER_INVALID")
+
+    # Text far too short (single meaningless letter, etc., e.g. "a", "x", "?")
+    if len(cleaned) < 2 and question_id not in numeric_questions:
+        return ValidationResult(True, "Your answer is too short. Please describe your symptoms in a few words.", "ANSWER_TOO_SHORT")
 
     # Question-specific ambiguity detection
     if question_id == "chief_complaint":
         vague_single_terms = {"sick", "pain", "problem", "hurt", "bad", "issue", "not well", "unwell", "ill", "checkup"}
         if cleaned in vague_single_terms or (len(cleaned) < 15 and any(w in cleaned.split() for w in vague_single_terms) and len(cleaned.split()) <= 2):
-            return True, "Could you tell us what specific symptom you are experiencing or which part of your body is affected?"
+            return ValidationResult(True, "Could you tell us what specific symptom you are experiencing or which part of your body is affected?", "ANSWER_INVALID")
 
     elif question_id == "present_illness":
         vague_time_terms = {"recently", "sometime", "a while", "today", "few days", "some time", "yesterday"}
         if cleaned in vague_time_terms:
-            return True, "Could you specify approximately how long you have had these symptoms (e.g. hours, days, or weeks)?"
+            return ValidationResult(True, "Could you specify approximately how long you have had these symptoms (e.g. hours, days, or weeks)?", "ANSWER_INVALID")
 
     elif question_id == "allergies":
         if cleaned in {"yes", "i have allergies", "allergies", "allergic"}:
-            return True, "Please specify which medications, foods, or substances you are allergic to (or select 'Not sure')."
+            return ValidationResult(True, "Please specify which medications, foods, or substances you are allergic to (or select 'Not sure').", "ANSWER_INVALID")
 
     elif question_id == "medications":
         if cleaned in {"yes", "taking pills", "medication", "meds", "tablets"}:
-            return True, "Please list the names of the medications you are currently taking (or indicate if you don't recall)."
+            return ValidationResult(True, "Please list the names of the medications you are currently taking (or indicate if you don't recall).", "ANSWER_INVALID")
 
-    return False, None
+    return ValidationResult(False, None, None)
 
 
 def _normalized_answers(answers: Any) -> Mapping[str, Any]:
@@ -626,11 +647,14 @@ def select_intake_state(
         if target_clar_id:
             raw_val = answer_map.get(target_clar_id)
             issue_text = "The saved answer needs clarification"
+            reason_code = None
             orig_answer = extract_answer_text(raw_val)
             attempts = 1
             if isinstance(raw_val, Mapping):
                 if "clarification_needed" in raw_val:
                     issue_text = str(raw_val["clarification_needed"])
+                if "reason_code" in raw_val:
+                    reason_code = str(raw_val["reason_code"])
                 attempts = int(raw_val.get("clarification_attempts", 1))
 
             target_q = by_id.get(target_clar_id)
@@ -652,6 +676,7 @@ def select_intake_state(
                 state=IntakeState.CLARIFICATION,
                 currentQuestion=target_q,
                 issue=issue_text,
+                reasonCode=reason_code,
                 originalAnswer=orig_answer,
                 clarificationAttempts=attempts,
                 previousQuestionId=prev_id,

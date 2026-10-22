@@ -89,6 +89,7 @@ class IntakeSessionState(BaseModel):
     malformedAnswerQuestionIds: List[str]
     issue: Optional[str] = None
     issueLocalized: Optional[str] = None
+    reasonCode: Optional[str] = None
     previousQuestionId: Optional[str] = None
     originalAnswer: Optional[str] = None
     clarificationAttempts: int = 0

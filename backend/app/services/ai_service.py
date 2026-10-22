@@ -1,5 +1,6 @@
 import os
 import json
+from typing import Optional
 from groq import Groq
 from pydantic import BaseModel
 from app.schemas.case import AISummary
@@ -116,44 +117,60 @@ def generate_clinical_brief(intake_answers: dict) -> dict:
         logger.warning(f"Groq AI Generation failed ({type(e).__name__}: {str(e)}). Using offline demo fallback.")
         return generate_clinical_brief_fallback(intake_answers)
 
+class GroqValidationSchema(BaseModel):
+    valid: bool
+    reason_code: Optional[str] = None
+    clarifying_question: Optional[str] = None
+
+
 class AnswerValidation(BaseModel):
-    needs_clarification: bool
-    clarifying_question: str | None
+    valid: bool = True
+    reason_code: Optional[str] = None
+    clarifying_question: Optional[str] = None
+    relevance_unchecked: bool = False
+
+    @property
+    def needs_clarification(self) -> bool:
+        return not self.valid
+
 
 def validate_answer_with_llm(question_prompt: str, answer_text: str) -> AnswerValidation:
-    """Validate if a patient's answer needs clarification."""
+    """Validate if a patient's answer is relevant and clinically plausible for this question."""
     # Fast path for obvious valid answers
     stripped = answer_text.strip().casefold()
-    if not stripped or stripped in ("no", "none", "n/a", "na", "nothing", "yes"):
-        return AnswerValidation(needs_clarification=False, clarifying_question=None)
-        
+    if not stripped or stripped in (
+        "no", "none", "n/a", "na", "nothing", "yes", "denies",
+        "not sure", "don't know", "dont know", "never", "unknown"
+    ):
+        return AnswerValidation(valid=True, clarifying_question=None)
+
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        return AnswerValidation(needs_clarification=False, clarifying_question=None)
-    
+        return AnswerValidation(valid=True, relevance_unchecked=True)
+
     model_name = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
     client = Groq(api_key=api_key)
-    
-    schema_dict = AnswerValidation.model_json_schema()
+
+    schema_dict = GroqValidationSchema.model_json_schema()
     schema_dict["additionalProperties"] = False
-    
-    prompt = f"""
-    You are an AI assistant helping with a medical intake form. 
-    The patient was asked: "{question_prompt}"
-    The patient answered: "{answer_text}"
-    
-    Determine if the answer is confusing, nonsensical, or clearly missing critical context required for the question.
-    If the answer is reasonably clear (even if brief), return needs_clarification=False.
-    If the answer is a simple greeting, completely unrelated, or vague like "Recently", return needs_clarification=True and provide a brief, polite clarifying_question asking for the missing detail (e.g. "Could you give an approximate duration, such as a few hours, days, or weeks?").
-    Do NOT ask for clarification if the answer is merely short but makes sense in context.
-    """
-    
+    schema_dict["required"] = ["valid", "reason_code", "clarifying_question"]
+
+    prompt = f"""You are a clinical intake validation assistant.
+The clinical question asked: "{question_prompt}"
+The patient's answer: "{answer_text}"
+
+Evaluate whether the answer is a plausible, relevant response to THIS question.
+Rules:
+1. Plausible medical descriptions, symptoms, duration, feelings, history, or uncertainty (e.g. "I don't know", "Not sure", "None", "No", "Yes") are VALID (valid=true, reason_code=null, clarifying_question=null).
+2. Off-topic statements (e.g. discussing weather, food recipes, movies, politics, or unrelated topics) are INVALID: return valid=false, reason_code="ANSWER_NOT_RELEVANT", clarifying_question="Your answer does not seem related to this question. Please answer what was asked, or type 'Not sure'."
+3. Confusing, nonsensical, or vague single terms (e.g. "sick", "problem") that lack critical context: return valid=false, reason_code="ANSWER_INVALID", clarifying_question="Could you please describe what specific symptoms you are experiencing?"
+4. Return ONLY strict JSON adhering to the schema.
+"""
+
     try:
         response = client.chat.completions.create(
             model=model_name,
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
+            messages=[{"role": "user", "content": prompt}],
             response_format={
                 "type": "json_schema",
                 "json_schema": {
@@ -161,13 +178,21 @@ def validate_answer_with_llm(question_prompt: str, answer_text: str) -> AnswerVa
                     "strict": True,
                     "schema": schema_dict,
                 },
-            }
+            },
+            timeout=8.0,
         )
-        
-        result_text = response.choices[0].message.content
-        return AnswerValidation.model_validate_json(result_text)
+
+        result_text = response.choices[0].message.content or ""
+        parsed = GroqValidationSchema.model_validate_json(result_text)
+        return AnswerValidation(
+            valid=parsed.valid,
+            reason_code=parsed.reason_code if not parsed.valid else None,
+            clarifying_question=parsed.clarifying_question if not parsed.valid else None,
+            relevance_unchecked=False,
+        )
     except Exception as e:
-        # If LLM fails, fallback to accepting the answer to avoid blocking the user
-        import logging
-        logging.error(f"Clarification validation failed: {e}")
-        return AnswerValidation(needs_clarification=False, clarifying_question=None)
+        logger.warning(
+            "Groq answer relevance validation failed (%s). Falling back to deterministic checks.",
+            e,
+        )
+        return AnswerValidation(valid=True, relevance_unchecked=True)
