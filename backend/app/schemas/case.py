@@ -113,3 +113,5 @@ class CaseResponse(BaseModel):
     clinicalAssessment: Optional[Dict[str, Any]] = None
     aiSummary: Optional[AISummary] = None
     reviewerId: Optional[str] = None
+    adaptiveState: Optional[Dict[str, Any]] = None
+    nextQuestion: Optional[Dict[str, Any]] = None

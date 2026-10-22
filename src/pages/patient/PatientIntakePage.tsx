@@ -631,7 +631,28 @@ export function PatientIntakePage() {
       const updatedCase = await updateCase(caseId, { intakeAnswers: newAnswers });
       const savedAnswers = updatedCase.intakeAnswers || newAnswers;
       setAnswers(savedAnswers);
-      await refreshAdaptiveState(savedAnswers);
+      
+      // Use next-question / adaptiveState payload returned directly by PUT /cases/{id}
+      if (updatedCase.adaptiveState) {
+        setSessionState(updatedCase.adaptiveState);
+        if (updatedCase.adaptiveState.state === 'complete') {
+          setIsReviewing(true);
+        } else {
+          setIsReviewing(false);
+        }
+        if (updatedCase.adaptiveState.currentQuestion) {
+          const rawAns = savedAnswers[updatedCase.adaptiveState.currentQuestion.id];
+          if (rawAns !== undefined) {
+            setCurrentAnswer(typeof rawAns === 'string' ? rawAns : rawAns.value || '');
+          } else {
+            setCurrentAnswer('');
+          }
+        } else {
+          setCurrentAnswer('');
+        }
+      } else {
+        await refreshAdaptiveState(savedAnswers);
+      }
     } catch (err: any) {
       setCurrentAnswer(answerValue);
       setQuestionError({

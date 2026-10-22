@@ -179,7 +179,7 @@ Rules:
                     "schema": schema_dict,
                 },
             },
-            timeout=8.0,
+            timeout=3.5,
         )
 
         result_text = response.choices[0].message.content or ""

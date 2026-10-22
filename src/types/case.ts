@@ -22,6 +22,8 @@ export interface ClinicalCase {
   };
   derivedClinicalData?: Record<string, any>;
   reviewerId?: string;
+  adaptiveState?: any;
+  nextQuestion?: any;
 }
 
 export interface SafetyEscalation {

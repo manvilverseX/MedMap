@@ -50,13 +50,174 @@ def get_case(case_id: str, db: Session = Depends(get_db), current_user: Dict[str
     return case
 
 
+def build_localized_adaptive_state(
+    case: Any,
+    db: Optional[Session] = None,
+    mode: Optional[str] = None,
+    question_id: Optional[str] = None,
+) -> IntakeSessionState:
+    from app.services.adaptive_intake import select_intake_state
+    from app.services.translation_service import (
+        normalise_lang, translate_texts, FALLBACK_NOTICE, AI_TRANSLATION_TAG
+    )
+
+    session_state = select_intake_state(
+        case.intakeAnswers,
+        mode=mode,
+        question_id=question_id,
+    )
+
+    lang = normalise_lang(getattr(case, 'language', None))
+    if lang == "en":
+        return session_state
+
+    texts_to_translate: list[str] = []
+    field_index: dict[str, int] = {}
+
+    def _enqueue(key: str, text: Optional[str]) -> None:
+        if text:
+            field_index[key] = len(texts_to_translate)
+            texts_to_translate.append(text)
+
+    if session_state.currentQuestion is not None:
+        q = session_state.currentQuestion
+        _enqueue("category", q.category)
+        _enqueue("prompt", q.prompt)
+        _enqueue("helperText", q.helperText)
+        option_start = len(texts_to_translate)
+        for opt in (q.options or []):
+            texts_to_translate.append(opt)
+        option_end = len(texts_to_translate)
+        clarif_start = len(texts_to_translate)
+        for opt in (q.clarificationOptions or []):
+            texts_to_translate.append(opt)
+        clarif_end = len(texts_to_translate)
+    else:
+        option_start = option_end = clarif_start = clarif_end = 0
+
+    issue_start = len(texts_to_translate)
+    if session_state.issue:
+        texts_to_translate.append(session_state.issue)
+    issue_end = len(texts_to_translate)
+
+    if session_state.safetyEscalation is not None:
+        esc = session_state.safetyEscalation
+        _enqueue("esc_title", esc.title)
+        _enqueue("esc_message", esc.message)
+        _enqueue("esc_instructions", esc.instructions)
+        rf_start = len(texts_to_translate)
+        for rf in (esc.redFlags or []):
+            texts_to_translate.append(rf)
+        rf_end = len(texts_to_translate)
+    else:
+        rf_start = rf_end = 0
+
+    if session_state.clinicalProgress is not None:
+        cp = session_state.clinicalProgress
+        _enqueue("cp_activeDomain", cp.activeDomain)
+        dom_start = len(texts_to_translate)
+        for dom in (cp.domainsExplored or []):
+            texts_to_translate.append(dom)
+        dom_end = len(texts_to_translate)
+    else:
+        dom_start = dom_end = 0
+
+    try:
+        translated_list, was_translated = translate_texts(
+            texts_to_translate, lang, db=db
+        )
+    except Exception as exc:
+        logger.warning("Translation failed in build_localized_adaptive_state: %s", exc)
+        translated_list = texts_to_translate
+        was_translated = False
+
+    fallback_notice = None if was_translated else FALLBACK_NOTICE.get(lang)
+    ai_tag = AI_TRANSLATION_TAG.get(lang) if was_translated else None
+
+    def _get(key: str, default: Optional[str] = None) -> Optional[str]:
+        idx = field_index.get(key)
+        if idx is None:
+            return default
+        return translated_list[idx] if was_translated else default
+
+    updates: dict[str, Any] = {
+        "translated": was_translated,
+        "translationLang": lang,
+        "translationFallbackNotice": fallback_notice,
+        "aiTranslationTag": ai_tag,
+    }
+
+    if session_state.currentQuestion is not None:
+        localized_options = (
+            tuple(translated_list[option_start:option_end])
+            if was_translated and option_end > option_start
+            else None
+        )
+        localized_clarif = (
+            tuple(translated_list[clarif_start:clarif_end])
+            if was_translated and clarif_end > clarif_start
+            else None
+        )
+        localized_q = session_state.currentQuestion.model_copy(update={
+            "categoryLocalized": _get("category"),
+            "promptLocalized": _get("prompt"),
+            "helperTextLocalized": _get("helperText"),
+            "optionsLocalized": localized_options,
+            "clarificationOptionsLocalized": localized_clarif,
+        })
+        updates["currentQuestion"] = localized_q
+
+    if issue_end > issue_start:
+        updates["issueLocalized"] = translated_list[issue_start] if was_translated else None
+
+    if session_state.safetyEscalation is not None:
+        esc = session_state.safetyEscalation
+        localized_rfs = (
+            list(translated_list[rf_start:rf_end])
+            if was_translated and rf_end > rf_start
+            else None
+        )
+        title_loc = _get("esc_title")
+        msg_loc = _get("esc_message")
+        inst_loc = _get("esc_instructions")
+        localized_esc = esc.model_copy(update={
+            "titleLocalized": title_loc,
+            "messageLocalized": msg_loc,
+            "instructionsLocalized": inst_loc,
+            "redFlagsLocalized": localized_rfs,
+            "headlineLocalized": title_loc,
+            "reasonLocalized": msg_loc,
+            "guidanceLocalized": inst_loc,
+            "headline": esc.title,
+            "reason": esc.message,
+            "guidance": esc.instructions,
+            "redFlagsDetected": esc.redFlags,
+        })
+        updates["safetyEscalation"] = localized_esc
+
+    if session_state.clinicalProgress is not None:
+        cp = session_state.clinicalProgress
+        localized_doms = (
+            list(translated_list[dom_start:dom_end])
+            if was_translated and dom_end > dom_start
+            else None
+        )
+        localized_cp = cp.model_copy(update={
+            "activeDomainLocalized": _get("cp_activeDomain"),
+            "domainsExploredLocalized": localized_doms,
+        })
+        updates["clinicalProgress"] = localized_cp
+
+    return session_state.model_copy(update=updates)
+
+
 @router.get("/{case_id}/adaptive-intake", response_model=IntakeSessionState)
 def get_adaptive_intake_state(
     case_id: str,
-    mode: Optional[IntakeRequestMode] = Query(None),
-    question_id: Optional[str] = Query(None),
+    mode: Optional[str] = None,
+    question_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(require_patient_or_doctor),
+    current_user: Dict[str, Any] = Depends(require_patient_or_doctor)
 ):
     if current_user.get("role") == "patient" and current_user.get("case_id") != case_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this case")
@@ -68,160 +229,18 @@ def get_adaptive_intake_state(
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
 
-    from app.services.adaptive_intake import select_intake_state
-    from app.services.translation_service import (
-        normalise_lang, translate_texts, FALLBACK_NOTICE, AI_TRANSLATION_TAG
-    )
-
     try:
-        session_state = select_intake_state(
-            case.intakeAnswers,
-            mode=mode,
-            question_id=question_id,
-        )
+        session_state = build_localized_adaptive_state(case, db=db, mode=mode, question_id=question_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    # ── Localise the current question for non-English cases ──────────────
-    lang = normalise_lang(getattr(case, 'language', None))
-    if lang != "en":
-        # Collect all English strings that need translating in one batch call
-        texts_to_translate: list[str] = []
-        field_index: dict[str, int] = {}
-
-        def _enqueue(key: str, text: Optional[str]) -> None:
-            if text:
-                field_index[key] = len(texts_to_translate)
-                texts_to_translate.append(text)
-
-        if session_state.currentQuestion is not None:
-            q = session_state.currentQuestion
-            _enqueue("category", q.category)
-            _enqueue("prompt", q.prompt)
-            _enqueue("helperText", q.helperText)
-            option_start = len(texts_to_translate)
-            for opt in (q.options or []):
-                texts_to_translate.append(opt)
-            option_end = len(texts_to_translate)
-            clarif_start = len(texts_to_translate)
-            for opt in (q.clarificationOptions or []):
-                texts_to_translate.append(opt)
-            clarif_end = len(texts_to_translate)
-        else:
-            option_start = option_end = clarif_start = clarif_end = 0
-
-        # Translate issue text if present
-        issue_start = len(texts_to_translate)
-        if session_state.issue:
-            texts_to_translate.append(session_state.issue)
-        issue_end = len(texts_to_translate)
-
-        # Translate safetyEscalation if present
-        if session_state.safetyEscalation is not None:
-            esc = session_state.safetyEscalation
-            _enqueue("esc_title", esc.title)
-            _enqueue("esc_message", esc.message)
-            _enqueue("esc_instructions", esc.instructions)
-            rf_start = len(texts_to_translate)
-            for rf in (esc.redFlags or []):
-                texts_to_translate.append(rf)
-            rf_end = len(texts_to_translate)
-        else:
-            rf_start = rf_end = 0
-
-        # Translate clinicalProgress if present
-        if session_state.clinicalProgress is not None:
-            cp = session_state.clinicalProgress
-            _enqueue("cp_activeDomain", cp.activeDomain)
-            dom_start = len(texts_to_translate)
-            for dom in (cp.domainsExplored or []):
-                texts_to_translate.append(dom)
-            dom_end = len(texts_to_translate)
-        else:
-            dom_start = dom_end = 0
-
-        translated_list, was_translated = translate_texts(
-            texts_to_translate, lang, db=db
-        )
-
-        fallback_notice = None if was_translated else FALLBACK_NOTICE.get(lang)
-        ai_tag = AI_TRANSLATION_TAG.get(lang) if was_translated else None
-
-        def _get(key: str, default: Optional[str] = None) -> Optional[str]:
-            idx = field_index.get(key)
-            if idx is None:
-                return default
-            return translated_list[idx] if was_translated else default
-
-        updates: dict[str, Any] = {
-            "translated": was_translated,
-            "translationLang": lang,
-            "translationFallbackNotice": fallback_notice,
-            "aiTranslationTag": ai_tag,
-        }
-
-        if session_state.currentQuestion is not None:
-            localized_options = (
-                tuple(translated_list[option_start:option_end])
-                if was_translated and option_end > option_start
-                else None
-            )
-            localized_clarif = (
-                tuple(translated_list[clarif_start:clarif_end])
-                if was_translated and clarif_end > clarif_start
-                else None
-            )
-            localized_q = session_state.currentQuestion.model_copy(update={
-                "categoryLocalized": _get("category"),
-                "promptLocalized": _get("prompt"),
-                "helperTextLocalized": _get("helperText"),
-                "optionsLocalized": localized_options,
-                "clarificationOptionsLocalized": localized_clarif,
-            })
-            updates["currentQuestion"] = localized_q
-
-        if issue_end > issue_start:
-            updates["issueLocalized"] = translated_list[issue_start] if was_translated else None
-
-        if session_state.safetyEscalation is not None:
-            esc = session_state.safetyEscalation
-            localized_rfs = (
-                list(translated_list[rf_start:rf_end])
-                if was_translated and rf_end > rf_start
-                else None
-            )
-            title_loc = _get("esc_title")
-            msg_loc = _get("esc_message")
-            inst_loc = _get("esc_instructions")
-            localized_esc = esc.model_copy(update={
-                "titleLocalized": title_loc,
-                "messageLocalized": msg_loc,
-                "instructionsLocalized": inst_loc,
-                "redFlagsLocalized": localized_rfs,
-                "headlineLocalized": title_loc,
-                "reasonLocalized": msg_loc,
-                "guidanceLocalized": inst_loc,
-                "headline": esc.title,
-                "reason": esc.message,
-                "guidance": esc.instructions,
-                "redFlagsDetected": esc.redFlags,
-            })
-            updates["safetyEscalation"] = localized_esc
-
-        if session_state.clinicalProgress is not None:
-            cp = session_state.clinicalProgress
-            localized_doms = (
-                list(translated_list[dom_start:dom_end])
-                if was_translated and dom_end > dom_start
-                else None
-            )
-            localized_cp = cp.model_copy(update={
-                "activeDomainLocalized": _get("cp_activeDomain"),
-                "domainsExploredLocalized": localized_doms,
-            })
-            updates["clinicalProgress"] = localized_cp
-
-        session_state = session_state.model_copy(update=updates)
+    except Exception as exc:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        logger.error("Failed to build localized adaptive state: %s", exc)
+        from app.services.adaptive_intake import select_intake_state
+        session_state = select_intake_state(case.intakeAnswers, mode=mode, question_id=question_id)
 
     logger.info("[TIMING] GET /cases/%s/adaptive-intake finished in %.3fs", case_id, time.perf_counter() - t_start)
     return session_state
@@ -470,7 +489,15 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
                     case_in.intakeAnswers[q_id] = record
 
 
-    case = case_service.update_case(db, case_id, case_in)
+    try:
+        case = case_service.update_case(db, case_id, case_in)
+    except Exception as exc:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        logger.error("case_service.update_case failed (rolled back): %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to update case answers") from exc
 
     # Feature Four: Structured medical history and human-in-the-loop provenance
     from app.services.adaptive_intake import build_structured_intake
@@ -563,6 +590,15 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
         log_clinical_event(db, case_id, "patient_verified", {"patientId": current_case.patientId, "actor": "patient"})
     if case_in.status == CaseStatus.COMPLETED and current_case.status != CaseStatus.COMPLETED.value:
         log_clinical_event(db, case_id, "case_finalized", {"reviewerId": current_user.get("sub"), "doctor": current_user.get("username", "doctor"), "actor": "doctor"})
+
+    try:
+        adaptive_state_obj = build_localized_adaptive_state(case, db=db)
+        adaptive_payload = adaptive_state_obj.model_dump()
+        setattr(case, "adaptiveState", adaptive_payload)
+        if adaptive_payload and "currentQuestion" in adaptive_payload:
+            setattr(case, "nextQuestion", adaptive_payload["currentQuestion"])
+    except Exception as exc:
+        logger.warning("Failed to build inline adaptive state in update_case: %s", exc)
 
     logger.info("[TIMING] PUT /cases/%s finished in %.3fs", case_id, time.perf_counter() - t_start)
     return case
