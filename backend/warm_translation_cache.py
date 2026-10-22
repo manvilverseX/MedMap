@@ -43,8 +43,22 @@ from app.services.interview_engine.policy_engine import CURATED_GAP_QUESTIONS
 from app.services.interview_engine.ayush_questions import AYUSH_QUESTIONS
 
 
+import json
+
+
 def parse_dictionaries() -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str]]:
-    """Extract EN, HI, and KN key-value pairs from src/i18n/strings.ts."""
+    """Extract EN, HI, and KN key-value pairs from backend static bank or src/i18n/strings.ts."""
+    bank_path = backend_dir / "app" / "data" / "curated_translations_hi_kn.json"
+    if bank_path.exists():
+        try:
+            bank = json.loads(bank_path.read_text(encoding="utf-8"))
+            en_dict = {f"k_{i}": en_text for i, en_text in enumerate(bank.keys())}
+            hi_dict = {f"k_{i}": trans.get("hi", "") for i, trans in enumerate(bank.values())}
+            kn_dict = {f"k_{i}": trans.get("kn", "") for i, trans in enumerate(bank.values())}
+            return en_dict, hi_dict, kn_dict
+        except Exception as e:
+            print(f"[WARN] Failed to load static bank in warm script: {e}")
+
     candidates = [
         backend_dir.parent / "src" / "i18n" / "strings.ts",
         Path("src/i18n/strings.ts"),

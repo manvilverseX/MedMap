@@ -67,6 +67,56 @@ def _lru_set(key: tuple[str, str], value: str) -> None:
     _lru_cache[key] = value
 
 
+from pathlib import Path
+
+# ── Static Curated Bank ───────────────────────────────────────────────────────
+
+_STATIC_BANK: Optional[dict[str, dict[str, str]]] = None
+_REVERSE_STATIC_BANK: Optional[dict[str, dict[str, str]]] = None
+
+
+def _load_static_bank() -> tuple[dict[str, dict[str, str]], dict[str, dict[str, str]]]:
+    global _STATIC_BANK, _REVERSE_STATIC_BANK
+    if _STATIC_BANK is not None and _REVERSE_STATIC_BANK is not None:
+        return _STATIC_BANK, _REVERSE_STATIC_BANK
+
+    bank: dict[str, dict[str, str]] = {}
+    reverse_bank: dict[str, dict[str, str]] = {"hi": {}, "kn": {}}
+
+    bank_path = Path(__file__).resolve().parent.parent / "data" / "curated_translations_hi_kn.json"
+    if bank_path.exists():
+        try:
+            with open(bank_path, "r", encoding="utf-8") as f:
+                bank = json.load(f)
+            for en_text, lang_map in bank.items():
+                if isinstance(lang_map, dict):
+                    for lang, trans_text in lang_map.items():
+                        if trans_text and lang in reverse_bank:
+                            reverse_bank[lang][trans_text.strip().lower()] = en_text
+        except Exception as exc:
+            logger.warning("Failed to load curated translations bank: %s", exc)
+
+    _STATIC_BANK = bank
+    _REVERSE_STATIC_BANK = reverse_bank
+    return _STATIC_BANK, _REVERSE_STATIC_BANK
+
+
+def _lookup_static_bank(text: str, target_lang: str) -> Optional[str]:
+    bank, _ = _load_static_bank()
+    entry = bank.get(text.strip())
+    if entry and isinstance(entry, dict):
+        val = entry.get(target_lang)
+        if val and val.strip():
+            return val.strip()
+    return None
+
+
+def _lookup_reverse_static_bank(text: str, source_lang: str) -> Optional[str]:
+    _, reverse_bank = _load_static_bank()
+    lang_map = reverse_bank.get(source_lang, {})
+    return lang_map.get(text.strip().lower())
+
+
 # ── Hash helper ───────────────────────────────────────────────────────────────
 
 def _text_hash(text: str) -> str:
@@ -84,15 +134,18 @@ def _db_get(db: Session, text_hash: str, target_lang: str) -> Optional[str]:
             .first()
         )
         return row.translated_text if row else None
-    except Exception:
+    except Exception as exc:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        logger.debug("DB translation cache read failed (transaction rolled back): %s", exc)
         return None
 
 
 def _db_set(db: Session, text_hash: str, target_lang: str, translated: str) -> None:
     try:
         from app.models.translation_cache import TranslationCache
-        from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-
         row = (
             db.query(TranslationCache)
             .filter_by(source_text_hash=text_hash, target_lang=target_lang)
@@ -111,7 +164,11 @@ def _db_set(db: Session, text_hash: str, target_lang: str, translated: str) -> N
             db.add(row)
         db.commit()
     except Exception as exc:
-        logger.debug("DB translation cache write failed: %s", exc)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        logger.debug("DB translation cache write failed (transaction rolled back): %s", exc)
 
 
 # ── Groq translation call ─────────────────────────────────────────────────────
@@ -303,7 +360,7 @@ def translate_texts(
     uncached_indices: list[int] = []
     uncached_texts: list[str] = []
 
-    # --- Phase 1: check LRU and DB cache ---
+    # --- Phase 1: check (1) static bank, (2) LRU, (3) DB cache ---
     for i, text in enumerate(texts):
         if not text or not text.strip():
             results[i] = text
@@ -311,7 +368,13 @@ def translate_texts(
 
         clean_text = text.strip()
 
-        # 1. LRU cache
+        # 1. Static curated bank
+        static_val = _lookup_static_bank(clean_text, target_lang)
+        if static_val is not None:
+            results[i] = static_val
+            continue
+
+        # 2. In-memory LRU cache
         h = _text_hash(text)
         cached = _lru_get((h, target_lang))
         if cached is not None:
@@ -387,13 +450,24 @@ def translate_to_english(
     if source_lang == "en" or not text or not text.strip():
         return text, True
 
-    # Check cache (use "en" as target_lang key)
+    clean_text = text.strip()
+
+    # 1. Reverse lookup in static curated bank
+    static_rev = _lookup_reverse_static_bank(clean_text, source_lang)
+    if static_rev is not None:
+        t_elapsed = time.perf_counter() - t_start
+        logger.info("[TIMING] translate_to_english (Static bank) took %.4fs", t_elapsed)
+        return static_rev, True
+
+    # 2. Check LRU cache (use "en" as target_lang key)
     h = _text_hash(text)
     cached = _lru_get((h, "en_from_" + source_lang))
     if cached is not None:
         t_elapsed = time.perf_counter() - t_start
         logger.info("[TIMING] translate_to_english (LRU cache) took %.4fs", t_elapsed)
         return cached, True
+
+    # 3. DB cache
     if db:
         db_cached = _db_get(db, h + "_from_" + source_lang, "en")
         if db_cached is not None:
@@ -402,8 +476,9 @@ def translate_to_english(
             logger.info("[TIMING] translate_to_english (DB cache) took %.4fs", t_elapsed)
             return db_cached, True
 
+    # 4. Live Groq call with timeout
     try:
-        translated_list = _call_groq_single_chunk([text], source_lang, "en", timeout=8.0)
+        translated_list = _call_groq_single_chunk([text], source_lang, "en", timeout=5.0)
         english = translated_list[0]
         _lru_set((h, "en_from_" + source_lang), english)
         if db:

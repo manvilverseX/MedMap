@@ -207,9 +207,18 @@ def test_english_case_unaffected(client, db):
 @patch("app.services.translation_service.Groq")
 def test_translate_ui_endpoint_kannada(mock_groq_cls, client):
     """POST /translate/ui must return localized strings for kn."""
-    mock_groq_cls.return_value.chat.completions.create.return_value.choices[
-        0
-    ].message.content = json.dumps(["ಪ್ರಾರಂಭಿಸಿ", "ಸಲ್ಲಿಸಿ"])
+    import re
+    from unittest.mock import MagicMock
+    def fake_create(**kwargs):
+        messages = kwargs.get("messages", [])
+        prompt_content = messages[0]["content"] if messages else ""
+        m = re.search(r"Input strings:\s*(\[.*?\])", prompt_content, re.DOTALL)
+        num_items = len(json.loads(m.group(1))) if m else 2
+        resp_list = ["ಪ್ರಾರಂಭಿಸಿ", "ಸಲ್ಲಿಸಿ"][:num_items]
+        mock_res = MagicMock()
+        mock_res.choices = [MagicMock(message=MagicMock(content=json.dumps(resp_list)))]
+        return mock_res
+    mock_groq_cls.return_value.chat.completions.create.side_effect = fake_create
 
     from app.services.translation_service import _lru_cache
     _lru_cache.clear()
