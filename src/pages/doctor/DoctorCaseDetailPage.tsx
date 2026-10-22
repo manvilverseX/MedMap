@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { DoctorCaseStatusBadge } from '../../components/doctor/DoctorCaseStatusBadge';
 import { DoctorSectionCard } from '../../components/doctor/DoctorSectionCard';
-import { getCase, getCaseDocuments, updateCase, generateAISummary, getClinicalIntelligence, getUnifiedCase, getDocumentFileUrl, getFhirBundle, reviewClinicalItem, getCaseAuditTrail, linkCareContext, API_BASE_URL } from '../../utils/api';
+import { getCase, getCaseDocuments, updateCase, generateAISummary, getClinicalIntelligence, getUnifiedCase, openDocumentFile, getFhirBundle, reviewClinicalItem, getCaseAuditTrail, linkCareContext, API_BASE_URL } from '../../utils/api';
 import type { ClinicalCase } from '../../types/case';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { Button } from '../../components/Button';
@@ -1248,22 +1248,22 @@ export function DoctorCaseDetailPage() {
                           <h3 className="history-subheading" style={{ margin: 0, fontWeight: 600 }}>{doc.filename}</h3>
                         </div>
                         {caseDetail && (
-                          <a
-                            href={getDocumentFileUrl(caseDetail.caseId, doc.id || doc.documentId)}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            type="button"
+                            onClick={() => openDocumentFile(caseDetail.caseId, doc.id || doc.documentId)}
                             style={{
                               fontSize: '0.8rem',
                               padding: '0.2rem 0.6rem',
                               border: '1px solid var(--color-primary)',
                               borderRadius: '4px',
                               color: 'var(--color-primary)',
-                              textDecoration: 'none',
+                              background: 'transparent',
+                              cursor: 'pointer',
                               fontWeight: 500,
                             }}
                           >
                             Open File ↗
-                          </a>
+                          </button>
                         )}
                       </div>
                       <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginLeft: '1.7rem' }}>
@@ -1698,15 +1698,21 @@ export function DoctorCaseDetailPage() {
 
               {evidenceModalItem.documentId && caseDetail && (
                 <div style={{ marginTop: '0.5rem' }}>
-                  <a
-                    href={getDocumentFileUrl(caseDetail.caseId, evidenceModalItem.documentId)}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => openDocumentFile(caseDetail.caseId, evidenceModalItem.documentId || '')}
                     className="btn-back-link"
-                    style={{ fontSize: '0.85rem' }}
+                    style={{
+                      fontSize: '0.85rem',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                      textDecoration: 'underline',
+                    }}
                   >
                     📄 Open Original Document File ↗
-                  </a>
+                  </button>
                 </div>
               )}
             </div>

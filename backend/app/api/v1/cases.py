@@ -5,7 +5,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 from fastapi import APIRouter, HTTPException, Depends, Query, Header, UploadFile, File, Form
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session
 from app.schemas.case import CaseCreate, CaseUpdate, CaseResponse, CaseStatus
 from app.schemas.intake import IntakeRequestMode, IntakeSessionState
@@ -631,7 +631,7 @@ def get_case_document_file(
     try:
         payload = jwt.decode(auth_token, SECRET_KEY, algorithms=[ALGORITHM])
         role = payload.get("role")
-        if role not in ["patient", "doctor"]:
+        if role not in ["patient", "doctor", "admin"]:
             raise HTTPException(status_code=403, detail="Operation not permitted")
         if role == "patient" and payload.get("case_id") != case_id:
             raise HTTPException(status_code=403, detail="Not authorized to access this case")
@@ -657,16 +657,71 @@ def get_case_document_file(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    file_bytes = None
+    media_type = doc.mimeType or "application/octet-stream"
+
     if doc.storagePath.startswith("http://") or doc.storagePath.startswith("https://"):
-        return RedirectResponse(url=doc.storagePath)
+        import urllib.request
+        token = os.environ.get("BLOB_READ_WRITE_TOKEN")
+        headers = {"User-Agent": "MedMap-Backend/1.0"}
+        if "private.blob.vercel-storage.com" in doc.storagePath and token:
+            headers["Authorization"] = f"Bearer {token}"
+        try:
+            req = urllib.request.Request(doc.storagePath, headers=headers)
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                if resp.status == 200:
+                    file_bytes = resp.read()
+                    content_type_header = resp.headers.get("Content-Type")
+                    if content_type_header:
+                        media_type = content_type_header
+                else:
+                    raise HTTPException(
+                        status_code=404,
+                        detail="This file is no longer available, ask the patient to upload again"
+                    )
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(
+                status_code=404,
+                detail="This file is no longer available, ask the patient to upload again"
+            )
+    else:
+        local_path = doc.storagePath
+        if local_path.startswith("local://"):
+            local_path = local_path.replace("local://", "")
+        if not os.path.exists(local_path):
+            raise HTTPException(
+                status_code=404,
+                detail="This file is no longer available, ask the patient to upload again"
+            )
+        try:
+            with open(local_path, "rb") as f:
+                file_bytes = f.read()
+        except Exception:
+            raise HTTPException(
+                status_code=404,
+                detail="This file is no longer available, ask the patient to upload again"
+            )
 
-    if not os.path.exists(doc.storagePath):
-        raise HTTPException(status_code=404, detail="Document file not found on disk")
+    import io
+    clean_filename = os.path.basename(doc.filename or "document").replace('"', '')
+    response_headers = {
+        "Content-Disposition": f'inline; filename="{clean_filename}"'
+    }
 
-    return FileResponse(
-        path=doc.storagePath,
-        media_type=doc.mimeType,
-        filename=doc.filename
+    # Handle files > 4.5 MB via StreamingResponse to avoid Vercel payload limit
+    if len(file_bytes) > 4.5 * 1024 * 1024:
+        return StreamingResponse(
+            io.BytesIO(file_bytes),
+            media_type=media_type,
+            headers=response_headers
+        )
+
+    return Response(
+        content=file_bytes,
+        media_type=media_type,
+        headers=response_headers
     )
 
 

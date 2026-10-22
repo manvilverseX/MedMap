@@ -342,6 +342,47 @@ export const getDocumentFileUrl = (caseId: string, documentId: string): string =
   return `${API_BASE_URL}/cases/${caseId}/documents/${documentId}/file${tokenParam}`;
 };
 
+export const fetchDocumentBlob = async (caseId: string, documentId: string): Promise<Blob> => {
+  const token = localStorage.getItem('medmap_token');
+  const headers: Record<string, string> = { ...getAuthHeaders() };
+  const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+  const response = await fetch(`${API_BASE_URL}/cases/${caseId}/documents/${documentId}/file${tokenParam}`, {
+    method: 'GET',
+    headers,
+  });
+
+  if (!response.ok) {
+    let errorMessage = 'This file is no longer available, ask the patient to upload again';
+    try {
+      const err = await response.json();
+      if (err.detail) {
+        errorMessage = err.detail;
+      }
+    } catch {
+      // ignore JSON parse error
+    }
+    throw new Error(errorMessage);
+  }
+
+  return await response.blob();
+};
+
+export const openDocumentFile = async (caseId: string, documentId: string): Promise<void> => {
+  try {
+    const blob = await fetchDocumentBlob(caseId, documentId);
+    const objectUrl = URL.createObjectURL(blob);
+    const newWindow = window.open(objectUrl, '_blank');
+    if (!newWindow) {
+      window.location.href = objectUrl;
+    }
+    setTimeout(() => {
+      URL.revokeObjectURL(objectUrl);
+    }, 60000);
+  } catch (err: any) {
+    alert(err.message || 'This file is no longer available, ask the patient to upload again');
+  }
+};
+
 export const extractDocument = async (caseId: string, documentId: string): Promise<any> => {
   const response = await fetch(`${API_BASE_URL}/cases/${caseId}/documents/${documentId}/extract`, {
     method: 'POST',
