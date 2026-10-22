@@ -578,12 +578,15 @@ def select_intake_state(
         answer_map,
         extract_answer_text(answer_map.get("chief_complaint", "")),
     )
+    total_gaps = len(resolved_gaps) + len(unresolved_gaps)
     progress_obj = ClinicalProgress(
         domainsExplored=[g.replace("_", " ").title() for g in resolved_gaps],
         activeDomain=unresolved_gaps[0].replace("_", " ").title() if unresolved_gaps else "Complete",
         questionsAnswered=len(answered_ids),
         coverageStatus="satisfactory" if len(resolved_gaps) >= 4 else "in_progress",
         unresolvedGapsCount=len(unresolved_gaps),
+        totalRelevantGaps=total_gaps,
+        resolvedGaps=len(resolved_gaps),
     )
 
     state_kwargs: dict[str, Any] = {

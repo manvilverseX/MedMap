@@ -323,14 +323,21 @@ def update_case(case_id: str, case_in: CaseUpdate, db: Session = Depends(get_db)
             translation_was_successful = True
 
             if case_lang != "en":
-                try:
-                    english_answer, translation_was_successful = translate_to_english(
-                        answer, case_lang, db=db
-                    )
-                except Exception as exc:
-                    logger.warning("Translation to English failed (%s)", exc)
+                from app.services.translation_service import _lookup_static_bank
+                bank_trans = _lookup_static_bank(answer, case_lang)
+                if bank_trans:
                     english_answer = answer
-                    translation_was_successful = False
+                    original_lang_answer = bank_trans
+                    translation_was_successful = True
+                else:
+                    try:
+                        english_answer, translation_was_successful = translate_to_english(
+                            answer, case_lang, db=db
+                        )
+                    except Exception as exc:
+                        logger.warning("Translation to English failed (%s)", exc)
+                        english_answer = answer
+                        translation_was_successful = False
 
             # Store bilingual answer
             if case_lang != "en":

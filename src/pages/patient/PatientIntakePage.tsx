@@ -56,11 +56,14 @@ interface IntakeSessionState {
     suggestedAction: string;
   };
   clinicalProgress?: {
-    stage: string;
-    activeDomain: string;
-    exploredDomains: string[];
-    totalRelevantGaps: number;
-    resolvedGaps: number;
+    stage?: string;
+    activeDomain?: string;
+    activeDomainLocalized?: string;
+    exploredDomains?: string[];
+    domainsExplored?: string[];
+    domainsExploredLocalized?: string[];
+    totalRelevantGaps?: number;
+    resolvedGaps?: number;
   };
 }
 
@@ -700,21 +703,21 @@ export function PatientIntakePage() {
     handleAnswerSubmit("I'm not sure / Unknown");
   };
 
-  const handleSelectOption = (option: string) => {
+  const handleSelectOption = (optValue: string, displayLabel?: string) => {
     setValidationError(null);
-    setCurrentAnswer(option);
+    setCurrentAnswer(displayLabel || optValue);
 
     // Stronger confirmation step for allergies and medicines
     if (sessionState?.currentQuestion && isCriticalQuestion(sessionState.currentQuestion.id)) {
       setPendingCriticalConfirmation({
-        answer: option,
+        answer: optValue,
         questionId: sessionState.currentQuestion.id,
         category: sessionState.currentQuestion.category,
       });
       return;
     }
 
-    handleAnswerSubmit(option);
+    handleAnswerSubmit(optValue);
   };
 
   const handleEdit = async (questionId: string) => {
@@ -1079,12 +1082,15 @@ export function PatientIntakePage() {
   const answeredCount = answeredQuestionIds?.length || 0;
   const total = sessionState.totalEligibleQuestions || (answeredCount + 1);
   const currentIdx = sessionState.currentQuestionIndex || (answeredCount + 1);
-  const progressPercent = clinicalProgress && clinicalProgress.totalRelevantGaps > 0
-    ? Math.min(100, Math.max(10, Math.round((clinicalProgress.resolvedGaps / clinicalProgress.totalRelevantGaps) * 100)))
+  const hasTotal = typeof clinicalProgress?.totalRelevantGaps === 'number' && clinicalProgress.totalRelevantGaps > 0;
+  const currentPoint = (clinicalProgress?.resolvedGaps ?? answeredCount) + 1;
+  const progressPercent = hasTotal
+    ? Math.min(100, Math.max(10, Math.round(((clinicalProgress?.resolvedGaps || 0) / clinicalProgress!.totalRelevantGaps!) * 100)))
     : Math.min(100, Math.max(10, Math.round((currentIdx / Math.max(total, 1)) * 100)));
-  const progressLabel = clinicalProgress
-    ? `${clinicalProgress.activeDomain || currentQuestion.categoryLocalized || currentQuestion.category} (${t('intakeProgressPoint', { current: clinicalProgress.resolvedGaps + 1, total: clinicalProgress.totalRelevantGaps })})`
-    : `(${answeredCount} / ${total})`;
+  const pointText = hasTotal
+    ? t('intakeProgressPoint', { current: currentPoint, total: clinicalProgress!.totalRelevantGaps! })
+    : t('intakeProgressPointCurrentOnly', { current: currentPoint });
+  const progressLabel = `(${pointText})`;
 
   return (
     <div className="container">
@@ -1176,14 +1182,14 @@ export function PatientIntakePage() {
           </div>
           {clinicalProgress && (
             <div className="intake-progress-chips" aria-label={t('intakeDomainsExplored')}>
-              {clinicalProgress.exploredDomains?.map((domain) => (
+              {(clinicalProgress.domainsExploredLocalized || clinicalProgress.exploredDomains || clinicalProgress.domainsExplored)?.map((domain) => (
                 <span key={domain} className="intake-chip intake-chip--done">
                   ✓ {domain}
                 </span>
               ))}
-              {clinicalProgress.activeDomain && (
+              {(clinicalProgress.activeDomainLocalized || clinicalProgress.activeDomain) && (
                 <span className="intake-chip intake-chip--active">
-                  ● {clinicalProgress.activeDomain}
+                  ● {clinicalProgress.activeDomainLocalized || clinicalProgress.activeDomain}
                 </span>
               )}
             </div>
@@ -1191,7 +1197,7 @@ export function PatientIntakePage() {
         </div>
 
         <div className={`intake-question-card ${state === 'clarification' ? 'intake-clarification-card' : ''}`} key={currentQuestion.id}>
-          {sessionState.translationFallbackNotice && (
+          {sessionState.translationFallbackNotice && !currentQuestion.promptLocalized && (
             <div className="intake-fallback-notice" role="alert">
               <span>⚠️</span> {sessionState.translationFallbackNotice}
             </div>
@@ -1274,13 +1280,13 @@ export function PatientIntakePage() {
                   const optValue = typeof opt === 'string' ? opt : (opt.value || opt.label || opt.id || String(opt));
                   const rawDisplay = currentQuestion.optionsLocalized?.[idx] || opt;
                   const displayLabel = typeof rawDisplay === 'string' ? rawDisplay : (rawDisplay.label || rawDisplay.value || String(rawDisplay));
-                  const isSelected = currentAnswer.trim().toLowerCase() === optValue.toLowerCase();
+                  const isSelected = currentAnswer.trim().toLowerCase() === optValue.toLowerCase() || currentAnswer.trim().toLowerCase() === displayLabel.toLowerCase();
                   return (
                     <button
                       key={typeof opt === 'string' ? opt : (opt.id || opt.value || idx)}
                       type="button"
                       className={`intake-option-pill ${isSelected ? 'intake-option-pill--selected' : ''}`}
-                      onClick={() => handleSelectOption(optValue)}
+                      onClick={() => handleSelectOption(optValue, displayLabel)}
                       disabled={isSubmitting}
                     >
                       {displayLabel}
@@ -1300,13 +1306,13 @@ export function PatientIntakePage() {
                   const optValue = typeof opt === 'string' ? opt : (opt.value || opt.label || opt.id || String(opt));
                   const rawDisplay = currentQuestion.clarificationOptionsLocalized?.[idx] || opt;
                   const displayLabel = typeof rawDisplay === 'string' ? rawDisplay : (rawDisplay.label || rawDisplay.value || String(rawDisplay));
-                  const isSelected = currentAnswer.trim().toLowerCase() === optValue.toLowerCase();
+                  const isSelected = currentAnswer.trim().toLowerCase() === optValue.toLowerCase() || currentAnswer.trim().toLowerCase() === displayLabel.toLowerCase();
                   return (
                     <button
                       key={typeof opt === 'string' ? opt : (opt.id || opt.value || idx)}
                       type="button"
                       className={`intake-option-pill ${isSelected ? 'intake-option-pill--selected' : ''}`}
-                      onClick={() => handleSelectOption(optValue)}
+                      onClick={() => handleSelectOption(optValue, displayLabel)}
                       disabled={isSubmitting}
                     >
                       {displayLabel}

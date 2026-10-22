@@ -347,6 +347,7 @@ export const EN_STRINGS = {
   intakeVoiceModeOn: "Voice Mode: ON",
   intakeVoiceModeOff: "Voice Mode: OFF",
   intakeProgressPoint: "Point {{current}} of ~{{total}}",
+  intakeProgressPointCurrentOnly: "Point {{current}}",
   intakeSpeechUnsupported: "Speech recognition not supported in this browser. Please use touch or typing below.",
   intakePlayingBrowserVoice: "Playing via browser voice",
   intakeVoiceSubtext: "Browser-based speech (Web Speech API) · {{lang}}",
@@ -426,10 +427,36 @@ export function setCachedStrings(lang: LangCode, strings: Record<string, string>
 // ── Interpolation ─────────────────────────────────────────────────────────────
 
 /**
- * Replace `{{key}}` placeholders in a string.
+ * Replace `{{key}}` or `{key}` placeholders in a string.
+ * Tolerant: never leaves raw {{key}}, {key}, or trailing separators if variables are missing.
  */
-export function interpolate(template: string, vars: Record<string, string | number>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => String(vars[key] ?? `{{${key}}}`));
+export function interpolate(
+  template: string,
+  vars?: Record<string, string | number | undefined | null>
+): string {
+  if (!template) return "";
+  if (!vars) {
+    return template.replace(/\{\{?\w+\}?\}|~?\{\{?\w+\}?\}|\/?\s*\{\{?\w+\}?\}|of\s*~?\{\{?\w+\}?\}/g, "").trim();
+  }
+  let result = template
+    .replace(/\{\{(\w+)\}\}/g, (_, key) => {
+      const v = vars[key];
+      return v !== undefined && v !== null && v !== "" ? String(v) : "";
+    })
+    .replace(/\{(\w+)\}/g, (_, key) => {
+      const v = vars[key];
+      return v !== undefined && v !== null && v !== "" ? String(v) : "";
+    });
+
+  // Clean up any trailing / dangling separators caused by missing variables (e.g. "/ लगभग " or "of ~")
+  result = result
+    .replace(/\/\s*लगभग\s*$/g, "")
+    .replace(/\/\s*ಸುಮಾರು\s*$/g, "")
+    .replace(/of\s*~\s*$/g, "")
+    .replace(/\/\s*~?\s*$/g, "")
+    .trim();
+
+  return result;
 }
 
 export function getSupportedLanguages(): { code: LangCode; label: string; nativeName: string }[] {
@@ -755,6 +782,7 @@ export const HI_STRINGS: Record<StringKey, string> = {
   intakeVoiceModeOn: "ध्वनि मोड: चालू",
   intakeVoiceModeOff: "ध्वनि मोड: बंद",
   intakeProgressPoint: "बिंदु {{current}} / लगभग {{total}}",
+  intakeProgressPointCurrentOnly: "बिंदु {{current}}",
   intakeSpeechUnsupported: "इस ब्राउज़र में ध्वनि पहचान समर्थित नहीं है। कृपया नीचे स्पर्श या टाइपिंग का उपयोग करें।",
   intakePlayingBrowserVoice: "ब्राउज़र आवाज़ द्वारा चल रहा है",
   intakeVoiceSubtext: "ब्राउज़र-आधारित ध्वनि · {{lang}}",
@@ -1127,6 +1155,7 @@ export const KN_STRINGS: Record<StringKey, string> = {
   intakeVoiceModeOn: "ಧ್ವನಿ ಮೋಡ್: ಆನ್",
   intakeVoiceModeOff: "ಧ್ವನಿ ಮೋಡ್: ಆಫ್",
   intakeProgressPoint: "ಹಂತ {{current}} / ಸುಮಾರು {{total}}",
+  intakeProgressPointCurrentOnly: "ಹಂತ {{current}}",
   intakeSpeechUnsupported: "ಈ ಬ್ರೌಸರ್‌ನಲ್ಲಿ ಧ್ವನಿ ಗುರುತಿಸುವಿಕೆ ಬೆಂಬಲಿತವಾಗಿಲ್ಲ. ದಯವಿಟ್ಟು ಕೆಳಗೆ ಟೈಪ್ ಮಾಡಿ ಅಥವಾ ಸ್ಪರ್ಶಿಸಿ.",
   intakePlayingBrowserVoice: "ಬ್ರೌಸರ್ ಧ್ವನಿಯ ಮೂಲಕ ಪ್ಲೇ ಆಗುತ್ತಿದೆ",
   intakeVoiceSubtext: "ಬ್ರೌಸರ್ ಆಧಾರಿತ ಧ್ವನಿ · {{lang}}",
