@@ -331,3 +331,49 @@ def test_stt_both_providers_fail(client, auth_headers):
         )
     assert resp.status_code == 503
     assert resp.json()["detail"]["code"] == "stt_unavailable"
+
+
+@patch("httpx.AsyncClient.post")
+def test_stt_browser_webm_codecs_opus_normalized(mock_post, client, auth_headers):
+    """Browser audio/webm;codecs=opus uploads must be sanitized to audio/webm with valid filename."""
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"transcript": "ನನಗೆ ಜ್ವರವಿದೆ", "language_code": "kn-IN"}
+    mock_post.return_value = mock_resp
+
+    with patch.dict(os.environ, {"SARVAM_API_KEY": "dummy-sarvam-key"}):
+        resp = client.post(
+            "/api/v1/speech/stt",
+            headers=auth_headers,
+            files={"file": ("blob", b"webm audio data", "audio/webm;codecs=opus")},
+            data={"language": "kn"},
+        )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"transcript": "ನನಗೆ ಜ್ವರವಿದೆ"}
+    posted_files = mock_post.call_args[1]["files"]
+    assert posted_files["file"][0] == "recording.webm"
+    assert posted_files["file"][2] == "audio/webm"
+
+
+@patch("httpx.AsyncClient.post")
+def test_stt_browser_mp4_normalized(mock_post, client, auth_headers):
+    """Browser audio/mp4 uploads must be sanitized to audio/mp4 with recording.mp4 filename."""
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"transcript": "सिरदर्द है", "language_code": "hi-IN"}
+    mock_post.return_value = mock_resp
+
+    with patch.dict(os.environ, {"SARVAM_API_KEY": "dummy-sarvam-key"}):
+        resp = client.post(
+            "/api/v1/speech/stt",
+            headers=auth_headers,
+            files={"file": ("blob", b"mp4 audio data", "audio/mp4")},
+            data={"language": "hi"},
+        )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"transcript": "सिरदर्द है"}
+    posted_files = mock_post.call_args[1]["files"]
+    assert posted_files["file"][0] == "recording.mp4"
+    assert posted_files["file"][2] == "audio/mp4"

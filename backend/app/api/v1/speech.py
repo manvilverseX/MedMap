@@ -184,8 +184,23 @@ async def speech_to_text(
             },
         )
 
-    filename = file.filename or "recording.webm"
-    content_type = (file.content_type or "audio/webm").split(";")[0].strip()
+    raw_filename = file.filename or ""
+    raw_content_type = (file.content_type or "audio/webm").split(";")[0].strip().lower()
+
+    if "mp4" in raw_content_type or raw_filename.endswith(".mp4") or raw_filename.endswith(".m4a"):
+        ext = "mp4"
+        content_type = "audio/mp4"
+    elif "wav" in raw_content_type or raw_filename.endswith(".wav"):
+        ext = "wav"
+        content_type = "audio/wav"
+    elif "ogg" in raw_content_type or raw_filename.endswith(".ogg") or raw_filename.endswith(".opus"):
+        ext = "ogg"
+        content_type = "audio/ogg"
+    else:
+        ext = "webm"
+        content_type = "audio/webm"
+
+    filename = raw_filename if ("." in raw_filename and not raw_filename.startswith("blob")) else f"recording.{ext}"
     sarvam_api_key = os.getenv("SARVAM_API_KEY")
 
     transcript: str | None = None

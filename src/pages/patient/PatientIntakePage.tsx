@@ -231,8 +231,12 @@ export function PatientIntakePage() {
     setAudioError(null);
     const promptText = sessionState?.currentQuestion?.promptLocalized || sessionState?.currentQuestion?.prompt || '';
     const helperText = sessionState?.currentQuestion?.helperTextLocalized || sessionState?.currentQuestion?.helperText || '';
-    const text = (customText || (promptText ? `${promptText}. ${helperText}` : '')).trim();
+    let text = (customText || (promptText ? `${promptText}. ${helperText}` : '')).trim();
     if (!text) return;
+    if (text.length > 450) {
+      const match = text.slice(0, 450).match(/(.*[.!?।|])\s*/);
+      text = match ? match[1].trim() : text.slice(0, 450).trim();
+    }
 
     if (isIndicLang) {
       const cacheKey = `${normLang}:${text}`;
