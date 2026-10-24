@@ -14,16 +14,27 @@ if not SECRET_KEY:
     raise RuntimeError("SECRET_KEY environment variable is missing. It is required for security.")
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days for prototype convenience
+# Token lifetimes: patient 4 hours (240 min), doctor and admin 12 hours (720 min)
+ACCESS_TOKEN_EXPIRE_MINUTES_PATIENT = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES_PATIENT", str(60 * 4)))
+ACCESS_TOKEN_EXPIRE_MINUTES_STAFF = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES_STAFF", str(60 * 12)))
+ACCESS_TOKEN_EXPIRE_MINUTES = ACCESS_TOKEN_EXPIRE_MINUTES_STAFF
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/doctor/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/doctor/login", auto_error=False)
 
 import uuid
 
-def create_access_token(data: dict) -> str:
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        role = to_encode.get("role")
+        if role == "patient":
+            expire_minutes = ACCESS_TOKEN_EXPIRE_MINUTES_PATIENT
+        else:
+            expire_minutes = ACCESS_TOKEN_EXPIRE_MINUTES_STAFF
+        expire = datetime.now(timezone.utc) + timedelta(minutes=expire_minutes)
     to_encode.update({"exp": expire, "jti": str(uuid.uuid4())})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

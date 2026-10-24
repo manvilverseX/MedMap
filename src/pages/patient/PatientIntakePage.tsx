@@ -70,7 +70,7 @@ interface IntakeSessionState {
 }
 
 export function PatientIntakePage() {
-  const { caseId } = useCase();
+  const { caseId, setCaseId } = useCase();
   const navigate = useNavigate();
 
   // ── Case loading state ────────────────────────────────────────────────
@@ -826,8 +826,23 @@ export function PatientIntakePage() {
             <h2>{t('somethingWentWrong')}</h2>
             <ErrorMessage message={error || t('caseNotFound')} />
             <div className="intake-error-actions">
-              <Button variant="primary" onClick={loadCase}>{t('tryAgain')}</Button>
-              <Link to="/" className="intake-btn intake-btn-skip">{t('backToHome')}</Link>
+              {error === t('errorUnauthorized') ? (
+                <Button
+                  variant="primary"
+                  onClick={async () => {
+                    try {
+                      sessionStorage.clear();
+                    } catch {}
+                    setCaseId(null);
+                    navigate('/patient');
+                  }}
+                >
+                  {t('restartSession')}
+                </Button>
+              ) : (
+                <Button variant="primary" onClick={loadCase}>{t('tryAgain')}</Button>
+              )}
+              <Link to="/" className="intake-btn intake-btn-skip">{t('notFoundReturnHome')}</Link>
             </div>
           </div>
         </div>

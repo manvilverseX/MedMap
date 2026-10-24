@@ -18,6 +18,9 @@ if frontend_origin:
     # Support comma-separated list for multiple origins
     origins.extend([origin.strip() for origin in frontend_origin.split(",") if origin.strip()])
 
+from app.core.rate_limit import RateLimitMiddleware
+
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,

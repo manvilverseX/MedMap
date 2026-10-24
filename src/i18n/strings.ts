@@ -377,6 +377,7 @@ export const EN_STRINGS = {
   errorUploadFailed: "Upload failed. Please check the file and try again.",
   errorSpeechUnavailable: "Speech service is temporarily unavailable.",
   errorTranslationUnavailable: "Translation service is temporarily unavailable.",
+  restartSession: "Restart Session",
 
   // Intake questions for verification and summary
   q_chief_complaint: "Chief Complaint",
@@ -836,6 +837,7 @@ export const HI_STRINGS: Record<StringKey, string> = {
   errorUploadFailed: "अपलोड विफल रहा। कृपया फ़ाइल जांचें और पुनः प्रयास करें।",
   errorSpeechUnavailable: "ध्वनि सेवा अस्थायी रूप से अनुपलब्ध है।",
   errorTranslationUnavailable: "अनुवाद सेवा अस्थायी रूप से अनुपलब्ध है।",
+  restartSession: "सत्र पुनः प्रारंभ करें",
 
   q_chief_complaint: "मुख्य समस्या",
   q_present_illness: "वर्तमान बीमारी का विवरण",
@@ -1223,6 +1225,7 @@ export const KN_STRINGS: Record<StringKey, string> = {
   intakeSaveContinue: "ಉಳಿಸಿ ಮತ್ತು ಮುಂದುವರಿಯಿರಿ →",
   micTapToSpeakLang: "ಮಾತನಾಡಲು ಸ್ಪರ್ಶಿಸಿ ({{lang}})",
   micListening: "ಆಲಿಸಲಾಗುತ್ತಿದೆ... ನಿಲ್ಲಿಸಲು ಸ್ಪರ್ಶಿಸಿ",
+  restartSession: "ಸೆಷನ್ ಪುನಃ ಪ್ರಾರಂಭಿಸಿ",
 
 
   q_chief_complaint: "ಮುಖ್ಯ ತೊಂದರೆ",
