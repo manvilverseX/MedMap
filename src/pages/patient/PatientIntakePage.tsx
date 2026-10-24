@@ -9,6 +9,7 @@ import { LoadingIndicator } from '../../components/LoadingIndicator';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useT } from '../../i18n/useT';
 import { normalizeLanguage, setSessionLanguage, formatDate } from '../../utils/language';
+import { PatientWalkthroughModal } from '../../components/patient/PatientWalkthroughModal';
 import './PatientIntakePage.css';
 
 interface IntakeQuestion {
@@ -76,6 +77,7 @@ export function PatientIntakePage() {
   const [clinicalCase, setClinicalCase] = useState<ClinicalCase | null>(null);
   const [unifiedCase, setUnifiedCase] = useState<any>(null);
   const [showLongitudinalPrompt, setShowLongitudinalPrompt] = useState(false);
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -578,6 +580,15 @@ export function PatientIntakePage() {
         setIsReviewing(true);
       } else {
         await refreshAdaptiveState(data.intakeAnswers || {});
+        try {
+          const search = window.location.search;
+          const isCorrection = search.includes('mode=correction') || search.includes('mode=verification');
+          const hasSeenWalkthrough = sessionStorage.getItem('medmap_walkthrough_seen') === 'true';
+          const hasNoAnswers = Object.keys(loadedAnswers).length === 0;
+          if (!isCorrection && !hasSeenWalkthrough && hasNoAnswers) {
+            setShowWalkthrough(true);
+          }
+        } catch {}
       }
     } catch (err: any) {
       setError(t(mapApiErrorToKey(err)));
@@ -1601,6 +1612,11 @@ export function PatientIntakePage() {
           </div>
         </div>
       </div>
+      <PatientWalkthroughModal
+        isOpen={showWalkthrough}
+        onClose={() => setShowWalkthrough(false)}
+        lang={clinicalCase?.language || 'en'}
+      />
     </div>
   );
 }

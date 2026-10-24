@@ -1,0 +1,212 @@
+.walkthrough-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  animation: walkthroughFadeIn 0.2s ease-out;
+}
+
+.walkthrough-modal {
+  background: #ffffff;
+  border-radius: 1.25rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
+  width: 100%;
+  max-width: 28rem;
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  outline: none;
+  animation: walkthroughSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.walkthrough-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.walkthrough-step-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #0d9488;
+  background-color: #f0fdfa;
+  border: 1px solid #ccfbf1;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+}
+
+.walkthrough-btn-skip {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.5rem;
+  transition: all 0.15s ease;
+}
+
+.walkthrough-btn-skip:hover {
+  background-color: #f1f5f9;
+  color: #334155;
+}
+
+.walkthrough-btn-skip:focus-visible {
+  outline: 2px solid #0d9488;
+  outline-offset: 2px;
+}
+
+.walkthrough-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0.75rem 0;
+}
+
+.walkthrough-icon {
+  font-size: 3rem;
+  margin-bottom: 0.75rem;
+  line-height: 1;
+}
+
+.walkthrough-title {
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.5rem;
+}
+
+.walkthrough-body {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #475569;
+  margin: 0 0 1rem;
+}
+
+.walkthrough-btn-listen {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #0f766e;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.walkthrough-btn-listen:hover {
+  background: #f0fdfa;
+  border-color: #99f6e4;
+}
+
+.walkthrough-btn-listen.playing {
+  background: #ccfbf1;
+  border-color: #5eead4;
+  color: #115e59;
+}
+
+.walkthrough-btn-listen:focus-visible {
+  outline: 2px solid #0d9488;
+  outline-offset: 2px;
+}
+
+.walkthrough-indicators {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.walkthrough-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background-color: #cbd5e1;
+  transition: all 0.2s ease;
+}
+
+.walkthrough-dot.active {
+  width: 1.5rem;
+  background-color: #0d9488;
+}
+
+.walkthrough-footer {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.walkthrough-btn-secondary {
+  flex: 1;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 2.75rem;
+}
+
+.walkthrough-btn-secondary:hover {
+  background: #e2e8f0;
+}
+
+.walkthrough-btn-secondary:focus-visible {
+  outline: 2px solid #0d9488;
+  outline-offset: 2px;
+}
+
+.walkthrough-btn-primary {
+  flex: 2;
+  background: #0d9488;
+  border: 1px solid #0f766e;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 2.75rem;
+}
+
+.walkthrough-btn-primary:hover {
+  background: #0f766e;
+}
+
+.walkthrough-btn-primary:focus-visible {
+  outline: 2px solid #042f2e;
+  outline-offset: 2px;
+}
+
+@keyframes walkthroughFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes walkthroughSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

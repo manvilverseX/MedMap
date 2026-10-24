@@ -400,6 +400,24 @@ export const EN_STRINGS = {
   q_previous_investigations: "Previous Investigations",
   q_other_history: "Other Relevant History",
   q_ayush_samprapti: "Progression of Illness (Samprapti)",
+
+  // Walkthrough overlay
+  walkthroughTitle: "Welcome to MedMap",
+  walkthroughStepIndicator: "Step {{current}} of {{total}}",
+  walkthroughStep1Title: "How to Answer",
+  walkthroughStep1Body: "You can type, tap a suggested answer, or press the microphone to speak.",
+  walkthroughStep2Title: "Listen to Questions",
+  walkthroughStep2Body: "Press 'Read aloud' to hear the question spoken in your language.",
+  walkthroughStep3Title: "Review and Correct",
+  walkthroughStep3Body: "You can review and change any of your answers before the doctor sees them.",
+  walkthroughStep4Title: "Privacy on This Device",
+  walkthroughStep4Body: "When you finish your visit, all your personal information is cleared from this device.",
+  walkthroughListen: "Listen",
+  walkthroughListening: "Playing...",
+  walkthroughNext: "Next",
+  walkthroughBack: "Back",
+  walkthroughSkip: "Skip",
+  walkthroughFinish: "Get Started",
 };
 
 export type StringKey = keyof typeof EN_STRINGS;
@@ -840,6 +858,24 @@ export const HI_STRINGS: Record<StringKey, string> = {
   q_previous_investigations: "पिछली जांचें",
   q_other_history: "अन्य प्रासंगिक इतिहास",
   q_ayush_samprapti: "बीमारी की प्रगति (सम्प्राप्ति)",
+
+  // Walkthrough overlay
+  walkthroughTitle: "मेडम্যাপ में आपका स्वागत है",
+  walkthroughStepIndicator: "चरण {{current}} / {{total}}",
+  walkthroughStep1Title: "उत्तर कैसे दें",
+  walkthroughStep1Body: "आप लिखकर, सुझाए गए विकल्प को छूकर, या बोलने के लिए माइक्रोफ़ोन दबाकर उत्तर दे सकते हैं।",
+  walkthroughStep2Title: "प्रश्नों को सुनें",
+  walkthroughStep2Body: "प्रश्न को अपनी भाषा में सुनने के लिए 'बोलकर सुनाएं' दबाएं।",
+  walkthroughStep3Title: "समीक्षा और सुधार करें",
+  walkthroughStep3Body: "डॉक्टर के देखने से पहले आप अपने किसी भी उत्तर की समीक्षा कर सकते हैं और बदल सकते हैं।",
+  walkthroughStep4Title: "इस उपकरण पर गोपनीयता",
+  walkthroughStep4Body: "जब आप अपनी बातचीत समाप्त करते हैं, तो आपकी सभी व्यक्तिगत जानकारी इस उपकरण से हटा दी जाती है।",
+  walkthroughListen: "सुनें",
+  walkthroughListening: "सुनाई दे रहा है...",
+  walkthroughNext: "आगे",
+  walkthroughBack: "पीछे",
+  walkthroughSkip: "छोड़ें",
+  walkthroughFinish: "शुरू करें",
 };
 
 // ── Complete Kannada Translations ─────────────────────────────────────────────
@@ -1210,6 +1246,24 @@ export const KN_STRINGS: Record<StringKey, string> = {
   q_previous_investigations: "ಹಿಂದಿನ ಪರೀಕ್ಷೆಗಳು",
   q_other_history: "ಇತರ ಪ್ರಸ್ತುತ ಇತಿಹಾಸ",
   q_ayush_samprapti: "ಅನಾರೋಗ್ಯದ ಪ್ರಗತಿ (ಸಂಪ್ರಾಪ್ತಿ)",
+
+  // Walkthrough overlay
+  walkthroughTitle: "ಮೆಡ್‌ಮ್ಯಾಪ್‌ಗೆ ಸುಸ್ವಾಗತ",
+  walkthroughStepIndicator: "ಹಂತ {{current}} / {{total}}",
+  walkthroughStep1Title: "ಉತ್ತರಿಸುವುದು ಹೇಗೆ",
+  walkthroughStep1Body: "ನೀವು ಟೈಪ್ ಮಾಡಬಹುದು, ಸೂಚಿಸಿದ ಉತ್ತರವನ್ನು ಒತ್ತಬಹುದು, ಅಥವಾ ಮಾತನಾಡಲು ಮೈಕ್ರೊಫೋನ್ ಒತ್ತಬಹುದು.",
+  walkthroughStep2Title: "ಪ್ರಶ್ನೆಗಳನ್ನು ಆಲಿಸಿ",
+  walkthroughStep2Body: "ನಿಮ್ಮ ಭಾಷೆಯಲ್ಲಿ ಪ್ರಶ್ನೆಯನ್ನು ಕೇಳಲು 'ಓದಿ ಕೇಳಿಸಿ' ಒತ್ತಿರಿ.",
+  walkthroughStep3Title: "ಪರಿಶೀಲಿಸಿ ಮತ್ತು ಸರಿಪಡಿಸಿ",
+  walkthroughStep3Body: "ವೈದ್ಯರು ನೋಡುವ ಮೊದಲು ನಿಮ್ಮ ಯಾವುದೇ ಉತ್ತರಗಳನ್ನು ನೀವು ಪರಿಶೀಲಿಸಬಹುದು ಮತ್ತು ಬದಲಾಯಿಸಬಹುದು.",
+  walkthroughStep4Title: "ಈ ಸಾಧನದಲ್ಲಿ ಗೌಪ್ಯತೆ",
+  walkthroughStep4Body: "ನಿಮ್ಮ ಭೇಟಿಯನ್ನು ನೀವು ಪೂರ್ಣಗೊಳಿಸಿದಾಗ, ನಿಮ್ಮ ಎಲ್ಲಾ ವೈಯಕ್ತಿಕ ಮಾಹಿತಿಯನ್ನು ಈ ಸಾಧನದಿಂದ ಅಳಿಸಿಹಾಕಲಾಗುತ್ತದೆ.",
+  walkthroughListen: "ಕೇಳಿ",
+  walkthroughListening: "ಪ್ಲೇ ಆಗುತ್ತಿದೆ...",
+  walkthroughNext: "ಮುಂದೆ",
+  walkthroughBack: "ಹಿಂದೆ",
+  walkthroughSkip: "ಬಿಟ್ಟುಬಿಡಿ",
+  walkthroughFinish: "ಪ್ರಾರಂಭಿಸಿ",
 };
 
 // ── Static lookup ─────────────────────────────────────────────────────────────
