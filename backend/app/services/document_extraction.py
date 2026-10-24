@@ -38,10 +38,11 @@ class ExtractedMedicalEntities(BaseModel):
     procedures: List[str] = []
     clinicallyRelevantDates: List[str] = []
     summary: Optional[str] = None
+    transcription: Optional[str] = None
     sourceReference: str
     source: Optional[str] = None
 
-def get_pdf_pages_base64(storage_path: str, document_id: str = "unknown") -> Optional[List[str]]:
+def get_pdf_pages_base64(storage_path: str, document_id: str = "unknown") -> tuple:
     import fitz
     try:
         if storage_path.startswith("http://") or storage_path.startswith("https://"):
@@ -71,19 +72,26 @@ def get_pdf_pages_base64(storage_path: str, document_id: str = "unknown") -> Opt
         doc = fitz.open(stream=pdf_data, filetype="pdf")
         base64_pages = []
         total_pages = len(doc)
-        # Process up to 5 pages to prevent timeouts/OOM
-        for i in range(min(total_pages, 5)):
+        text_layer_pages = []
+        for i in range(total_pages):
             page = doc.load_page(i)
-            # Render at 150 DPI
-            pix = page.get_pixmap(matrix=fitz.Matrix(150/72, 150/72))
-            img_data = pix.tobytes("jpeg")
-            b64_str = base64.b64encode(img_data).decode('utf-8')
-            base64_pages.append(b64_str)
+            page_text = page.get_text().strip()
+            if page_text:
+                text_layer_pages.append(f"--- Page {i + 1} ---\n{page_text}")
+            if i < 5:
+                # Render at 150 DPI for image slices
+                pix = page.get_pixmap(matrix=fitz.Matrix(150/72, 150/72))
+                img_data = pix.tobytes("jpeg")
+                b64_str = base64.b64encode(img_data).decode('utf-8')
+                base64_pages.append(b64_str)
         doc.close()
-        return base64_pages, total_pages
+        full_text_layer = "\n\n".join(text_layer_pages).strip() if text_layer_pages else None
+        if full_text_layer and len(full_text_layer) > 12000:
+            full_text_layer = full_text_layer[:12000] + "\n\n...[text layer truncated]"
+        return base64_pages, total_pages, full_text_layer
     except Exception as e:
         logger.exception(f"PDF extraction failed for document {document_id}. Path: {storage_path}. Exception: {type(e).__name__} - {str(e)}")
-        return None, 0
+        return None, 0, None
 
 def get_image_slices_base64(storage_path: str, document_id: str = "unknown") -> Optional[List[str]]:
     try:
@@ -295,10 +303,13 @@ def rule_based_fallback_extraction(storage_path: str, doc_id: str, filename: str
 
     return extracted
 
-def _apply_fallback_to_doc(db: Session, doc: PatientDocument) -> PatientDocument:
+def _apply_fallback_to_doc(db: Session, doc: PatientDocument, pdf_text_layer: Optional[str] = None) -> PatientDocument:
     fallback = rule_based_fallback_extraction(doc.storagePath, doc.id, doc.filename, doc.mimeType)
     doc.medicalEntities = fallback.model_dump()
-    doc.extractedText = (fallback.summary or "Processed with rule-based fallback extraction") + " [Demo fallback used]"
+    if pdf_text_layer:
+        doc.extractedText = pdf_text_layer
+    else:
+        doc.extractedText = (fallback.summary or "Processed with rule-based fallback extraction") + " [Demo fallback used]"
     doc.extractionStatus = "completed"
     db.commit()
     db.refresh(doc)
@@ -333,10 +344,11 @@ def process_document(db: Session, case_id: str, document_id: str):
         return doc
 
     total_pages = 1
+    pdf_text_layer = None
     is_pdf = doc.mimeType == "application/pdf"
     if is_pdf:
         import fitz
-        img_b64_slices, total_pages = get_pdf_pages_base64(doc.storagePath, doc.id)
+        img_b64_slices, total_pages, pdf_text_layer = get_pdf_pages_base64(doc.storagePath, doc.id)
     else:
         img_b64_slices = get_image_slices_base64(doc.storagePath, doc.id)
     if not img_b64_slices:
@@ -349,7 +361,7 @@ def process_document(db: Session, case_id: str, document_id: str):
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         logger.info("GROQ_API_KEY is not set. Using rule-based offline demo extraction.")
-        return _apply_fallback_to_doc(db, doc)
+        return _apply_fallback_to_doc(db, doc, pdf_text_layer=pdf_text_layer)
 
     model_name = os.getenv("GROQ_DOCUMENT_MODEL", "qwen/qwen3.8-27b")
     schema_dict = ExtractedMedicalEntities.model_json_schema()
@@ -365,6 +377,7 @@ def process_document(db: Session, case_id: str, document_id: str):
     - NEVER infer a missing dose or condition from a medication.
     - NEVER convert uncertain handwriting into confident clinical facts.
     - Preserve ambiguity and conflicting values.
+    - In the 'transcription' field, provide a faithful verbatim transcription of visible text only in this slice, with no interpretation or added content.
     - Use null or empty lists when information is not explicitly present in this slice.
 
     Ensure your output exactly matches this JSON schema:
@@ -376,6 +389,7 @@ def process_document(db: Session, case_id: str, document_id: str):
     try:
         client = Groq(api_key=api_key)
         merged_entities = ExtractedMedicalEntities(sourceReference=doc.id, source="groq")
+        transcriptions = []
 
         for idx, img_b64 in enumerate(img_b64_slices):
             response = client.chat.completions.create(
@@ -411,6 +425,9 @@ def process_document(db: Session, case_id: str, document_id: str):
                 else:
                     merged_entities.summary = slice_entities.summary
 
+            if slice_entities.transcription:
+                transcriptions.append(slice_entities.transcription.strip())
+
             merged_entities.medications.extend(slice_entities.medications)
             merged_entities.investigations.extend(slice_entities.investigations)
 
@@ -442,8 +459,18 @@ def process_document(db: Session, case_id: str, document_id: str):
         extracted_summary = merged_entities.summary or "Extracted via vision model"
         if is_pdf and "total_pages" in locals() and locals()["total_pages"] > 5:
             extracted_summary += f" (Note: Truncated to first 5 pages out of {locals()['total_pages']} due to processing limits.)"
-            
-        doc.extractedText = extracted_summary
+
+        raw_transcription = "\n\n".join(t for t in transcriptions if t).strip()
+        if len(raw_transcription) > 8000:
+            raw_transcription = raw_transcription[:8000] + "\n...[transcription truncated]"
+
+        if pdf_text_layer:
+            doc.extractedText = pdf_text_layer
+        elif raw_transcription:
+            doc.extractedText = raw_transcription
+        else:
+            doc.extractedText = extracted_summary
+
         doc.extractionStatus = "completed"
 
     except ValidationError as e:
@@ -452,8 +479,9 @@ def process_document(db: Session, case_id: str, document_id: str):
         doc.extractedText = f"Extraction error: Validation failed - {str(e)}"
     except Exception as e:
         logger.warning(f"Groq/extraction processing failed for document {doc.id} ({type(e).__name__}: {str(e)}). Falling back to rule-based demo extraction.")
-        return _apply_fallback_to_doc(db, doc)
+        return _apply_fallback_to_doc(db, doc, pdf_text_layer=pdf_text_layer)
 
     db.commit()
     db.refresh(doc)
     return doc
+

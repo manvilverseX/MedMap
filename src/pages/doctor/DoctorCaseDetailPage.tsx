@@ -99,6 +99,7 @@ export function DoctorCaseDetailPage() {
     originalAnswer?: string;
   } | null>(null);
   const [evidenceModalTab, setEvidenceModalTab] = useState<'evidence' | 'pdf'>('evidence');
+  const [copiedDocId, setCopiedDocId] = useState<string | null>(null);
 
   // Phase 7: ABDM Simulation Modal state
   const [isAbdmModalOpen, setIsAbdmModalOpen] = useState(false);
@@ -1296,9 +1297,9 @@ export function DoctorCaseDetailPage() {
                               </span>
                             </div>
                           </div>
-                          {doc.extractedText && (
+                          {doc.medicalEntities?.summary && (
                             <div style={{ fontSize: '0.85rem', marginBottom: '0.5rem', color: 'var(--color-text-secondary)' }}>
-                              <strong>Summary:</strong> {doc.extractedText}
+                              <strong>Summary:</strong> {doc.medicalEntities.summary}
                             </div>
                           )}
                           {doc.medicalEntities.diagnoses && doc.medicalEntities.diagnoses.length > 0 && (
@@ -1338,8 +1339,123 @@ export function DoctorCaseDetailPage() {
                            <em>Document extraction failed.</em>
                          </div>
                       )}
+
+                      {/* Collapsible Extracted text panel (Machine-read OCR) */}
+                      <details
+                        className="extracted-text-panel"
+                        style={{
+                          marginTop: '0.75rem',
+                          marginLeft: '1.7rem',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: '6px',
+                          backgroundColor: '#ffffff',
+                          overflow: 'hidden'
+                        }}
+                      >
+                        <summary
+                          style={{
+                            padding: '0.5rem 0.75rem',
+                            backgroundColor: '#f8fafc',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontSize: '0.85rem',
+                            color: 'var(--color-navy)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            userSelect: 'none'
+                          }}
+                        >
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <span>📄</span>
+                            <span>Extracted text</span>
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: 400 }}>
+                            {doc.extractedText ? `${doc.extractedText.length} chars` : 'No text'}
+                          </span>
+                        </summary>
+
+                        <div style={{ padding: '0.75rem' }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              flexWrap: 'wrap',
+                              gap: '0.5rem',
+                              padding: '0.5rem 0.75rem',
+                              backgroundColor: '#fffbeb',
+                              border: '1px solid #fde68a',
+                              borderRadius: '4px',
+                              marginBottom: '0.65rem',
+                              fontSize: '0.8rem',
+                              color: '#92400e'
+                            }}
+                          >
+                            <span>
+                              ⚠️ {doc.medicalEntities?.source === 'offline_demo_fallback' || doc.extractedText?.includes('[Demo fallback used]')
+                                ? 'Machine-read text (offline fallback path), may contain errors. Check the original file.'
+                                : 'Machine-read text, may contain errors. Check the original file.'}
+                            </span>
+                            {doc.extractedText && (
+                              <button
+                                type="button"
+                                className="copy-extracted-text-btn"
+                                onClick={async () => {
+                                  try {
+                                    await navigator.clipboard.writeText(doc.extractedText);
+                                    setCopiedDocId(doc.id || doc.documentId);
+                                    setTimeout(() => setCopiedDocId(null), 2000);
+                                  } catch (err) {
+                                    console.warn('Failed to copy', err);
+                                  }
+                                }}
+                                style={{
+                                  padding: '0.25rem 0.6rem',
+                                  fontSize: '0.75rem',
+                                  borderRadius: '4px',
+                                  border: '1px solid var(--color-border)',
+                                  background: '#ffffff',
+                                  cursor: 'pointer',
+                                  fontWeight: 500,
+                                  color: 'var(--color-navy)'
+                                }}
+                              >
+                                {copiedDocId === (doc.id || doc.documentId) ? '✓ Copied!' : 'Copy text'}
+                              </button>
+                            )}
+                          </div>
+
+                          {doc.extractedText && doc.extractedText.trim() ? (
+                            <pre
+                              style={{
+                                margin: 0,
+                                padding: '0.75rem',
+                                backgroundColor: '#0f172a',
+                                color: '#f8fafc',
+                                borderRadius: '4px',
+                                fontSize: '0.8rem',
+                                lineHeight: 1.5,
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word',
+                                maxHeight: '350px',
+                                overflowY: 'auto',
+                                fontFamily: 'monospace'
+                              }}
+                              aria-label={`Extracted text for ${doc.filename}`}
+                            >
+                              {doc.extractedText}
+                            </pre>
+                          ) : (
+                            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>
+                              No machine-read text available for this document.
+                            </p>
+                          )}
+                        </div>
+                      </details>
                     </div>
                   ))}
+
                 </div>
               ) : (
                 <div className="doctor-empty-state" style={{ margin: '1rem 0' }}>

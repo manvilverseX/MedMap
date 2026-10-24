@@ -333,3 +333,119 @@ def test_document_extraction_api_error_fallback(db, tmp_path):
             assert processed.medicalEntities is not None
             assert processed.medicalEntities.get("source") == "offline_demo_fallback"
             assert len(processed.medicalEntities.get("investigations", [])) > 0
+
+
+def test_pdf_text_layer_extraction_without_llm(db, tmp_path):
+    """Verify text-layer PDFs store text from PyMuPDF per page in documents.extractedText without LLM."""
+    import fitz
+    from app.services.document_extraction import process_document
+
+    pdf_path = str(tmp_path / "discharge_summary.pdf")
+    pdf_doc = fitz.open()
+    p1 = pdf_doc.new_page()
+    p1.insert_text((50, 50), "Discharge Summary: Patient admitted with fever and body ache.")
+    p2 = pdf_doc.new_page()
+    p2.insert_text((50, 50), "Rx: Tab Paracetamol 650mg TDS for 3 days. Review in OPD.")
+    pdf_doc.save(pdf_path)
+    pdf_doc.close()
+
+    doc_id = str(uuid.uuid4())
+    case_id = str(uuid.uuid4())
+    doc = PatientDocument(
+        id=doc_id,
+        caseId=case_id,
+        filename="discharge_summary.pdf",
+        storagePath=pdf_path,
+        mimeType="application/pdf",
+        sizeBytes=os.path.getsize(pdf_path),
+        createdAt=datetime.now(timezone.utc),
+    )
+    db.add(doc)
+    db.commit()
+
+    # Process without Groq API key (pure offline/text layer)
+    with patch.dict(os.environ, {}, clear=True):
+        processed = process_document(db, case_id, doc_id)
+        assert processed.extractionStatus == "completed"
+        assert processed.extractedText is not None
+        assert "--- Page 1 ---" in processed.extractedText
+        assert "Discharge Summary: Patient admitted with fever" in processed.extractedText
+        assert "--- Page 2 ---" in processed.extractedText
+        assert "Rx: Tab Paracetamol 650mg TDS" in processed.extractedText
+
+
+@patch("app.services.document_extraction.get_image_slices_base64")
+@patch("app.services.document_extraction.Groq")
+def test_image_extraction_stores_faithful_transcription(MockGroq, mock_get_base64, db, tmp_path):
+    """Verify vision call stores faithful transcription field in documents.extractedText."""
+    from app.services.document_extraction import process_document
+
+    doc_id = str(uuid.uuid4())
+    case_id = str(uuid.uuid4())
+    doc = PatientDocument(
+        id=doc_id,
+        caseId=case_id,
+        filename="scanned_rx.jpg",
+        storagePath=str(tmp_path / "fake.jpg"),
+        mimeType="image/jpeg",
+        sizeBytes=1024,
+        createdAt=datetime.now(timezone.utc),
+    )
+    db.add(doc)
+    db.commit()
+
+    mock_get_base64.return_value = ["slice1_b64"]
+    mock_client = MagicMock()
+    MockGroq.return_value = mock_client
+
+    vision_payload = {
+        "sourceReference": doc_id,
+        "medications": [{"name": "Amlodipine", "dose": "5mg"}],
+        "diagnoses": ["Hypertension"],
+        "investigations": [],
+        "procedures": [],
+        "clinicallyRelevantDates": [],
+        "summary": "Prescription for Hypertension",
+        "transcription": "Dr. Sharma Clinic\nRx: Tab Amlodipine 5mg OD x 30 days\nBP: 140/90 mmHg",
+    }
+    mock_response = MagicMock()
+    import json
+    mock_response.choices[0].message.content = json.dumps(vision_payload)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    with patch.dict(os.environ, {"GROQ_API_KEY": "dummy_key"}):
+        processed = process_document(db, case_id, doc_id)
+        assert processed.extractionStatus == "completed"
+        assert "Dr. Sharma Clinic" in processed.extractedText
+        assert "Tab Amlodipine 5mg OD" in processed.extractedText
+        assert "BP: 140/90 mmHg" in processed.extractedText
+
+
+def test_document_endpoints_access_control(db):
+    """Verify patient cannot access another case's documents, while doctor can access."""
+    from app.core.security import create_access_token
+    from app.models.case import ClinicalCase
+    client = TestClient(app)
+
+    case1_id = str(uuid.uuid4())
+    case2_id = str(uuid.uuid4())
+    c1 = ClinicalCase(caseId=case1_id, patientId="p1", status="intake", consentGranted=True, createdAt=datetime.now(timezone.utc), updatedAt=datetime.now(timezone.utc))
+    c2 = ClinicalCase(caseId=case2_id, patientId="p2", status="intake", consentGranted=True, createdAt=datetime.now(timezone.utc), updatedAt=datetime.now(timezone.utc))
+    db.add_all([c1, c2])
+    db.commit()
+
+    pat1_token = create_access_token(data={"role": "patient", "case_id": case1_id})
+    doc_token = create_access_token(data={"role": "doctor", "sub": "doctor1"})
+
+    # Patient 1 tries to access Case 2 documents -> 403 Forbidden
+    res_pat_denied = client.get(f"/api/v1/cases/{case2_id}/documents", headers={"Authorization": f"Bearer {pat1_token}"})
+    assert res_pat_denied.status_code == 403
+
+    # Patient 1 accesses Case 1 documents -> 200 OK
+    res_pat_allowed = client.get(f"/api/v1/cases/{case1_id}/documents", headers={"Authorization": f"Bearer {pat1_token}"})
+    assert res_pat_allowed.status_code == 200
+
+    # Doctor accesses Case 2 documents -> 200 OK
+    res_doc = client.get(f"/api/v1/cases/{case2_id}/documents", headers={"Authorization": f"Bearer {doc_token}"})
+    assert res_doc.status_code == 200
+

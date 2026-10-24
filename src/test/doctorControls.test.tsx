@@ -137,4 +137,51 @@ describe('Doctor Item Controls (Accept, Edit, Reject, Evidence)', () => {
       expect(screen.getByText(/Source Provenance/i)).toBeInTheDocument();
     });
   });
+
+  it('renders collapsible extracted text panel for uploaded documents with machine-read notice and copy button', async () => {
+    const mockDoc = {
+      id: 'doc-test-1',
+      caseId: 'doc-review-case',
+      filename: 'blood_report.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 15420,
+      createdAt: new Date().toISOString(),
+      extractionStatus: 'completed',
+      extractedText: '--- Page 1 ---\nFasting Blood Sugar: 126 mg/dL\nHbA1c: 7.2 %',
+      medicalEntities: {
+        diagnoses: ['Diabetes Mellitus'],
+        medications: [],
+        investigations: [{ testName: 'HbA1c', value: '7.2', unit: '%' }],
+      },
+    };
+
+    vi.mocked(api.getCaseDocuments).mockResolvedValueOnce([mockDoc]);
+
+    render(
+      <MemoryRouter initialEntries={['/doctor/cases/doc-review-case']}>
+        <Routes>
+          <Route path="/doctor/cases/:caseId" element={<DoctorCaseDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('blood_report.pdf')).toBeInTheDocument();
+    });
+
+    // Check extracted text summary toggle
+    expect(screen.getByText('Extracted text')).toBeInTheDocument();
+
+    // Check machine-read notice
+    expect(screen.getByText(/Machine-read text, may contain errors\. Check the original file\./i)).toBeInTheDocument();
+
+    // Check text content inside pre
+    expect(screen.getByLabelText(/Extracted text for blood_report\.pdf/i)).toBeInTheDocument();
+    expect(screen.getByText(/Fasting Blood Sugar: 126 mg\/dL/i)).toBeInTheDocument();
+
+    // Check copy button
+    const copyBtn = screen.getByRole('button', { name: /Copy text/i });
+    expect(copyBtn).toBeInTheDocument();
+  });
 });
+
