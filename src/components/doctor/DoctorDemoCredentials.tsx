@@ -4,11 +4,33 @@ interface DoctorDemoCredentialsProps {
   onQuickFill?: (credentials: { username: string; password: string }) => void;
 }
 
+export const LOCAL_DEMO_DOCTOR_USERNAME = 'demo_doctor';
+export const LOCAL_DEMO_DOCTOR_PASSWORD = 'demo_doctor_password123';
+
+export function getDemoDoctorCredentials(): { username: string; password: string } | null {
+  const envUser = import.meta.env.VITE_DEMO_DOCTOR_USERNAME;
+  const envPass = import.meta.env.VITE_DEMO_DOCTOR_PASSWORD;
+
+  if (envUser && envPass) {
+    return { username: envUser, password: envPass };
+  }
+  if (import.meta.env.DEV) {
+    return { username: LOCAL_DEMO_DOCTOR_USERNAME, password: LOCAL_DEMO_DOCTOR_PASSWORD };
+  }
+  return null;
+}
+
 export const DoctorDemoCredentials: React.FC<DoctorDemoCredentialsProps> = ({ onQuickFill }) => {
   const [copiedField, setCopiedField] = useState<'username' | 'password' | null>(null);
 
-  const demoUsername = 'doctor';
-  const demoPassword = 'doctor';
+  const creds = getDemoDoctorCredentials();
+  if (!creds) {
+    return null;
+  }
+
+  const demoUsername = creds.username;
+  const demoPassword = creds.password;
+
 
   const handleCopy = async (text: string, field: 'username' | 'password') => {
     try {

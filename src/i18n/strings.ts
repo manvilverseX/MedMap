@@ -32,6 +32,7 @@ export const EN_STRINGS = {
   // Onboarding
   onboardingHeading: "Welcome to MedMap",
   onboardingSubtitle: "Please enter your details to start.",
+  demoSyntheticDataBanner: "Demo environment: use only synthetic data, never real patient information",
   patientIdLabel: "Patient ID",
   patientIdPlaceholder: "e.g. p-12345",
   languageLabel: "Preferred Language",
@@ -486,6 +487,7 @@ export const HI_STRINGS: Record<StringKey, string> = {
 
   onboardingHeading: "MedMap में आपका स्वागत है",
   onboardingSubtitle: "शुरू करने के लिए कृपया अपना विवरण दर्ज करें।",
+  demoSyntheticDataBanner: "डेमो वातावरण: केवल कृत्रिम डेटा का उपयोग करें, वास्तविक रोगी जानकारी कभी नहीं।",
   patientIdLabel: "रोगी आईडी",
   patientIdPlaceholder: "उदा: p-12345",
   languageLabel: "पसंदीदा भाषा",
@@ -847,6 +849,7 @@ export const KN_STRINGS: Record<StringKey, string> = {
 
   onboardingHeading: "MedMap ಗೆ ಸುಸ್ವಾಗತ",
   onboardingSubtitle: "ಪ್ರಾರಂಭಿಸಲು ದಯವಿಟ್ಟು ನಿಮ್ಮ ವಿವರಗಳನ್ನು ನಮೂದಿಸಿ.",
+  demoSyntheticDataBanner: "ಡೆಮೊ ಪರಿಸರ: ಕೇವಲ ಕೃತಕ ಡೇಟಾವನ್ನು ಬಳಸಿ, ನೈಜ ರೋಗಿಯ ಮಾಹಿತಿಯನ್ನು ಎಂದಿಗೂ ಬಳಸಬೇಡಿ.",
   patientIdLabel: "ರೋಗಿಯ ಗುರುತು (ID)",
   patientIdPlaceholder: "ಉದಾಹರಣೆಗೆ: p-12345",
   languageLabel: "ಆದ್ಯತೆಯ ಭಾಷೆ",

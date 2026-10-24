@@ -117,7 +117,8 @@ Run `python backend/seed_e2e_cases.py` to reset the deterministic demo dataset:
 
 | Role | Username | Password | Default Landing |
 | :--- | :--- | :--- | :--- |
-| **Doctor** | `doctor` | `password123` | `/doctor/cases` |
+| **Demo Doctor (Evaluation)** | `demo_doctor` | `demo_doctor_password123` (or env `DEMO_DOCTOR_PASSWORD`) | `/doctor/cases` |
+| **Standard Doctor** | `doctor` | `password123` | `/doctor/cases` |
 | **Hospital Admin** | `admin` | `admin123` | `/admin/queue` |
 | **Patient** | `patient` | `password123` | `/patient` |
 

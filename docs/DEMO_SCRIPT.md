@@ -16,6 +16,7 @@ Before running the demo script, ensure the database is seeded:
 python seed_e2e_cases.py
 ```
 This idempotently provisions:
+- **Demo Doctor Portal:** `demo_doctor` / `demo_doctor_password123` (or env `DEMO_DOCTOR_PASSWORD`)
 - **Doctor Portal:** `doctor` / `password123`
 - **Admin Dashboard:** `admin` / `admin123`
 - **Patient Portal:** `patient` / `password123`
@@ -111,8 +112,9 @@ This idempotently provisions:
 
 ### Step 12: Doctor Portal Access & Case List
 - Log in to the Doctor Portal (`/doctor/login`) using:
-  - Username: `doctor`
-  - Password: `password123`
+  - Username: `demo_doctor` (or click "Fill Demo Credentials" in demo mode)
+  - Password: `demo_doctor_password123` (or env `DEMO_DOCTOR_PASSWORD`)
+  - *(Alternative standard account: `doctor` / `password123`)*
 - The Cases Dashboard (`/doctor/cases`) displays active cases categorized by status:
   - `demo-cardiac-redflag` (Cardiac red-flag triage case)
   - `demo-diabetes-repeat` (Diabetes longitudinal repeat case)

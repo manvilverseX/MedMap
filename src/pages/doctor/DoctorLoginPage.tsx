@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { API_BASE_URL } from '../../utils/api';
 import { Button } from '../../components/Button';
-import { DoctorDemoCredentials } from '../../components/doctor/DoctorDemoCredentials';
+import { DoctorDemoCredentials, getDemoDoctorCredentials } from '../../components/doctor/DoctorDemoCredentials';
 
 export function DoctorLoginPage() {
   const [username, setUsername] = useState('');
@@ -71,6 +71,25 @@ export function DoctorLoginPage() {
 
       <div className="card">
         <h1 style={{ marginBottom: '1.25rem', textAlign: 'center', fontFamily: 'var(--font-hand)', fontSize: '2.25rem' }}>Doctor Login</h1>
+
+        {Boolean(getDemoDoctorCredentials()) && (
+          <div
+            role="note"
+            style={{
+              backgroundColor: '#fef3c7',
+              color: '#92400e',
+              border: '1px solid #fde68a',
+              borderRadius: '6px',
+              padding: '0.45rem 0.75rem',
+              fontSize: '0.82rem',
+              fontWeight: 500,
+              marginBottom: '1rem',
+              textAlign: 'center',
+            }}
+          >
+            Demo environment: use only synthetic data, never real patient information
+          </div>
+        )}
 
         <DoctorDemoCredentials onQuickFill={handleQuickFill} />
 

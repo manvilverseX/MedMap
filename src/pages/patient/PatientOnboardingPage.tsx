@@ -6,6 +6,7 @@ import { Button } from '../../components/Button';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { useT } from '../../i18n/useT';
 import { normalizeLanguage, setSessionLanguage, getSessionLanguage } from '../../utils/language';
+import { getDemoDoctorCredentials } from '../../components/doctor/DoctorDemoCredentials';
 
 export function PatientOnboardingPage() {
   const [patientId, setPatientId] = useState('');
@@ -122,6 +123,25 @@ export function PatientOnboardingPage() {
         <h2>{t('onboardingHeading')}</h2>
         <p>{t('onboardingSubtitle')}</p>
         
+        {Boolean(getDemoDoctorCredentials()) && (
+          <div
+            role="note"
+            style={{
+              backgroundColor: '#fef3c7',
+              color: '#92400e',
+              border: '1px solid #fde68a',
+              borderRadius: '6px',
+              padding: '0.45rem 0.75rem',
+              fontSize: '0.82rem',
+              fontWeight: 500,
+              marginBottom: '1rem',
+              textAlign: 'center',
+            }}
+          >
+            {t('demoSyntheticDataBanner')}
+          </div>
+        )}
+
         <ErrorMessage message={error} />
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>

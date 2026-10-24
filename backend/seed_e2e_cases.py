@@ -110,8 +110,9 @@ def seed_db():
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     now = datetime.now(timezone.utc)
 
-    # ── 1. Users (doctor, admin, patient) ──────────────────────────────────
+    demo_doc_pw = os.getenv("DEMO_DOCTOR_PASSWORD", "demo_doctor_password123")
     users_to_seed = [
+        ("demo_doctor", demo_doc_pw, "doctor"),
         ("doctor", "password123", "doctor"),
         ("admin", "admin123", "admin"),
         ("patient", "password123", "patient"),

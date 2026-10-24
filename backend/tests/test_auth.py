@@ -161,3 +161,30 @@ def test_blocklist_db_error_returns_500(monkeypatch):
     response = client.get("/api/v1/cases", headers={"Authorization": f"Bearer {doc_token}"})
     assert response.status_code == 500
     assert "Database error occurred during token revocation check" in response.json()["detail"]
+
+
+def test_demo_doctor_seeding_and_login():
+    from seed import seed_demo_doctor
+    db = TestingSessionLocal()
+    try:
+        seed_demo_doctor(db)
+        user = db.query(User).filter(User.username == "demo_doctor").first()
+        assert user is not None
+        assert user.username == "demo_doctor"
+        assert user.role == "doctor"
+    finally:
+        db.close()
+
+    # Login as demo_doctor using the local default password
+    res = client.post("/api/v1/auth/doctor/login", data={"username": "demo_doctor", "password": "demo_doctor_password123"})
+    assert res.status_code == 200
+    data = res.json()
+    assert "access_token" in data
+    assert data["token_type"] == "bearer"
+
+    # Verify demo_doctor token allows accessing doctor cases endpoint
+    cases_res = client.get("/api/v1/cases", headers={"Authorization": f"Bearer {data['access_token']}"})
+    assert cases_res.status_code == 200
+
+
+
