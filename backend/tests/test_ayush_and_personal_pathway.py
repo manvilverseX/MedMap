@@ -10,8 +10,8 @@ from app.services.interview_engine.ayush_questions import (
 
 
 def test_ayush_questions_definitions():
-    """Verify all 14 AYUSH parameters (10 Dashavidha Pariksha + Agni, Koshtha, Ahara-Vihara, Nidana) are present."""
-    assert len(AYUSH_QUESTIONS) == 14
+    """Verify all 15 AYUSH parameters (10 Dashavidha Pariksha + Agni, Koshtha, Ahara-Vihara, Nidana, Samprapti) are present."""
+    assert len(AYUSH_QUESTIONS) == 15
     expected_keys = {
         "ayush_prakriti",
         "ayush_vikriti",
@@ -27,6 +27,7 @@ def test_ayush_questions_definitions():
         "ayush_koshtha",
         "ayush_ahara_vihara",
         "ayush_nidana",
+        "ayush_samprapti",
     }
     actual_keys = {q.id for q in AYUSH_QUESTIONS}
     assert expected_keys == actual_keys
@@ -63,6 +64,8 @@ def test_general_pathway_completion():
         "past_surgical": "No previous surgeries",
         "family_history": "No family history of migraines",
         "review_of_systems": "No other symptoms",
+        "previous_investigations": "None / not sure",
+        "other_history": "Nothing else",
         "personal_diet": "Vegetarian",
         "personal_sleep": "Normal (6-8 hours restful)",
         "personal_habits": "None / Never used",
@@ -84,7 +87,7 @@ def test_ayush_consultation_detection():
 
 
 def test_ayush_pathway_branching_and_completion():
-    """Verify AYUSH pathway asks general history first, then branches into all 14 AYUSH parameters, then completes."""
+    """Verify AYUSH pathway asks general history first, then branches into all 15 AYUSH parameters, then completes."""
     base_general_answers = {
         "consultation_type": "ayush",
         "chief_complaint": "Joint stiffness and knee pain in the morning",
@@ -101,6 +104,8 @@ def test_ayush_pathway_branching_and_completion():
         "past_surgical": "No previous surgeries",
         "family_history": "Mother had joint pain",
         "review_of_systems": "No other symptoms",
+        "previous_investigations": "None / not sure",
+        "other_history": "Nothing else",
         "personal_diet": "Vegetarian",
         "personal_sleep": "Disturbed by knee discomfort",
         "personal_habits": "None",

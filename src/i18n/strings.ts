@@ -397,6 +397,9 @@ export const EN_STRINGS = {
   q_ayush_prakriti: "Prakriti Assessment",
   q_ayush_lifestyle: "Daily Routine & Lifestyle",
   q_ayush_digestion: "Digestion and Appetite",
+  q_previous_investigations: "Previous Investigations",
+  q_other_history: "Other Relevant History",
+  q_ayush_samprapti: "Progression of Illness (Samprapti)",
 };
 
 export type StringKey = keyof typeof EN_STRINGS;
@@ -834,6 +837,9 @@ export const HI_STRINGS: Record<StringKey, string> = {
   q_ayush_prakriti: "प्रकृति परीक्षण",
   q_ayush_lifestyle: "दैनिक दिनचर्या और जीवनशैली",
   q_ayush_digestion: "पाचन और भूख",
+  q_previous_investigations: "पिछली जांचें",
+  q_other_history: "अन्य प्रासंगिक इतिहास",
+  q_ayush_samprapti: "बीमारी की प्रगति (सम्प्राप्ति)",
 };
 
 // ── Complete Kannada Translations ─────────────────────────────────────────────
@@ -1201,6 +1207,9 @@ export const KN_STRINGS: Record<StringKey, string> = {
   q_ayush_prakriti: "ಪ್ರಕೃತಿ ಪರೀಕ್ಷೆ",
   q_ayush_lifestyle: "ದೈನಂದಿನ ಜೀವನಶೈಲಿ",
   q_ayush_digestion: "ಜೀರ್ಣಕ್ರಿಯೆ ಮತ್ತು ಹಸಿವು",
+  q_previous_investigations: "ಹಿಂದಿನ ಪರೀಕ್ಷೆಗಳು",
+  q_other_history: "ಇತರ ಪ್ರಸ್ತುತ ಇತಿಹಾಸ",
+  q_ayush_samprapti: "ಅನಾರೋಗ್ಯದ ಪ್ರಗತಿ (ಸಂಪ್ರಾಪ್ತಿ)",
 };
 
 // ── Static lookup ─────────────────────────────────────────────────────────────

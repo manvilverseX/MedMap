@@ -36,6 +36,8 @@ def generate_clinical_brief_fallback(intake_answers: dict) -> dict:
         allergies = f"{allergies} (Reaction: {allergy_reaction})"
     fam = extract_val("family_history")
     ros = extract_val("review_of_systems")
+    prev_inv = extract_val("previous_investigations")
+    other_hist = extract_val("other_history")
 
     return {
         "chiefComplaint": cc,
@@ -46,6 +48,8 @@ def generate_clinical_brief_fallback(intake_answers: dict) -> dict:
         "allergies": allergies,
         "familyHistory": fam,
         "reviewOfSystems": ros,
+        "previousInvestigations": prev_inv,
+        "otherHistory": other_hist,
         "source": "offline_demo_fallback",
     }
 
@@ -81,6 +85,8 @@ def generate_clinical_brief(intake_answers: dict) -> dict:
     6. Allergies
     7. Family History
     8. Review of Systems
+    9. Previous Investigations
+    10. Other Relevant History
     
     Patient Intake Answers:
     {json.dumps(intake_answers, indent=2)}

@@ -200,6 +200,22 @@ AYUSH_QUESTIONS: tuple[IntakeQuestion, ...] = (
             "No obvious trigger noticed / Not sure",
         ),
     ),
+    IntakeQuestion(
+        id="ayush_samprapti",
+        category="Ayurveda: Samprapti (Progression)",
+        prompt="How did your illness start and progress? What makes it better or worse (such as food, season, stress, or sleep), and did it come on gradually or suddenly?",
+        helperText="Patient-reported progression history: onset, factors affecting symptoms, and timeline.",
+        inputType="textarea",
+        allowsNone=False,
+        options=(
+            "Started suddenly and worsened rapidly",
+            "Came on gradually over time",
+            "Worse with cold weather or seasonal change",
+            "Worse with heavy, spicy, or irregular food",
+            "Worse with stress, anxiety, or lack of sleep",
+            "Variable with no clear pattern / Not sure",
+        ),
+    ),
 )
 
 AYUSH_QUESTION_MAP: dict[str, IntakeQuestion] = {q.id: q for q in AYUSH_QUESTIONS}

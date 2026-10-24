@@ -217,6 +217,32 @@ CURATED_GAP_QUESTIONS: dict[str, dict[str, Any]] = {
             "Trouble sleeping",
         ),
     },
+    ClinicalGap.PREVIOUS_INVESTIGATIONS: {
+        "id": "previous_investigations",
+        "category": "Previous Investigations",
+        "prompt": "Have you had any tests or scans before for this problem or others? For example blood tests, X-ray, scan, ECG.",
+        "helperText": "You can upload your reports or files on the next screen.",
+        "inputType": "textarea",
+        "allowsNone": True,
+        "options": (
+            "Blood tests",
+            "X-ray",
+            "Scan (CT/MRI/Ultrasound)",
+            "ECG",
+            "None / not sure",
+        ),
+    },
+    ClinicalGap.OTHER_HISTORY: {
+        "id": "other_history",
+        "category": "Other Relevant History",
+        "prompt": "Is there anything else about your health you want the doctor to know?",
+        "helperText": "Any other symptoms, concerns, or health details you wish to share.",
+        "inputType": "textarea",
+        "allowsNone": True,
+        "options": (
+            "Nothing else",
+        ),
+    },
     ClinicalGap.PERSONAL_DIET: {
         "id": "personal_diet",
         "category": "Personal History: Diet",

@@ -15,6 +15,8 @@ class AISummary(BaseModel):
     allergies: Optional[str] = None
     familyHistory: Optional[str] = None
     reviewOfSystems: Optional[str] = None
+    previousInvestigations: Optional[str] = None
+    otherHistory: Optional[str] = None
 
 
 class CaseStatus(str, Enum):

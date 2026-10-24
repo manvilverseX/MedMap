@@ -1048,6 +1048,7 @@ export function DoctorCaseDetailPage() {
                     koshtha: "Koshtha (Bowel Habit & Gastrointestinal Tendency)",
                     ahara_vihara: "Ahara-Vihara (Dietary & Lifestyle Habits)",
                     nidana: "Nidana (Perceived Causes & Triggers)",
+                    samprapti: "Progression of illness (patient-reported, for Samprapti assessment by the practitioner)",
                   }).map(([key, label]) => {
                     const ayushAnswers = (caseDetail.intakeAnswers?.ayush as Record<string, any>) || {};
                     const rawVal = ayushAnswers[key] || caseDetail.intakeAnswers?.[`ayush_${key}`];

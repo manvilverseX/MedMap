@@ -19,6 +19,9 @@ export interface IntakeQuestion {
 
   /** Whether negative answers (e.g. none, no symptoms) are valid */
   allowsNone?: boolean;
+
+  /** Suggested response chips */
+  chips?: string[];
 }
 
 export const INTAKE_QUESTIONS: IntakeQuestion[] = [
@@ -96,5 +99,37 @@ export const INTAKE_QUESTIONS: IntakeQuestion[] = [
     inputType: 'textarea',
     placeholder:
       'e.g. Occasional dizziness when standing up, mild fatigue in the afternoons…',
+  },
+  {
+    id: 'previous_investigations',
+    category: 'Previous Investigations',
+    prompt:
+      'Have you had any tests or scans before for this problem or others? For example blood tests, X-ray, scan, ECG.',
+    helperText:
+      'You can upload your reports or files on the next screen.',
+    inputType: 'textarea',
+    placeholder:
+      'e.g. Blood test 2 weeks ago, normal chest X-ray last year…',
+    allowsNone: true,
+    chips: [
+      'Blood tests',
+      'X-ray',
+      'Scan (CT/MRI/Ultrasound)',
+      'ECG',
+      'None / not sure',
+    ],
+  },
+  {
+    id: 'other_history',
+    category: 'Other Relevant History',
+    prompt:
+      'Is there anything else about your health you want the doctor to know?',
+    helperText:
+      'Any other symptoms, concerns, or health details you wish to share.',
+    inputType: 'textarea',
+    placeholder:
+      'e.g. History of frequent headaches, recent travel, high stress at work…',
+    allowsNone: true,
+    chips: ['Nothing else'],
   },
 ];

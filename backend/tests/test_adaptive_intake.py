@@ -77,7 +77,7 @@ def test_correction_state():
 
 
 def test_completed_state():
-    answers = _answers_through("review_of_systems", "none")
+    answers = _answers_through("other_history", "none")
 
     state = select_intake_state(answers)
 

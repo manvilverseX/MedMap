@@ -18,6 +18,8 @@ class ClinicalGap:
     PAST_SURGICAL = "past_surgical"  # previous procedures
     FAMILY_HISTORY = "family_history"  # family risk factors
     REVIEW_OF_SYSTEMS = "review_of_systems"  # systemic review
+    PREVIOUS_INVESTIGATIONS = "previous_investigations"  # tests, scans, ECG, blood work
+    OTHER_HISTORY = "other_history"  # any other health information
     PERSONAL_DIET = "personal_diet"  # dietary pattern
     PERSONAL_SLEEP = "personal_sleep"  # sleep quality & pattern
     PERSONAL_HABITS = "personal_habits"  # tobacco, nicotine, alcohol
@@ -41,6 +43,8 @@ QUESTION_ID_TO_GAP: dict[str, str] = {
     "past_surgical": ClinicalGap.PAST_SURGICAL,
     "family_history": ClinicalGap.FAMILY_HISTORY,
     "review_of_systems": ClinicalGap.REVIEW_OF_SYSTEMS,
+    "previous_investigations": ClinicalGap.PREVIOUS_INVESTIGATIONS,
+    "other_history": ClinicalGap.OTHER_HISTORY,
     "personal_diet": ClinicalGap.PERSONAL_DIET,
     "personal_sleep": ClinicalGap.PERSONAL_SLEEP,
     "personal_habits": ClinicalGap.PERSONAL_HABITS,
@@ -213,6 +217,8 @@ def determine_required_gaps(
         ClinicalGap.ALLERGIES,
         ClinicalGap.FAMILY_HISTORY,
         ClinicalGap.REVIEW_OF_SYSTEMS,
+        ClinicalGap.PREVIOUS_INVESTIGATIONS,
+        ClinicalGap.OTHER_HISTORY,
     ]
     if include_personal_history:
         background_gaps.extend([

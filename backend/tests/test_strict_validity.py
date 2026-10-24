@@ -171,8 +171,15 @@ def test_groq_outage_falls_back_to_deterministic_checks(mock_groq_cls, db_sessio
     assert state.state != IntakeState.CLARIFICATION
 
 
-def test_english_flow_unchanged(db_session):
+@patch("app.services.ai_service.Groq")
+def test_english_flow_unchanged(mock_groq_cls, db_session):
     """Standard English clinical flow saves valid answers without regression."""
+    mock_resp = MagicMock()
+    mock_resp.choices[0].message.content = json.dumps({"valid": True, "reason_code": None, "clarifying_question": None})
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value = mock_resp
+    mock_groq_cls.return_value = mock_client
+
     case = case_service.create_case(
         db_session,
         CaseCreate(patientId="p-en-flow", language="en", consentGranted=True)
