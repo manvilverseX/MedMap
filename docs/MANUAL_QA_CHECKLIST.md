@@ -1,12 +1,12 @@
-# MedMap — 25-Item Master Manual QA & System Verification Checklist
+# MedMap — 38-Item Master Manual QA & System Verification Checklist
 
 **Project:** MedMap (SIH26047, Ministry of Ayush / AIIA)
 **Date of Audit:** October 2026
-**Status Standards:** All 25 items verified via automated test suites and component execution.
+**Status Standards:** All 38 items verified via automated test suites and component execution.
 
 ---
 
-## Master 25-Item System Verification Checklist
+## Master 38-Item System Verification Checklist
 
 | # | Feature / Test Item | Requirement & Expected Behavior | Status | Verification Evidence |
 | :-: | :--- | :--- | :---: | :--- |
@@ -28,7 +28,7 @@
 | **16** | **Clinical Intelligence Safety Signals** | Detects acute red-flag symptoms (e.g., chest pain with radiation) and displays prominent triage alert cards. | **PASS** | `backend/tests/test_clinical_intelligence.py` (5 tests pass); `demo-cardiac-redflag` case. |
 | **17** | **Patient Verification & Correction** | Patient reviews compiled intake brief at `/patient/verify` and can edit previous answers inline before confirming. | **PASS** | `PatientVerificationPage.tsx`; `test_bugfix_regression.py` (correction flow tests). |
 | **18** | **Shared-Device Privacy Cleanup** | "Finish & Clear This Device" action logs out, revokes token via blocklist, wipes local/session storage. 5-min inactivity countdown timer warns and resets. | **PASS** | `src/test/sessionClearing.test.tsx` (2 tests pass); `backend/tests/test_patient_privacy_isolation.py`. |
-| **19** | **Doctor Portal Authentication & Queue** | Doctor logs in at /doctor/login using dedicated demo account (demo_doctor / demo_doctor_password123 locally or DEMO_DOCTOR_PASSWORD) or quick-fill button to view categorized cases by status (intake, doctor_review, completed). | **PASS** | ackend/tests/test_auth.py (9 tests pass); DoctorCasesPage.tsx. |
+| **19** | **Doctor Portal Authentication & Queue** | Doctor logs in at /doctor/login using dedicated demo account (demo_doctor / demo_doctor_password123 locally or DEMO_DOCTOR_PASSWORD) or quick-fill button to view categorized cases by status (intake, doctor_review, completed). | **PASS** |  ackend/tests/test_auth.py (9 tests pass); DoctorCasesPage.tsx. |
 | **20** | **Source Evidence & Provenance Links** | Clicking 🔍 Evidence on any diagnosis, medication, or lab result opens source provenance modal with exact snippet and file link. | **PASS** | `src/test/doctorControls.test.tsx`; `DoctorCaseDetailPage.tsx` lines 1410-1495. |
 | **21** | **Doctor Entity Controls (Accept/Edit/Reject)** | Doctor can Accept (✓), Edit with inline input (✏️), or Reject (✕) each extracted fact. Rejected items are visibly struck and excluded from FHIR. | **PASS** | `src/test/doctorControls.test.tsx` (all 3 tests pass); `backend/tests/test_doctor_controls_and_audit.py`. |
 | **22** | **Case Finalization & Reviewed State** | Finalizing a case seals the record using doctor-reviewed facts only, transitions status to `completed`, and records audit event. | **PASS** | `backend/tests/test_doctor_controls_and_audit.py`; `DoctorCaseDetailPage.tsx`. |
@@ -41,6 +41,13 @@
 | **29** | **Bilingual Answer Storage & Patient Verification** | Patient free-text stored as `{value: english, original: native_text, lang}`. Patient verification page displays native words and allows re-translation upon edits. | **PASS** | `backend/tests/test_multilingual_intake.py`; `src/pages/patient/PatientVerificationPage.tsx`. |
 | **30** | **Doctor Bilingual Inspection & FHIR Integrity** | Doctor portal includes "English (Canonical) | Patient's Language" toggle. 🔍 Evidence modal shows side-by-side translation and original utterance. FHIR export preserves English clinical terms. | **PASS** | `src/pages/doctor/DoctorCaseDetailPage.tsx`; `src/test/multilingual.test.tsx`; `demo-kannada-fever` seeded case. |
 | **31** | **Patient Screens Zero-English Leak Verification (kn/hi)** | Full patient journey (Landing, Onboarding, Consent, ABHA, Intake, Clarifications, Critical Confirmation, Documents, Verification, Inactivity, 404) renders 100% in native Kannada and Hindi with zero non-allowlisted Latin words. | **PASS** | `src/test/patientEnglishLeakRegression.test.tsx` (22 DOM tests); `docs/I18N_AUDIT_AFTER.md`. |
+| **32** | **Inspectable Machine-Read OCR Text Panel** | Doctor view includes a collapsible "Raw Machine-Read Text (OCR)" panel per document with line count indicator, copy button, and full text inspection. | **PASS** | `DoctorCaseDetailPage.tsx` lines 1120-1165; commit `6e3808c`. |
+| **33** | **Duplicate Document Detection** | SHA-256 hash detection warns patients upon re-upload of identical documents across previous encounters, showing original upload date and avoiding duplicate clinical processing. | **PASS** | `backend/app/api/v1/cases.py` lines 426-444; commit `34ea607`. |
+| **34** | **Previous Investigations & Other History Intake** | General intake collects prior lab tests/scans (`previous_investigations`) and open-ended concerns (`other_history`) with full `allowsNone=True` support and negative chips. | **PASS** | `backend/tests/test_p5_intake_gaps.py`; commit `154e549`. |
+| **35** | **AYUSH Samprapti Intake Question** | AYUSH pathway includes `ayush_samprapti` probing pathogenesis progression history (`allowsNone=False`) with native Devanagari and Kannada translations. | **PASS** | `backend/tests/test_p5_intake_gaps.py`; commit `154e549`. |
+| **36** | **Accessible First-Time Patient Walkthrough** | 4-step modal overlay on fresh intake sessions explaining answering, read-aloud listening, review/corrections, and shared-device privacy with zero Latin character leaks in hi/kn. | **PASS** | `src/test/patientWalkthrough.test.tsx` (7 tests pass); commit `555c16b`. |
+| **37** | **Safe Token Lifetimes & Sliding-Window Rate Limiting** | Configurable JWT lifetimes (4-hour patient session, 12-hour doctor/admin) and in-memory IP rate limiting on login (10/min), case creation (30/min), and speech (60/min). | **PASS** | `backend/tests/test_p7_security_basics.py` (4 tests pass); commit `b2055d8`. |
+| **38** | **Mapping Doctor Consultation & Allergies to FHIR** | Finalized doctor consultation assessments, prescriptions, and advice map directly to FHIR `Condition`, `MedicationRequest`, and `CarePlan`, and allergies map to `AllergyIntolerance`. | **PASS** | `backend/tests/test_fhir.py` (8 tests pass); commit `045ff72`. |
 
 ---
 

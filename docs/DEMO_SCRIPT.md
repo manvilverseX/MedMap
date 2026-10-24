@@ -61,31 +61,46 @@ This idempotently provisions:
 - Notice label: `Draft questionnaire: requires review by a qualified Ayurvedic practitioner.`
 - Click **Continue to Medical Intake →**.
 
-### Step 5: Voice & Touch Intake (Web Speech API)
-- On the adaptive intake screen (`/patient/intake`), notice the **Voice & Audio Mode** bar.
+### Step 5: First-Time Patient Walkthrough & Voice Mode
+- Upon landing on `/patient/intake` for the first time, an accessible **4-Step Walkthrough Modal** automatically appears:
+  1. *Step 1: How to Answer* — Explains simple typing, selecting choices, or speaking.
+  2. *Step 2: Read Aloud & Voice Input* — Demonstrates the speaker button and mic dictation.
+  3. *Step 3: Review & Correct* — Assures patients they can review and correct answers at any time.
+  4. *Step 4: Shared Device & Privacy* — Explains end-of-visit device clearing.
+  - The modal has complete native Hindi/Kannada translations and zero Latin character leaks.
+  - Click **"Got it, let's start"** (or press Escape) to dismiss.
+- On the adaptive intake screen, notice the **Voice & Audio Mode** bar.
 - Toggle **🔊 Voice Mode: ON**.
-- The question is automatically read aloud using browser `SpeechSynthesis`. Click **🔊 Read Aloud / Replay** to repeat.
+- The question is automatically read aloud using Sarvam AI (`bulbul:v3`) or browser `SpeechSynthesis`. Click **🔊 Read Aloud / Replay** to repeat.
 - Click **🎙️ Tap to Speak** to dictate an answer in the selected language (`en-IN`, `hi-IN`, or `kn-IN`).
-- **Touch Correction:** Speech output is placed into an editable transcript. The patient can edit words via touch/keyboard before submitting.
+- **Touch Correction:** Speech output is placed into an editable transcript with an AI transcription notice. The patient can edit words via touch/keyboard before submitting.
 - *Graceful Fallback:* If mic permissions are blocked or unsupported, the interface shows a polite notice and switches seamlessly to touch typing without crashing.
 
 ### Step 6: Dynamic Adaptive Clinical Questions
 - Answer the chief complaint (e.g. `"Severe acidity, heartburn, and burning in chest for 3 months"`).
 - The adaptive intake state machine dynamically selects follow-up questions based on patient answers.
-- If an AYUSH pathway was chosen, Dashavidha Pariksha questions are presented with single-choice pills (e.g., Pitta/Vata profiles, Tikshnagni/Mandagni) plus an `"I'm not sure / Unknown"` button.
-- Never guess missing information: unknown data stays `"Unknown"`.
+- Notice the **Previous Investigations** question:
+  - *"Have you had any tests or scans before for this problem or others? For example blood tests, X-ray, scan, ECG."*
+  - Select chips (e.g. `Blood tests`, `X-ray`) or click `"None / not sure"` (`allowsNone=True`).
+- Notice the **Other Relevant History** question:
+  - *"Is there anything else about your health you want the doctor to know?"*
+  - Add remaining details or select `"Nothing else"` (`allowsNone=True`).
+- If an AYUSH pathway was chosen, Dashavidha Pariksha questions are presented, followed by the **Ayush Samprapti** question:
+  - *"Please describe how your symptoms developed and progressed over time."* (`allowsNone=False`).
+- Never guess missing information: unknown data stays explicitly labeled `"Unknown"`.
 
 ### Step 7: Critical Confirmation Step (Medicines & Allergies)
 - When answering critical domains (Allergies or Active Medications), a confirmation modal/dialog appears.
 - Displays: *"Please confirm what was understood: [e.g. Penicillin allergy - severe hives]"*.
 - Patient explicitly clicks **✓ Confirm** or **✏️ Correct** before the entry is permanently registered.
 
-### Step 8: Document Upload with Automatic Fallback
+### Step 8: Document Upload & Duplicate Detection
 - Navigate to document upload step (`/patient/documents`).
 - Drag-and-drop or choose a medical record file:
   - `backend/demo_documents/demo_prescription.pdf` (sample safe prescription)
   - `backend/demo_documents/demo_lab_report.pdf` (sample lab report)
-  - Photo scan (`.jpg` / `.png` / `.webp`)
+- **Duplicate Document Detection:** Try uploading the exact same document twice.
+  - MedMap computes the SHA-256 hash and immediately displays a duplicate notification: *"Duplicate document detected: This file matches an earlier upload from [timestamp]."*
 - **Resilience:** The frontend tries Vercel Blob presigned upload first. If Vercel env keys are missing or when on localhost, it automatically falls back to direct multipart POST to `/api/v1/cases/{caseId}/documents`.
 
 ### Step 9: Deterministic Document Extraction & Offline Fallback
@@ -120,8 +135,12 @@ This idempotently provisions:
   - `demo-diabetes-repeat` (Diabetes longitudinal repeat case)
   - `demo-ayush-history` (AYUSH / Ayurveda case)
 
-### Step 13: Clinical Evidence & Source Provenance Links
+### Step 13: Clinical Evidence & Inspectable Machine-Read OCR Text
 - Open `demo-diabetes-repeat` or `demo-ayush-history`.
+- In the **Uploaded Documents** section:
+  - Click **"View Raw Machine-Read Text (OCR)"** on any extracted document card.
+  - An inspectable panel expands showing the exact line-by-line text parsed by Groq vision/OCR (`qwen/qwen3.8-27b`), complete with line count and a **"Copy OCR Text"** button.
+  - Doctors can verify raw OCR transcription directly against the uploaded document without leaving the page.
 - In the **Extracted Medical Entities** card, each diagnosis, medication, and lab result features a **🔍 Evidence** button.
 - Click **🔍 Evidence**:
   - Opens the **Source Evidence & Provenance** modal.
@@ -135,12 +154,20 @@ This idempotently provisions:
   - **✕ Reject:** Rejects a false or erroneous fact; strikes through and excludes it from the final FHIR clinical record.
 - Decisions are persistently recorded in the clinical audit trail.
 
-### Step 15: Case Finalization & FHIR Bundle Viewer
-- Scroll to the physician assessment panel: enter clinical advice/notes and click **✓ Mark as Completed**.
+### Step 15: Case Finalization & Comprehensive FHIR Bundle Viewer
+- In the physician consultation section:
+  - Enter primary diagnosis/assessment, prescriptions, advice, and verify allergies.
+  - Click **✓ Finalize Clinical Record & Mark as Completed**.
 - The top-bar button **📦 FHIR Bundle** is now unlocked.
 - Click **📦 FHIR Bundle**:
   - Opens the **HL7 FHIR R4 Clinical Bundle** modal.
-  - Summary chips display exact resource counts: `Patient: 1`, `Encounter: 1`, `Condition: N`, `MedicationRequest: N`, `Observation: N` (from extracted lab investigations).
+  - Summary chips display complete resource counts:
+    - `Patient: 1`, `Encounter: 1`
+    - `Condition: N` (includes both verified extracted conditions and doctor-entered final diagnoses)
+    - `MedicationRequest: N` (includes both verified extracted prescriptions and doctor-prescribed medications)
+    - `CarePlan: 1` (captures doctor consultation instructions, lifestyle advice, and follow-up plan)
+    - `AllergyIntolerance: N` (patient verified and doctor confirmed allergies)
+    - `ServiceRequest` / `Observation: N` (ordered and extracted investigations)
   - Review the formatted, syntax-highlighted FHIR R4 JSON.
   - Click **Copy JSON** (copies to clipboard) or **Download .json** (downloads `fhir-bundle-<caseId>.json`).
 

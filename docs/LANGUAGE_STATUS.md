@@ -24,12 +24,13 @@ MedMap supports **English (`en`)**, **Hindi (`hi`)**, and **Kannada (`kn`)** acr
 - Choice questions maintain stable English identifiers (e.g. `lt_1_day`, `yes`, `no`) while rendering localized display labels (`1 ದಿನಕ್ಕಿಂತ ಕಡಿಮೆ`).
 
 ### 2. Tiered Translation Resolution Order
-To eliminate English leaks while ensuring high performance, MedMap resolves patient-facing strings through four strict tiers:
-1. **Static Pre-Compiled Dictionary (`src/i18n/strings.ts`):** High-speed compile-time dictionary covering 329+ UI keys with native Kannada (`KN_STRINGS`) and Hindi (`HI_STRINGS`) strings.
+To eliminate English leaks while ensuring high performance, MedMap resolves patient-facing strings through five strict tiers:
+1. **Static Pre-Compiled Dictionary (`src/i18n/strings.ts`):** High-speed compile-time dictionary covering 354 UI keys with native Kannada (`KN_STRINGS`) and Hindi (`HI_STRINGS`) strings.
 2. **Session Storage UI Cache:** Client-side cache (`medmap_i18n_kn`, `medmap_i18n_hi`) storing previously fetched dynamic translations.
 3. **Database Translation Cache (`POST /api/v1/translate/ui` & `translation_cache` table):** SHA-256 hashed persistent server cache pre-warmed via `backend/warm_translation_cache.py`.
 4. **Live Groq LLM Translation:** On-demand fallback using Groq LLM (`openai/gpt-oss-120b`).
-5. **Canonical English Fallback (Last Resort):** Returned only if translation service is unreachable, accompanied by an explicit localized banner (*"ಅನುವಾದ ಲಭ್ಯವಿಲ್ಲ, ಇಂಗ್ಲಿಷ್‌ನಲ್ಲಿ ತೋರಿಸಲಾಗುತ್ತಿದೆ"* / *"अनुवाद सेवा अनुपलब्ध है"*).
+5. **Static Curated Indic Bank (`curated_translations_hi_kn.json`):** 650 pre-translated clinical questions, chips, domain categories, error messages, and onboarding prompts (100% complete in Hindi and Kannada). Includes `previous_investigations`, `other_history`, `ayush_samprapti`, and the 4-step patient intake walkthrough.
+6. **Canonical English Fallback (Last Resort):** Returned only if translation service is unreachable, accompanied by an explicit localized banner (*"ಅನುವಾದ ಲಭ್ಯವಿಲ್ಲ, ಇಂಗ್ಲಿಷ್‌ನಲ್ಲಿ ತೋರಿಸಲಾಗುತ್ತಿದೆ"* / *"अनुवाद सेवा अनुपलब्ध है"*).
 
 ### 3. Patient Screen Allowlist
 Rural patient screens in `kn` and `hi` must contain zero English text, with the sole exception of the strictly defined allowlist:

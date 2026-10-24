@@ -6,17 +6,20 @@
 
 ## Key Capabilities
 
-1. **Adaptive Clinical Intake:** Multilingual conversational intake engine (English, Hindi, Kannada) with dynamic follow-up questioning and personal history collection (diet, sleep, tobacco/alcohol, occupation).
-2. **AYUSH / Ayurveda Pathway (Draft):** Structured exploration of the 10 Dashavidha Pariksha parameters (Prakriti, Vikriti, Sara, Samhanana, Pramana, Satmya, Sattva, Ahara Shakti, Vyayama Shakti, Vaya, plus Agni and Koshtha).
+1. **Adaptive Clinical Intake:** Multilingual conversational intake engine (English, Hindi, Kannada) with dynamic follow-up questioning, prior investigation probes (`previous_investigations`), other health concerns (`other_history`), and personal history collection (diet, sleep, tobacco/alcohol, occupation).
+2. **AYUSH / Ayurveda Pathway (Draft):** Structured exploration of the 10 Dashavidha Pariksha parameters (Prakriti, Vikriti, Sara, Samhanana, Pramana, Satmya, Sattva, Ahara Shakti, Vyayama Shakti, Vaya, plus Agni, Koshtha, Ahara-Vihara, Nidana, and patient-reported Samprapti history).
 3. **Voice & Touch First:** Integrated browser-based Web Speech API for voice dictation (`en-IN`, `hi-IN`, `kn-IN`) and question text-to-speech with touch-friendly correction.
-4. **Resilient Multimodal Document Upload:** Dual-mode upload flow: Vercel Blob presigned upload for cloud deployments with automatic fallback to FastAPI local multipart storage for offline / localhost runs.
-5. **Deterministic Extraction & Offline Demo Fallback:** Groq Cloud multimodal vision/LLM parsing with built-in regex offline fallback (`source: "offline_demo_fallback"`) when keys or network are unavailable.
-6. **Physician Verification Controls:** Per-item Accept (✓), Edit (✏️), and Reject (✕) controls on all extracted entities. Rejected facts are visibly struck through and excluded from exports.
-7. **Complete Source Provenance:** 🔍 Evidence links on every extracted fact connect directly to raw document snippets and uploaded file previews.
-8. **HL7 FHIR R4 Bundle Export:** Finalized clinical cases export to valid FHIR R4 Bundles including `Patient`, `Encounter`, `Condition`, `MedicationRequest`, and `Observation` (lab results) resources.
-9. **ABDM Mock Workflow Simulation:** Fully simulated Ayushman Bharat Digital Mission (ABDM) flow with a 6-stage lifecycle timeline, revocable consent dialogs, and mandatory simulation badges.
-10. **Hospital Admin Triage Dashboard:** Real-time intake queue with status counts, prominent safety red-flag panels, and audited triage acknowledgments.
-11. **Shared-Device Kiosk Privacy:** End-of-flow "Finish & Clear This Device" action with JWT revocation, storage wipe, and a 5-minute inactivity countdown banner.
+4. **Accessible First-Time Patient Walkthrough:** 4-step modal overlay guiding first-time patients through answering, read-aloud listening, review/corrections, and shared-device privacy with zero Latin character leaks in Hindi and Kannada.
+5. **Resilient Multimodal Document Upload & Deduplication:** Dual-mode upload flow (Vercel Blob presigned upload with automatic local multipart fallback) paired with SHA-256 content deduplication across patient encounters.
+6. **Deterministic Extraction & Offline Demo Fallback:** Groq Cloud multimodal vision/LLM parsing (`openai/gpt-oss-120b`, `qwen/qwen3.8-27b`) with built-in regex offline fallback (`source: "offline_demo_fallback"`) when keys or network are unavailable.
+7. **Inspectable Machine-Read OCR Text Panel:** Collapsible raw OCR transcription view allowing doctors to audit extracted text side-by-side with original document previews.
+8. **Physician Verification Controls:** Per-item Accept (✓), Edit (✏️), and Reject (✕) controls on all extracted entities. Rejected facts are visibly struck through and excluded from exports.
+9. **Complete Source Provenance:** 🔍 Evidence links on every extracted fact connect directly to raw document snippets and uploaded file previews.
+10. **Comprehensive HL7 FHIR R4 Bundle Export:** Finalized clinical cases export to valid FHIR R4 Bundles including `Patient`, `Encounter`, `Condition`, `MedicationRequest`, `ServiceRequest`, `CarePlan`, and `AllergyIntolerance` mapped directly from doctor consultations and verified patient data.
+11. **ABDM Mock Workflow Simulation:** Fully simulated Ayushman Bharat Digital Mission (ABDM) flow with a 6-stage lifecycle timeline, revocable consent dialogs, and mandatory simulation badges.
+12. **Safe Token Expiration & Sliding-Window Rate Limiting:** Role-based JWT lifetimes (4-hour patient session, 12-hour doctor/admin) and in-memory IP rate limiting on login, case creation, and speech endpoints.
+13. **Hospital Admin Triage Dashboard:** Real-time intake queue with status counts, prominent safety red-flag panels, and audited triage acknowledgments.
+14. **Shared-Device Kiosk Privacy:** End-of-flow "Finish & Clear This Device" action with JWT revocation, storage wipe, and a 5-minute inactivity countdown banner.
 
 ---
 
@@ -150,29 +153,32 @@ MedMap bridges regional language patient communication while maintaining absolut
 ```bash
 cd backend
 .\venv\Scripts\python.exe -m pytest tests -q
-# Result: 216 passed, 2 warnings, 9 subtests passed in ~43s (includes translation & multilingual intake suites).
+# Result: 342 passed across 36 test files (includes security, intake gaps, multilingual regression, FHIR mapping, and document deduplication suites).
 ```
 
 ### Frontend Tests (Vitest)
 ```bash
 npm test
-# Result: 9 test files, 35 passing unit and integration tests (includes multilingual i18n & doctor inspection).
+# Result: 17 test files, 95 passing unit and integration tests (includes patient walkthrough, leak regression, doctor controls, and upload fallback).
 ```
 
 ### Static Analysis and Production Build
 ```bash
 npm run build
-# Result: Exit code 0, 151 modules transformed, 0 errors.
+# Result: Exit code 0, 0 TypeScript/build errors.
 ```
 
 ---
 
 ## Documentation Index
 
-- `docs/DEMO_SCRIPT.md`: Step-by-step 17-phase presentation script including complete Kannada patient and doctor walkthrough.
-- `docs/MANUAL_QA_CHECKLIST.md`: Master 30-item QA matrix covering multilingual and clinical verification.
+- `docs/PPT_FACTS.md`: Verified facts, exact model strings, question counts, translation dictionary sizes, and test metrics for presentations and technical reviews.
+- `docs/PLAN_CONSISTENCY.md`: Detailed audit table reconciling the master plan (Sections 17.1, 18, 20) with actual delivered code.
+- `docs/DEMO_SCRIPT.md`: Step-by-step presentation script including first-time walkthrough, multilingual intake, doctor OCR inspection, and FHIR export.
+- `docs/MANUAL_QA_CHECKLIST.md`: Master 38-item QA matrix covering multilingual and clinical verification.
 - `docs/LANGUAGE_STATUS.md`: Comprehensive multilingual architecture, caching, speech synthesis voice check, and caveats.
 - `docs/ABDM_STATUS.md`: Complete specification of ABDM mock simulation boundaries.
+- `docs/DEMO_ACCOUNT.md`: Dedicated demo credentials and role matrix.
 
 ---
 
