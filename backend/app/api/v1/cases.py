@@ -883,6 +883,45 @@ def trigger_document_extraction(
     updated_doc = document_extraction.process_document(db, case_id, document_id)
     return updated_doc
 
+@router.delete("/{case_id}/documents/{document_id}")
+def delete_case_document(
+    case_id: str,
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(require_patient_or_doctor)
+):
+    if current_user.get("role") == "patient" and current_user.get("case_id") != case_id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete documents in this case")
+
+    doc = db.query(PatientDocument).filter(
+        PatientDocument.id == document_id,
+        PatientDocument.caseId == case_id
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    filename = doc.filename
+    storage_path = doc.storagePath
+
+    db.delete(doc)
+    db.commit()
+
+    if storage_path and os.path.exists(storage_path) and not storage_path.startswith("http"):
+        try:
+            os.remove(storage_path)
+        except Exception:
+            pass
+
+    log_clinical_event(db, case_id, "document_deleted", {
+        "documentId": document_id,
+        "filename": filename,
+        "role": current_user.get("role"),
+        "actor": current_user.get("username", current_user.get("role", "patient"))
+    })
+
+    return {"deleted": True, "documentId": document_id}
+
+
 @router.post("/{case_id}/ai-summary", response_model=CaseResponse)
 def generate_case_ai_summary(
     case_id: str,

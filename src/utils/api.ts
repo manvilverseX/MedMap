@@ -445,6 +445,27 @@ export const extractDocument = async (caseId: string, documentId: string): Promi
   return response.json();
 };
 
+export const deleteDocument = async (caseId: string, documentId: string): Promise<{ deleted: boolean; documentId: string }> => {
+  const response = await fetch(`${API_BASE_URL}/cases/${caseId}/documents/${documentId}`, {
+    method: 'DELETE',
+    headers: { ...getAuthHeaders() },
+  });
+
+  if (!response.ok) {
+    let errorMessage = 'Failed to delete document';
+    try {
+      const errorData = await response.json();
+      if (errorData.detail) errorMessage = errorData.detail;
+    } catch {
+      // Ignore
+    }
+    throw new Error(errorMessage);
+  }
+
+  return response.json();
+};
+
+
 export const getCases = async (): Promise<ClinicalCase[]> => {
   const response = await fetch(`${API_BASE_URL}/cases`, {
     headers: {

@@ -46,6 +46,32 @@ def upload_document(db: Session, case_id: str, file: UploadFile) -> DocumentResp
     if size_bytes == 0:
         raise HTTPException(status_code=400, detail="Empty file")
 
+    import hashlib
+    content_hash = hashlib.sha256(file_content).hexdigest()
+
+    # Detect duplicates within the same case and across earlier cases of the same patientId
+    duplicate_of = None
+    if case.patientId:
+        patient_cases = db.query(ClinicalCase.caseId).filter(ClinicalCase.patientId == case.patientId).all()
+        patient_case_ids = [c[0] for c in patient_cases]
+        if patient_case_ids:
+            existing_docs = db.query(PatientDocument).filter(
+                PatientDocument.caseId.in_(patient_case_ids)
+            ).all()
+            for edoc in existing_docs:
+                if edoc.v2ExtractionData and isinstance(edoc.v2ExtractionData, dict):
+                    if edoc.v2ExtractionData.get("contentHash") == content_hash:
+                        duplicate_of = {
+                            "documentId": edoc.id,
+                            "caseId": edoc.caseId,
+                            "filename": edoc.filename
+                        }
+                        break
+
+    v2_data = {"contentHash": content_hash}
+    if duplicate_of:
+        v2_data["duplicateOf"] = duplicate_of
+
     # Local Fallback
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     storage_path = os.path.join(UPLOAD_DIR, safe_filename)
@@ -60,7 +86,8 @@ def upload_document(db: Session, case_id: str, file: UploadFile) -> DocumentResp
         storagePath=storage_path,
         mimeType=file.content_type,
         sizeBytes=size_bytes,
-        createdAt=datetime.now(timezone.utc)
+        createdAt=datetime.now(timezone.utc),
+        v2ExtractionData=v2_data
     )
     
     try:
@@ -83,7 +110,9 @@ def upload_document(db: Session, case_id: str, file: UploadFile) -> DocumentResp
         createdAt=db_doc.createdAt,
         extractedText=db_doc.extractedText,
         extractionStatus=db_doc.extractionStatus,
-        medicalEntities=db_doc.medicalEntities
+        medicalEntities=db_doc.medicalEntities,
+        documentCategory=db_doc.documentCategory,
+        v2ExtractionData=db_doc.v2ExtractionData
     )
 
 def save_document_metadata(db: Session, case_id: str, metadata: any) -> DocumentResponse:
@@ -93,6 +122,28 @@ def save_document_metadata(db: Session, case_id: str, metadata: any) -> Document
         raise HTTPException(status_code=404, detail="Case not found")
 
     doc_id = str(uuid.uuid4())
+    v2_data = getattr(metadata, "v2ExtractionData", None) or {}
+    if not isinstance(v2_data, dict):
+        v2_data = {}
+
+    content_hash = v2_data.get("contentHash")
+    duplicate_of = None
+    if content_hash and case.patientId:
+        patient_cases = db.query(ClinicalCase.caseId).filter(ClinicalCase.patientId == case.patientId).all()
+        patient_case_ids = [c[0] for c in patient_cases]
+        if patient_case_ids:
+            existing_docs = db.query(PatientDocument).filter(PatientDocument.caseId.in_(patient_case_ids)).all()
+            for edoc in existing_docs:
+                if edoc.v2ExtractionData and isinstance(edoc.v2ExtractionData, dict):
+                    if edoc.v2ExtractionData.get("contentHash") == content_hash:
+                        duplicate_of = {
+                            "documentId": edoc.id,
+                            "caseId": edoc.caseId,
+                            "filename": edoc.filename
+                        }
+                        break
+    if duplicate_of:
+        v2_data["duplicateOf"] = duplicate_of
 
     db_doc = PatientDocument(
         id=doc_id,
@@ -101,7 +152,8 @@ def save_document_metadata(db: Session, case_id: str, metadata: any) -> Document
         storagePath=metadata.url,
         mimeType=metadata.mimeType,
         sizeBytes=metadata.sizeBytes,
-        createdAt=datetime.now(timezone.utc)
+        createdAt=datetime.now(timezone.utc),
+        v2ExtractionData=v2_data
     )
     
     try:
@@ -121,7 +173,9 @@ def save_document_metadata(db: Session, case_id: str, metadata: any) -> Document
         createdAt=db_doc.createdAt,
         extractedText=db_doc.extractedText,
         extractionStatus=db_doc.extractionStatus,
-        medicalEntities=db_doc.medicalEntities
+        medicalEntities=db_doc.medicalEntities,
+        documentCategory=db_doc.documentCategory,
+        v2ExtractionData=db_doc.v2ExtractionData
     )
 
 def get_documents(db: Session, case_id: str) -> list[DocumentResponse]:
@@ -136,6 +190,8 @@ def get_documents(db: Session, case_id: str) -> list[DocumentResponse]:
             createdAt=d.createdAt,
             extractedText=d.extractedText,
             extractionStatus=d.extractionStatus,
-            medicalEntities=d.medicalEntities
+            medicalEntities=d.medicalEntities,
+            documentCategory=d.documentCategory,
+            v2ExtractionData=d.v2ExtractionData
         ) for d in docs
     ]

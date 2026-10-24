@@ -303,6 +303,40 @@ def rule_based_fallback_extraction(storage_path: str, doc_id: str, filename: str
 
     return extracted
 
+def _enrich_doc_with_normalized_hash(db: Session, doc: PatientDocument):
+    if not doc.extractedText:
+        return
+    import re, hashlib
+    normalized = re.sub(r'[\W_]+', ' ', doc.extractedText.lower()).strip()
+    collapsed = " ".join(normalized.split())
+    if not collapsed:
+        return
+
+    norm_hash = hashlib.sha256(collapsed.encode("utf-8")).hexdigest()
+    v2_dict = dict(doc.v2ExtractionData or {})
+    v2_dict["normalizedTextHash"] = norm_hash
+
+    if "duplicateOf" not in v2_dict:
+        from app.models.case import ClinicalCase
+        case = db.query(ClinicalCase).filter(ClinicalCase.caseId == doc.caseId).first()
+        if case and case.patientId:
+            p_cases = db.query(ClinicalCase.caseId).filter(ClinicalCase.patientId == case.patientId).all()
+            p_case_ids = [c[0] for c in p_cases]
+            existing_docs = db.query(PatientDocument).filter(
+                PatientDocument.caseId.in_(p_case_ids),
+                PatientDocument.id != doc.id
+            ).all()
+            for edoc in existing_docs:
+                if edoc.v2ExtractionData and isinstance(edoc.v2ExtractionData, dict):
+                    if edoc.v2ExtractionData.get("normalizedTextHash") == norm_hash:
+                        v2_dict["duplicateOf"] = {
+                            "documentId": edoc.id,
+                            "caseId": edoc.caseId,
+                            "filename": edoc.filename
+                        }
+                        break
+    doc.v2ExtractionData = v2_dict
+
 def _apply_fallback_to_doc(db: Session, doc: PatientDocument, pdf_text_layer: Optional[str] = None) -> PatientDocument:
     fallback = rule_based_fallback_extraction(doc.storagePath, doc.id, doc.filename, doc.mimeType)
     doc.medicalEntities = fallback.model_dump()
@@ -310,6 +344,7 @@ def _apply_fallback_to_doc(db: Session, doc: PatientDocument, pdf_text_layer: Op
         doc.extractedText = pdf_text_layer
     else:
         doc.extractedText = (fallback.summary or "Processed with rule-based fallback extraction") + " [Demo fallback used]"
+    _enrich_doc_with_normalized_hash(db, doc)
     doc.extractionStatus = "completed"
     db.commit()
     db.refresh(doc)
@@ -471,7 +506,9 @@ def process_document(db: Session, case_id: str, document_id: str):
         else:
             doc.extractedText = extracted_summary
 
+        _enrich_doc_with_normalized_hash(db, doc)
         doc.extractionStatus = "completed"
+
 
     except ValidationError as e:
         logger.exception(f"Validation failed during extraction for document {doc.id}. Model: {model_name}. MIME: {doc.mimeType}. Size: {doc.sizeBytes}. Exception: {type(e).__name__} - {str(e)}")

@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCase } from '../../context/CaseContext';
-import { uploadDocument, extractDocument, mapApiErrorToKey } from '../../utils/api';
+import { uploadDocument, extractDocument, deleteDocument, mapApiErrorToKey } from '../../utils/api';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { compressImageIfNeeded } from '../../utils/imageCompressor';
 import { useT } from '../../i18n/useT';
@@ -29,6 +29,9 @@ export function PatientDocumentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [processingMessage, setProcessingMessage] = useState<string>(() => t('documentsUploadingWait'));
+  const [uploadedDocRecord, setUploadedDocRecord] = useState<any>(null);
+  const [duplicateDismissed, setDuplicateDismissed] = useState(false);
+
 
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024 * 1024) {
@@ -130,9 +133,14 @@ export function PatientDocumentsPage() {
       let finalFile = selectedFile;
       finalFile = await compressImageIfNeeded(finalFile);
       const uploadedDoc = await uploadDocument(caseId, finalFile);
+      setUploadedDocRecord(uploadedDoc);
+      setDuplicateDismissed(false);
 
       setProcessingMessage(t('documentsExtractingWait'));
-      await extractDocument(caseId, uploadedDoc.id);
+      const extractedDoc = await extractDocument(caseId, uploadedDoc.id);
+      if (extractedDoc?.v2ExtractionData) {
+        setUploadedDocRecord(extractedDoc);
+      }
 
       setStatus('success');
     } catch (err: any) {
@@ -143,12 +151,25 @@ export function PatientDocumentsPage() {
 
   const handleRemove = () => {
     setSelectedFile(null);
+    setUploadedDocRecord(null);
+    setDuplicateDismissed(false);
     setStatus('idle');
     setError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
+
+  const handleRemoveDuplicate = async () => {
+    if (!caseId || !uploadedDocRecord?.id) return;
+    try {
+      await deleteDocument(caseId, uploadedDocRecord.id);
+      handleRemove();
+    } catch (err: any) {
+      setError(err.message || 'Failed to remove duplicate document');
+    }
+  };
+
 
   const getFileBadgeType = (filename: string): string => {
     const ext = getFileExtension(filename);
@@ -311,6 +332,34 @@ export function PatientDocumentsPage() {
               {status === 'processing' && (
                 <div className="doc-progress-container">
                   <div className="doc-progress-bar" style={{ width: '100%', animation: 'pulse 1.5s infinite' }}></div>
+                </div>
+              )}
+
+              {/* Duplicate Notice */}
+              {status === 'success' && uploadedDocRecord?.v2ExtractionData?.duplicateOf && !duplicateDismissed && (
+                <div className="doc-alert doc-alert-warning" style={{ marginTop: '1.25rem', marginBottom: '0', background: '#fff8e1', border: '1px solid #ffe082', padding: '1rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }} role="alert">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+                    <strong style={{ color: '#b78103' }}>{t('duplicateDocumentNotice')}</strong>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <button
+                      type="button"
+                      className="doc-btn doc-btn-secondary"
+                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.875rem' }}
+                      onClick={() => setDuplicateDismissed(true)}
+                    >
+                      {t('duplicateDocumentKeep')}
+                    </button>
+                    <button
+                      type="button"
+                      className="doc-btn doc-btn-danger"
+                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.875rem' }}
+                      onClick={handleRemoveDuplicate}
+                    >
+                      🗑️ {t('duplicateDocumentRemove')}
+                    </button>
+                  </div>
                 </div>
               )}
 

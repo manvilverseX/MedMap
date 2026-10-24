@@ -1253,6 +1253,13 @@ export function DoctorCaseDetailPage() {
                           <span style={{ fontSize: '1.2rem' }}>📄</span>
                           <h3 className="history-subheading" style={{ margin: 0, fontWeight: 600 }}>{doc.filename}</h3>
                         </div>
+                        {doc.v2ExtractionData?.duplicateOf && (
+                          <div style={{ width: '100%', marginTop: '0.25rem', marginBottom: '0.25rem' }}>
+                            <span style={{ fontSize: '0.8rem', color: '#856404', backgroundColor: '#fff3cd', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid #ffeeba', fontWeight: 500 }}>
+                              ⚠️ Possible duplicate document (matches {doc.v2ExtractionData.duplicateOf.filename || 'existing file'} in case {doc.v2ExtractionData.duplicateOf.caseId})
+                            </span>
+                          </div>
+                        )}
                         {caseDetail && (
                           <button
                             type="button"
@@ -1468,39 +1475,78 @@ export function DoctorCaseDetailPage() {
           </div>
           
           {/* Clinical Intelligence Section */}
-          {clinicalIntelligence && (clinicalIntelligence.redFlags?.length > 0 || Object.keys(clinicalIntelligence.medicationIntelligence || {}).length > 0) && (
-            <div style={{ marginTop: '2rem' }}>
-              <DoctorSectionCard title="Clinical Intelligence" tag="AI Aggregated">
-                <div className="history-subsection">
-                  {clinicalIntelligence.redFlags?.length > 0 && (
-                    <div style={{ marginBottom: '1.5rem' }}>
-                      <h3 style={{ color: 'var(--color-danger)', fontSize: '1.1rem', marginBottom: '0.75rem' }}>⚠️ Safety Signals</h3>
-                      {clinicalIntelligence.redFlags.map((flag: any, i: number) => (
-                        <div key={i} style={{ padding: '0.75rem', backgroundColor: '#fff3cd', border: '1px solid #ffeeba', borderRadius: '6px', marginBottom: '0.5rem' }}>
-                          <strong style={{ color: '#856404' }}>{flag.category.toUpperCase()} ({flag.severity}):</strong> {flag.explanation}
-                          <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', color: '#856404' }}>
-                            <em>Evidence: "{flag.evidence}" ({flag.source})</em>
+          {(() => {
+            const duplicateDocs = documents.filter((d: any) => d.v2ExtractionData?.duplicateOf);
+            const hasFlags = clinicalIntelligence && (clinicalIntelligence.redFlags?.length > 0 || Object.keys(clinicalIntelligence.medicationIntelligence || {}).length > 0);
+            if (!hasFlags && duplicateDocs.length === 0) return null;
+
+            return (
+              <div style={{ marginTop: '2rem' }}>
+                <DoctorSectionCard title="Clinical Intelligence" tag="AI Aggregated">
+                  <div className="history-subsection">
+                    {duplicateDocs.length > 0 && (
+                      <div style={{ marginBottom: '1.5rem' }}>
+                        <h3 style={{ color: '#b78103', fontSize: '1.1rem', marginBottom: '0.75rem' }}>📑 Possible Duplicate Documents</h3>
+                        {duplicateDocs.map((doc: any, i: number) => (
+                          <div key={i} style={{ padding: '0.75rem', backgroundColor: '#fff8e1', border: '1px solid #ffe082', borderRadius: '6px', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                            <div>
+                              <strong style={{ color: '#856404' }}>Possible duplicate document: "{doc.filename}"</strong>
+                              <div style={{ fontSize: '0.85rem', color: '#856404', marginTop: '0.25rem' }}>
+                                This file looks the same as an existing upload ({doc.v2ExtractionData?.duplicateOf?.filename || 'previous file'}) in case {doc.v2ExtractionData?.duplicateOf?.caseId}.
+                              </div>
+                            </div>
+                            {doc.v2ExtractionData?.duplicateOf?.documentId && (
+                              <button
+                                type="button"
+                                onClick={() => openDocumentFile(doc.v2ExtractionData.duplicateOf.caseId, doc.v2ExtractionData.duplicateOf.documentId)}
+                                style={{
+                                  fontSize: '0.8rem',
+                                  padding: '0.25rem 0.6rem',
+                                  border: '1px solid #856404',
+                                  borderRadius: '4px',
+                                  color: '#856404',
+                                  background: '#fff',
+                                  cursor: 'pointer',
+                                  fontWeight: 500,
+                                }}
+                              >
+                                View Original ↗
+                              </button>
+                            )}
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {Object.keys(clinicalIntelligence.medicationIntelligence || {}).length > 0 && (
-                    <div>
-                      <h3 style={{ color: 'var(--color-primary)', fontSize: '1.1rem', marginBottom: '0.75rem' }}>💊 Medication Intelligence</h3>
-                      {Object.entries(clinicalIntelligence.medicationIntelligence).map(([, data]: [string, any], i: number) => (
-                        <div key={i} style={{ padding: '0.75rem', backgroundColor: 'var(--color-background-alt)', border: '1px solid var(--color-border-subtle)', borderRadius: '6px', marginBottom: '0.5rem' }}>
-                          <strong>{data.name}</strong> 
-                          {data.is_duplicate && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', backgroundColor: '#e2e3e5', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>Multiple Records</span>}
-                          {data.conflict && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', backgroundColor: '#f8d7da', color: '#721c24', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>Dosage Conflict</span>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </DoctorSectionCard>
-            </div>
-          )}
+                        ))}
+                      </div>
+                    )}
+                    {clinicalIntelligence?.redFlags?.length > 0 && (
+                      <div style={{ marginBottom: '1.5rem' }}>
+                        <h3 style={{ color: 'var(--color-danger)', fontSize: '1.1rem', marginBottom: '0.75rem' }}>⚠️ Safety Signals</h3>
+                        {clinicalIntelligence.redFlags.map((flag: any, i: number) => (
+                          <div key={i} style={{ padding: '0.75rem', backgroundColor: '#fff3cd', border: '1px solid #ffeeba', borderRadius: '6px', marginBottom: '0.5rem' }}>
+                            <strong style={{ color: '#856404' }}>{flag.category.toUpperCase()} ({flag.severity}):</strong> {flag.explanation}
+                            <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', color: '#856404' }}>
+                              <em>Evidence: "{flag.evidence}" ({flag.source})</em>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {Object.keys(clinicalIntelligence?.medicationIntelligence || {}).length > 0 && (
+                      <div>
+                        <h3 style={{ color: 'var(--color-primary)', fontSize: '1.1rem', marginBottom: '0.75rem' }}>💊 Medication Intelligence</h3>
+                        {Object.entries(clinicalIntelligence.medicationIntelligence).map(([, data]: [string, any], i: number) => (
+                          <div key={i} style={{ padding: '0.75rem', backgroundColor: 'var(--color-background-alt)', border: '1px solid var(--color-border-subtle)', borderRadius: '6px', marginBottom: '0.5rem' }}>
+                            <strong>{data.name}</strong>
+                            {data.is_duplicate && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', backgroundColor: '#e2e3e5', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>Multiple Records</span>}
+                            {data.conflict && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', backgroundColor: '#f8d7da', color: '#721c24', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>Dosage Conflict</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </DoctorSectionCard>
+              </div>
+            );
+          })()}
             </>
           )}
         </div>
