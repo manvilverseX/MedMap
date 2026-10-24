@@ -182,3 +182,136 @@ def test_fhir_observation_mapping_from_investigations():
     assert urine_obs["valueString"] == "Nil albumin, no pus cells"
     assert "referenceRange" not in urine_obs
     assert "interpretation" not in urine_obs
+
+
+def test_fhir_doctor_finalized_record_and_allergies():
+    """Verify that doctor's finalized record and allergies reach FHIR with proper negation, acceptance, and edits."""
+    from app.services.fhir_mapper import generate_fhir_bundle, validate_fhir_bundle
+
+    db_session = TestingSessionLocal()
+    case_id = str(uuid.uuid4())
+    patient_id = "pat-doc-final"
+
+    db_case = ClinicalCase(
+        caseId=case_id,
+        patientId=patient_id,
+        createdAt=datetime.now(timezone.utc),
+        updatedAt=datetime.now(timezone.utc),
+        status="completed",
+        consentGranted=True,
+        intakeAnswers={
+            "chief_complaint": "Severe chest pain",
+            "allergies": "No known drug allergies",
+        },
+        clinicalAssessment={
+            "diagnosis": "Acute Myocardial Infarction",
+            "prescription": "Aspirin 325mg stat\nClopidogrel 300mg stat\nAtorvastatin 80mg OD",
+            "investigations": "Urgent Coronary Angiography\n12-lead ECG serial",
+            "advice": "Strict bed rest, low salt cardiac diet",
+            "followUp": "Cardiology clinic in 3 days post-discharge",
+        },
+        derivedClinicalData={
+            "medicalEntities": {
+                "diagnoses": ["Unstable Angina", "Gastritis"],
+                "medications": [{"name": "Amlodipine", "dose": "5mg"}],
+                "investigations": [],
+            },
+            "doctorReviews": {
+                "diagnoses.0": {"action": "accepted"},
+                "diagnoses.1": {"action": "rejected"},
+                "medications.0": {"action": "edited", "reviewedValue": {"name": "Amlodipine Besylate", "dose": "10mg", "frequency": "OD"}},
+            },
+        },
+    )
+    db_session.add(db_case)
+    db_session.commit()
+
+    bundle = generate_fhir_bundle(db_case)
+    validation = validate_fhir_bundle(bundle)
+    assert validation["valid"] is True, f"Validation errors: {validation['errors']}"
+
+    resources = [entry["resource"] for entry in bundle["entry"]]
+    by_type = {}
+    for r in resources:
+        by_type.setdefault(r["resourceType"], []).append(r)
+
+    # 1. Doctor's diagnosis condition present with confirmed status and note
+    doc_conditions = [c for c in by_type.get("Condition", []) if c["code"]["text"] == "Acute Myocardial Infarction"]
+    assert len(doc_conditions) == 1
+    assert doc_conditions[0]["verificationStatus"]["coding"][0]["code"] == "confirmed"
+    assert doc_conditions[0]["note"][0]["text"] == "recorded by doctor"
+
+    # 2. Doctor-accepted entity present with confirmed status
+    accepted_conds = [c for c in by_type.get("Condition", []) if c["code"]["text"] == "Unstable Angina"]
+    assert len(accepted_conds) == 1
+    assert accepted_conds[0]["verificationStatus"]["coding"][0]["code"] == "confirmed"
+
+    # 3. Doctor-rejected entity excluded
+    rejected_conds = [c for c in by_type.get("Condition", []) if c["code"]["text"] == "Gastritis"]
+    assert len(rejected_conds) == 0
+
+    # 4. Doctor-edited medication uses edited value, original unedited absent
+    med_requests = by_type.get("MedicationRequest", [])
+    med_names = [m["medicationCodeableConcept"]["text"] for m in med_requests]
+    assert "Amlodipine Besylate" in med_names
+    assert "Amlodipine" not in med_names
+
+    # 5. Doctor's prescription entries present as MedicationRequest
+    assert any("Aspirin 325mg stat" in name for name in med_names)
+    assert any("Clopidogrel 300mg stat" in name for name in med_names)
+
+    # 6. Doctor's investigations present as ServiceRequest
+    srv_requests = by_type.get("ServiceRequest", [])
+    srv_codes = [s["code"]["text"] for s in srv_requests]
+    assert any("Urgent Coronary Angiography" in c for c in srv_codes)
+
+    # 7. Doctor's advice and follow-up present as CarePlan
+    care_plans = by_type.get("CarePlan", [])
+    assert len(care_plans) >= 1
+    assert any("Strict bed rest" in cp.get("description", "") or any("Strict bed rest" in n.get("text", "") for n in cp.get("note", [])) for cp in care_plans)
+
+    # 8. Negation form for "No known drug allergies" emitted as proper AllergyIntolerance negation
+    allergies = by_type.get("AllergyIntolerance", [])
+    assert len(allergies) == 1
+    allergy = allergies[0]
+    assert allergy["verificationStatus"]["coding"][0]["code"] == "confirmed"
+    assert allergy["code"]["coding"][0]["code"] == "716186003"
+    assert allergy["code"]["coding"][0]["display"] == "No known allergy"
+    assert allergy["patient"]["reference"] == f"urn:uuid:{patient_id}"
+    assert allergy["encounter"]["reference"] == f"urn:uuid:{case_id}"
+
+
+def test_fhir_positive_allergy_with_doctor_review():
+    """Verify positive allergy intolerance mapping and doctor review state."""
+    from app.services.fhir_mapper import generate_fhir_bundle, validate_fhir_bundle
+
+    case_id = str(uuid.uuid4())
+    patient_id = "pat-allergy-pos"
+
+    class CaseMock:
+        pass
+
+    case_obj = CaseMock()
+    case_obj.caseId = case_id
+    case_obj.patientId = patient_id
+    case_obj.createdAt = datetime.now(timezone.utc)
+    case_obj.updatedAt = datetime.now(timezone.utc)
+    case_obj.status = "completed"
+    case_obj.aiSummary = None
+    case_obj.intakeAnswers = {"allergies": "Penicillin (causes facial hives)"}
+    case_obj.clinicalAssessment = None
+    case_obj.derivedClinicalData = {
+        "doctorReviews": {
+            "allergies": {"action": "accepted"}
+        }
+    }
+
+    bundle = generate_fhir_bundle(case_obj)
+    validation = validate_fhir_bundle(bundle)
+    assert validation["valid"] is True
+
+    allergies = [e["resource"] for e in bundle["entry"] if e["resource"]["resourceType"] == "AllergyIntolerance"]
+    assert len(allergies) == 1
+    assert allergies[0]["code"]["text"] == "Penicillin (causes facial hives)"
+    assert allergies[0]["verificationStatus"]["coding"][0]["code"] == "confirmed"
+

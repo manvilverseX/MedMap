@@ -15,6 +15,9 @@ describe('FHIR Bundle Modal & Viewer in Doctor Case Detail', () => {
       { resource: { resourceType: 'Encounter', id: 'enc-1' } },
       { resource: { resourceType: 'Condition', id: 'cond-1' } },
       { resource: { resourceType: 'MedicationRequest', id: 'med-1' } },
+      { resource: { resourceType: 'ServiceRequest', id: 'req-1' } },
+      { resource: { resourceType: 'CarePlan', id: 'cp-1' } },
+      { resource: { resourceType: 'AllergyIntolerance', id: 'alg-1' } },
       { resource: { resourceType: 'Observation', id: 'obs-1' } },
       { resource: { resourceType: 'Observation', id: 'obs-2' } },
     ],
@@ -113,6 +116,9 @@ describe('FHIR Bundle Modal & Viewer in Doctor Case Detail', () => {
     expect(within(dialog).getByText('Encounter')).toBeInTheDocument();
     expect(within(dialog).getByText('Condition')).toBeInTheDocument();
     expect(within(dialog).getByText('MedicationRequest')).toBeInTheDocument();
+    expect(within(dialog).getByText('ServiceRequest')).toBeInTheDocument();
+    expect(within(dialog).getByText('CarePlan')).toBeInTheDocument();
+    expect(within(dialog).getByText('AllergyIntolerance')).toBeInTheDocument();
     expect(within(dialog).getByText('Observation')).toBeInTheDocument();
 
     // Verify Copy and Download buttons exist

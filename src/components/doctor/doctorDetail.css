@@ -928,6 +928,9 @@
 .fhir-chip-Condition { background-color: #fee2e2; color: #991b1b; }
 .fhir-chip-MedicationRequest { background-color: #fef3c7; color: #92400e; }
 .fhir-chip-Observation { background-color: #ccfbf1; color: #115e59; }
+.fhir-chip-ServiceRequest { background-color: #ede9fe; color: #5b21b6; }
+.fhir-chip-CarePlan { background-color: #f3e8ff; color: #6b21a8; }
+.fhir-chip-AllergyIntolerance { background-color: #ffedd5; color: #9a3412; }
 
 .fhir-json-viewer {
   background-color: #0f172a;
