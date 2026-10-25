@@ -20,9 +20,9 @@ export const DoctorCaseFilters: React.FC<DoctorCaseFiltersProps> = ({
   ];
 
   return (
-    <nav className="doctor-filter-bar" aria-label="Filter cases by status">
+    <nav className="doctor-filter-bar mm-filter-bar" aria-label="Filter cases by status">
       <span className="filter-label">Filter by Status:</span>
-      <div className="filter-buttons" role="tablist">
+      <div className="filter-buttons mm-filter-buttons" role="tablist">
         {filterOptions.map((opt) => {
           const isActive = activeFilter === opt.id;
           return (
@@ -31,11 +31,11 @@ export const DoctorCaseFilters: React.FC<DoctorCaseFiltersProps> = ({
               role="tab"
               type="button"
               aria-selected={isActive}
-              className={`filter-tab ${isActive ? 'active' : ''}`}
+              className={`filter-tab mm-filter-tab ${isActive ? 'active' : ''}`}
               onClick={() => onFilterChange(opt.id)}
             >
               <span>{opt.label}</span>
-              <span className="filter-pill-count">{opt.count}</span>
+              <span className="filter-pill-count mm-filter-pill-count">{opt.count}</span>
             </button>
           );
         })}
@@ -43,4 +43,3 @@ export const DoctorCaseFilters: React.FC<DoctorCaseFiltersProps> = ({
     </nav>
   );
 };
-

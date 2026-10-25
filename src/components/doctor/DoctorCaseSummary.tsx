@@ -1,4 +1,6 @@
 import React from 'react';
+import { MmIcon, type MmIconName } from '../ui/MmIcon';
+
 export interface CaseCounts {
   total: number;
   doctorReview: number;
@@ -25,6 +27,8 @@ export const DoctorCaseSummary: React.FC<DoctorCaseSummaryProps> = ({
     count: number;
     description: string;
     badgeClass: string;
+    tone: 'teal' | 'orange' | 'blue' | 'green';
+    icon: MmIconName;
   }> = [
     {
       id: 'all',
@@ -32,6 +36,8 @@ export const DoctorCaseSummary: React.FC<DoctorCaseSummaryProps> = ({
       count: counts.total,
       description: 'All pre-consultation records',
       badgeClass: 'summary-total',
+      tone: 'teal',
+      icon: 'file',
     },
     {
       id: 'doctor_review',
@@ -39,6 +45,8 @@ export const DoctorCaseSummary: React.FC<DoctorCaseSummaryProps> = ({
       count: counts.doctorReview,
       description: 'Patient-verified & ready',
       badgeClass: 'summary-review',
+      tone: 'orange',
+      icon: 'clock',
     },
     {
       id: 'in_progress',
@@ -46,6 +54,8 @@ export const DoctorCaseSummary: React.FC<DoctorCaseSummaryProps> = ({
       count: counts.inProgress,
       description: 'Intake / verification underway',
       badgeClass: 'summary-progress',
+      tone: 'blue',
+      icon: 'spark',
     },
     {
       id: 'completed',
@@ -53,31 +63,41 @@ export const DoctorCaseSummary: React.FC<DoctorCaseSummaryProps> = ({
       count: counts.completed,
       description: 'Consultations finished',
       badgeClass: 'summary-completed',
+      tone: 'green',
+      icon: 'check',
     },
   ];
 
   return (
-    <div className="doctor-summary-grid" role="region" aria-label="Cases Overview Summary">
+    <div className="doctor-summary-grid stats-grid mm-summary-grid" role="region" aria-label="Cases Overview Summary">
       {cards.map((card) => {
         const isSelected = activeFilter === card.id;
         return (
           <button
             key={card.id}
             type="button"
-            className={`doctor-summary-card ${isSelected ? 'active' : ''} ${card.badgeClass}`}
+            className={`doctor-summary-card stat-card ${card.tone} mm-stat-card ${isSelected ? 'active' : ''} ${card.badgeClass}`}
             onClick={() => onSelectFilter(card.id)}
             aria-pressed={isSelected}
           >
-            <div className="summary-header">
-              <span className="summary-label">{card.label}</span>
-              {isSelected && <span className="summary-active-indicator">Selected</span>}
+            <div className="stat-top summary-header">
+              <span className="stat-icon mm-stat-icon">
+                <MmIcon name={card.icon} size={18} />
+              </span>
+              <span className="mini-chart" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+                <i />
+              </span>
+              {isSelected && <span className="summary-active-indicator mm-active-indicator">Selected</span>}
             </div>
-            <div className="summary-count">{card.count}</div>
-            <div className="summary-desc">{card.description}</div>
+            <span className="summary-label">{card.label}</span>
+            <strong className="summary-count">{card.count}</strong>
+            <small className="summary-desc">{card.description}</small>
           </button>
         );
       })}
     </div>
   );
 };
-
