@@ -47,3 +47,7 @@ vercel_blob_client.txt
 dashboard_retry.png
 synthetic_*.jpg
 test_doc.jpg
+
+# Design reference & exports
+design-reference/
+*.zip
