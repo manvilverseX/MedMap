@@ -28,7 +28,12 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 def setup_db():
     Base.metadata.create_all(bind=engine)
     yield
-    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
+    try:
+        Base.metadata.drop_all(bind=engine)
+    except Exception:
+        pass
+    engine.dispose()
 
 
 @pytest.fixture()

@@ -324,7 +324,7 @@ def test_document_extraction_api_error_fallback(db, tmp_path):
     db.commit()
 
     with patch.dict(os.environ, {"GROQ_API_KEY": "dummy_key"}):
-        with patch("groq.Groq") as mock_groq:
+        with patch("app.services.document_extraction.Groq") as mock_groq:
             mock_client = MagicMock()
             mock_client.chat.completions.create.side_effect = Exception("Groq Timeout")
             mock_groq.return_value = mock_client

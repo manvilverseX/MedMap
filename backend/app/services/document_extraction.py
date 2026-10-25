@@ -422,7 +422,7 @@ def process_document(db: Session, case_id: str, document_id: str):
     mime_type_for_data_uri = "image/jpeg"
 
     try:
-        client = Groq(api_key=api_key)
+        client = Groq(api_key=api_key, timeout=5.0)
         merged_entities = ExtractedMedicalEntities(sourceReference=doc.id, source="groq")
         transcriptions = []
 

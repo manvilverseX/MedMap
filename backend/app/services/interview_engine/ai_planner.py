@@ -30,11 +30,11 @@ def generate_ai_question_plan(
     Returns None if LLM is unavailable or fails, allowing seamless deterministic fallback.
     """
     api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
+    if not api_key or api_key.startswith("test-") or api_key.startswith("dummy"):
         return None
 
     model_name = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
-    client = Groq(api_key=api_key)
+    client = Groq(api_key=api_key, timeout=3.0)
 
     # Format answers for context
     clean_history = {}

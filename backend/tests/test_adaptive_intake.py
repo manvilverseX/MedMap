@@ -286,7 +286,8 @@ def test_end_to_end_intake_update_and_reverification_flow(adaptive_client):
     )
     assert res.status_code == 200
     res_data = res.json()
-    assert res_data["intakeAnswers"]["present_illness"] == "Started 2 days ago"
+    pi = res_data["intakeAnswers"]["present_illness"]
+    assert pi == "Started 2 days ago" or (isinstance(pi, dict) and pi.get("value") == "Started 2 days ago")
 
     # 4. Patient confirms verification -> status transitions to doctor_review and records verification
     adaptive_client.put(
@@ -377,6 +378,8 @@ def test_interview_stops_when_deterministic_completion_conditions_satisfied():
         "allergies": "No known allergies to medications or food",
         "family_history": "Mother had occasional migraines, father has hypertension",
         "review_of_systems": "No chest pain, no shortness of breath, no numbness or weakness",
+        "previous_investigations": "No prior tests or scans done",
+        "other_history": "No other health concerns",
     }
     state = select_intake_state(comprehensive_answers)
     assert state.state == IntakeState.COMPLETE

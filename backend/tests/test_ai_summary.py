@@ -106,7 +106,9 @@ def test_generate_ai_summary_idempotency(db_session, test_case, doctor_token):
         "medications": None,
         "allergies": None,
         "familyHistory": None,
-        "reviewOfSystems": None
+        "reviewOfSystems": None,
+        "previousInvestigations": None,
+        "otherHistory": None
     }
     with patch("app.services.ai_service.generate_clinical_brief") as mock_generate:
         response = client.post(f"/api/v1/cases/{test_case.caseId}/ai-summary", headers=headers)
@@ -127,7 +129,9 @@ def test_generate_ai_summary_success_8_fields(mock_generate, db_session, test_ca
         "medications": "E",
         "allergies": "F",
         "familyHistory": "G",
-        "reviewOfSystems": "H"
+        "reviewOfSystems": "H",
+        "previousInvestigations": None,
+        "otherHistory": None
     }
     mock_generate.return_value = expected_summary
 
@@ -169,7 +173,9 @@ def test_generate_ai_summary_success_3_fields_compat(mock_generate, db_session, 
         "medications": None,
         "allergies": None,
         "familyHistory": None,
-        "reviewOfSystems": None
+        "reviewOfSystems": None,
+        "previousInvestigations": None,
+        "otherHistory": None
     }
     assert data["aiSummary"] == expected_api_summary
 
