@@ -34,6 +34,7 @@ dist-ssr
 .vercel-blob-local/
 
 # Scratch, temporary test databases and artifacts
+scratch/
 __pycache__/
 *.pyc
 *.db
