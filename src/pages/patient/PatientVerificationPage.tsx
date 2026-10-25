@@ -255,24 +255,24 @@ export function PatientVerificationPage() {
         </div>
 
         {/* Case Demographics & Consent Overview */}
-        <div style={{ marginBottom: '2rem', padding: '1.25rem', backgroundColor: 'var(--color-bg-alt)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(15, 23, 42, 0.1)' }}>
-          <p style={{ margin: '0 0 0.75rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
+        <div style={{ marginBottom: '2rem', padding: '1.25rem', backgroundColor: 'var(--mm-paper, #fdfbf7)', borderRadius: 'var(--mm-radius-md, 12px)', border: '1.5px solid var(--mm-ink, #082d49)', boxShadow: '3px 3px 0 var(--mm-ink, #082d49)' }}>
+          <p style={{ margin: '0 0 0.75rem', color: 'var(--mm-ink-soft, var(--color-text-secondary))', fontSize: '0.9rem', lineHeight: '1.5' }}>
             {t('verificationSubtitle')}
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(15, 23, 42, 0.08)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(8, 45, 73, 0.1)' }}>
             <div>
-              <strong style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'block' }}>{t('verificationPatientIdentifier')}</strong>
-              <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--color-navy)' }}>{clinicalCase.patientId}</span>
+              <strong style={{ fontSize: '0.85rem', color: 'var(--mm-ink-soft, var(--color-text-secondary))', display: 'block' }}>{t('verificationPatientIdentifier')}</strong>
+              <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--mm-ink, var(--color-navy))' }}>{clinicalCase.patientId}</span>
             </div>
             {clinicalCase.language && (
               <div>
-                <strong style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'block' }}>{t('languageLabel')}</strong>
-                <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--color-navy)' }}>{clinicalCase.language}</span>
+                <strong style={{ fontSize: '0.85rem', color: 'var(--mm-ink-soft, var(--color-text-secondary))', display: 'block' }}>{t('languageLabel')}</strong>
+                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--mm-ink, var(--color-navy))' }}>{clinicalCase.language}</span>
               </div>
             )}
             <div>
-              <strong style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'block' }}>{t('verificationDataConsent')}</strong>
-              <span style={{ fontSize: '0.95rem', fontWeight: 600, color: clinicalCase.consentGranted ? 'var(--color-verify)' : 'var(--color-warning)' }}>
+              <strong style={{ fontSize: '0.85rem', color: 'var(--mm-ink-soft, var(--color-text-secondary))', display: 'block' }}>{t('verificationDataConsent')}</strong>
+              <span style={{ fontSize: '0.95rem', fontWeight: 700, color: clinicalCase.consentGranted ? 'var(--mm-teal-dark, var(--color-verify))' : 'var(--mm-coral, var(--color-warning))' }}>
                 {clinicalCase.consentGranted ? t('verificationConsentGranted') : t('verificationConsentNotGranted')}
               </span>
             </div>
@@ -282,16 +282,17 @@ export function PatientVerificationPage() {
         {/* AI Assists Notice */}
         <div style={{
           padding: '0.85rem 1.15rem',
-          backgroundColor: '#f0fdf4',
-          border: '1px solid #bbf7d0',
-          borderRadius: '8px',
+          backgroundColor: 'var(--mm-teal-pale, #f0fdf4)',
+          border: '1.5px solid var(--mm-ink, #082d49)',
+          borderRadius: 'var(--mm-radius-sm, 8px)',
+          boxShadow: '2px 2px 0 var(--mm-ink, #082d49)',
           marginBottom: '1.5rem',
           display: 'flex',
           alignItems: 'center',
           gap: '0.65rem',
         }}>
           <span style={{ fontSize: '1.25rem' }}>🛡️</span>
-          <span style={{ fontSize: '0.88rem', color: '#166534', lineHeight: 1.4 }}>
+          <span style={{ fontSize: '0.88rem', color: 'var(--mm-ink, #166534)', lineHeight: 1.4, fontWeight: 500 }}>
             {t('aiNotice')}
           </span>
         </div>
@@ -518,19 +519,24 @@ export function PatientVerificationPage() {
                         type="button"
                         onClick={() => openDocumentFile(clinicalCase.caseId, doc.id || doc.documentId || '')}
                         style={{
-                          fontSize: '0.8rem',
-                          padding: '0.2rem 0.6rem',
-                          border: '1px solid var(--color-primary)',
-                          borderRadius: '4px',
-                          color: 'var(--color-primary)',
-                          background: 'transparent',
+                          fontSize: '0.82rem',
+                          minHeight: '44px',
+                          padding: '0.4rem 0.85rem',
+                          border: '1.5px solid var(--mm-ink, #082d49)',
+                          borderRadius: 'var(--mm-radius-sm, 6px)',
+                          color: 'var(--mm-ink, #082d49)',
+                          background: 'var(--mm-white, #ffffff)',
+                          boxShadow: '1.5px 1.5px 0 var(--mm-ink, #082d49)',
                           cursor: 'pointer',
-                          fontWeight: 500,
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
                         }}
                       >
                         {t('verificationOpenFile')}
                       </button>
-                      <span className="verification-badge" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: 'var(--color-verify)', color: 'var(--color-verify)' }}>
+                      <span className="verification-badge" style={{ backgroundColor: 'var(--mm-teal-pale, rgba(16, 185, 129, 0.1))', borderColor: 'var(--mm-teal, #1e9ca0)', color: 'var(--mm-teal-dark, #126366)' }}>
                         {t('verificationAttachedBadge')}
                       </span>
                     </div>
@@ -539,32 +545,32 @@ export function PatientVerificationPage() {
               })}
             </ul>
           ) : (
-            <div style={{ padding: '0.75rem 1rem', backgroundColor: 'var(--color-bg)', borderRadius: '8px', border: '1px solid rgba(15, 23, 42, 0.08)', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+            <div style={{ padding: '0.75rem 1rem', backgroundColor: 'var(--mm-paper, var(--color-bg))', borderRadius: '8px', border: '1px solid rgba(8, 45, 73, 0.12)', color: 'var(--mm-ink-soft, var(--color-text-secondary))', fontSize: '0.9rem' }}>
               {t('verificationNoDocuments')}
             </div>
           )}
         </div>
 
         {/* Factual Summary Bar */}
-        <div style={{ marginBottom: '2rem', padding: '1rem 1.25rem', backgroundColor: 'var(--color-surface)', border: '2px solid var(--color-navy)', borderRadius: '12px', boxShadow: '3px 3px 0px rgba(15, 23, 42, 0.1)' }}>
-          <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-navy)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        <div style={{ marginBottom: '2rem', padding: '1rem 1.25rem', backgroundColor: 'var(--mm-paper, #fdfbf7)', border: '2px solid var(--mm-ink, #082d49)', borderRadius: 'var(--mm-radius-md, 12px)', boxShadow: '4px 4px 0px var(--mm-ink, #082d49)' }}>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--mm-ink, #082d49)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             {t('verificationSummaryTitle')}
           </h3>
           <div className="verification-summary-grid">
             <div className="verification-summary-item">
-              <span className="verification-summary-num" style={{ color: 'var(--color-verify)' }}>{providedCount}</span>
+              <span className="verification-summary-num" style={{ color: 'var(--mm-teal-dark, #126366)' }}>{providedCount}</span>
               <span className="verification-summary-label">{t('intakeBadgeProvided')}</span>
             </div>
             <div className="verification-summary-item">
-              <span className="verification-summary-num" style={{ color: 'var(--color-warning)' }}>{skippedCount}</span>
+              <span className="verification-summary-num" style={{ color: 'var(--mm-amber, #b78103)' }}>{skippedCount}</span>
               <span className="verification-summary-label">{t('intakeBadgeSkipped')}</span>
             </div>
             <div className="verification-summary-item">
-              <span className="verification-summary-num" style={{ color: 'var(--color-accent)' }}>{editedCount}</span>
+              <span className="verification-summary-num" style={{ color: 'var(--mm-teal, #1e9ca0)' }}>{editedCount}</span>
               <span className="verification-summary-label">{t('verificationEditedInSession')}</span>
             </div>
             <div className="verification-summary-item">
-              <span className="verification-summary-num" style={{ color: 'var(--color-navy)' }}>{documentCount}</span>
+              <span className="verification-summary-num" style={{ color: 'var(--mm-ink, #082d49)' }}>{documentCount}</span>
               <span className="verification-summary-label">{t('verificationDocumentsLabel')}</span>
             </div>
           </div>

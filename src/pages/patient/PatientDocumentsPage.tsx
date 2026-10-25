@@ -203,10 +203,10 @@ export function PatientDocumentsPage() {
 
         <section className="doc-upload-card">
           <div style={{ marginBottom: '1.5rem' }}>
-            <h2 style={{ fontFamily: 'var(--font-hand)', fontSize: '2rem', marginBottom: '0.5rem', color: 'var(--color-navy)' }}>
+            <h2 style={{ fontFamily: 'var(--mm-font-display, serif)', fontSize: '2rem', marginBottom: '0.5rem', color: 'var(--mm-ink, #082d49)', fontWeight: 800 }}>
               {t('documentsHeading')}
             </h2>
-            <p style={{ color: 'var(--color-text-secondary)', fontSize: '1rem', lineHeight: '1.6' }}>
+            <p style={{ color: 'var(--mm-ink-soft, #33536b)', fontSize: '1rem', lineHeight: '1.6' }}>
               {t('documentsSubtitle')}
             </p>
           </div>
@@ -337,16 +337,16 @@ export function PatientDocumentsPage() {
 
               {/* Duplicate Notice */}
               {status === 'success' && uploadedDocRecord?.v2ExtractionData?.duplicateOf && !duplicateDismissed && (
-                <div className="doc-alert doc-alert-warning" style={{ marginTop: '1.25rem', marginBottom: '0', background: '#fff8e1', border: '1px solid #ffe082', padding: '1rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }} role="alert">
+                <div className="doc-alert doc-alert-warning" style={{ marginTop: '1.25rem', marginBottom: '0', background: 'var(--mm-amber-pale, #fff8e1)', border: '1.5px solid var(--mm-ink, #ffe082)', padding: '1rem', borderRadius: 'var(--mm-radius-sm, 8px)', display: 'flex', flexDirection: 'column', gap: '0.75rem', boxShadow: '2px 2px 0 var(--mm-ink)' }} role="alert">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <span style={{ fontSize: '1.2rem' }}>⚠️</span>
                     <strong style={{ color: '#b78103' }}>{t('duplicateDocumentNotice')}</strong>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                     <button
                       type="button"
                       className="doc-btn doc-btn-secondary"
-                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.875rem' }}
+                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.875rem', minHeight: '44px' }}
                       onClick={() => setDuplicateDismissed(true)}
                     >
                       {t('duplicateDocumentKeep')}
@@ -354,7 +354,7 @@ export function PatientDocumentsPage() {
                     <button
                       type="button"
                       className="doc-btn doc-btn-danger"
-                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.875rem' }}
+                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.875rem', minHeight: '44px' }}
                       onClick={handleRemoveDuplicate}
                     >
                       🗑️ {t('duplicateDocumentRemove')}

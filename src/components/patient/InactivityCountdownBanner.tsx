@@ -78,26 +78,26 @@ export function InactivityCountdownBanner({
         transform: 'translateX(-50%)',
         width: '90%',
         maxWidth: '560px',
-        backgroundColor: '#7f1d1d',
-        color: '#fff',
+        backgroundColor: 'var(--mm-paper, #fdfbf7)',
+        color: 'var(--mm-ink, #082d49)',
         padding: '1rem 1.25rem',
-        borderRadius: '10px',
-        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.35)',
+        borderRadius: 'var(--mm-radius-md, 12px)',
+        boxShadow: '4px 4px 0px var(--mm-ink, #082d49)',
         zIndex: 9999,
-        border: '2px solid #ef4444',
+        border: '2px solid var(--mm-coral, #d94e34)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: '0.75rem',
+        gap: '0.85rem',
       }}
     >
       <div style={{ flex: 1, minWidth: '220px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, fontSize: '0.95rem' }}>
-          <span>⏱️</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 800, fontSize: '0.98rem', color: 'var(--mm-ink, #082d49)' }}>
+          <span aria-hidden="true">⏱️</span>
           <span>{t('inactivityWarning', { time: timeFormatted })}</span>
         </div>
-        <p style={{ margin: '0.25rem 0 0', fontSize: '0.82rem', color: '#fecaca', lineHeight: 1.4 }}>
+        <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--mm-ink-soft, #33536b)', lineHeight: 1.45 }}>
           {t('inactivityDescription')}
         </p>
       </div>
@@ -107,14 +107,20 @@ export function InactivityCountdownBanner({
           type="button"
           onClick={resetTimer}
           style={{
-            padding: '0.4rem 0.8rem',
-            backgroundColor: '#fff',
-            color: '#7f1d1d',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '0.82rem',
+            minHeight: '44px',
+            minWidth: '44px',
+            padding: '0.5rem 1rem',
+            backgroundColor: 'var(--mm-teal, #007787)',
+            color: '#ffffff',
+            border: '1.5px solid var(--mm-ink, #082d49)',
+            borderRadius: 'var(--mm-radius-sm, 6px)',
+            boxShadow: '2px 2px 0px var(--mm-ink, #082d49)',
+            fontSize: '0.86rem',
             fontWeight: 700,
             cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
           {t('inactivityStay')}
@@ -123,14 +129,20 @@ export function InactivityCountdownBanner({
           type="button"
           onClick={onClearDevice}
           style={{
-            padding: '0.4rem 0.8rem',
-            backgroundColor: '#ef4444',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '0.82rem',
-            fontWeight: 600,
+            minHeight: '44px',
+            minWidth: '44px',
+            padding: '0.5rem 1rem',
+            backgroundColor: 'var(--mm-coral-pale, #fff1ee)',
+            color: 'var(--mm-coral, #d94e34)',
+            border: '1.5px solid var(--mm-ink, #082d49)',
+            borderRadius: 'var(--mm-radius-sm, 6px)',
+            boxShadow: '2px 2px 0px var(--mm-ink, #082d49)',
+            fontSize: '0.86rem',
+            fontWeight: 700,
             cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
           {t('inactivityClear')}
