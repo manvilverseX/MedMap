@@ -48,11 +48,6 @@ export function AdminLoginPage() {
     }
   };
 
-  const handleQuickFill = () => {
-    setUsername('admin');
-    setPassword('admin123');
-    setError(null);
-  };
 
   return (
     <div className="container" style={{ maxWidth: '440px', margin: '3.5rem auto', padding: '1rem' }}>
@@ -105,44 +100,6 @@ export function AdminLoginPage() {
           </div>
         )}
 
-        {/* Demo Credentials Helper Tag */}
-        <div
-          style={{
-            padding: '0.75rem',
-            backgroundColor: 'rgba(2, 132, 199, 0.08)',
-            border: '1px solid rgba(2, 132, 199, 0.25)',
-            borderRadius: '6px',
-            marginBottom: '1.25rem',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <div>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0369a1', textTransform: 'uppercase' }}>
-              Demo Hint
-            </span>
-            <div style={{ fontSize: '0.82rem', color: 'var(--color-navy)', marginTop: '0.15rem' }}>
-              Username: <code>admin</code> • Password: <code>admin123</code>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={handleQuickFill}
-            style={{
-              fontSize: '0.75rem',
-              padding: '0.3rem 0.6rem',
-              backgroundColor: '#0284c7',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 600,
-            }}
-          >
-            Quick Fill
-          </button>
-        </div>
 
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div>
