@@ -606,10 +606,17 @@ export function DoctorCaseDetailPage() {
       <header className="detail-case-header">
         <div className="detail-header-top">
           <div className="detail-patient-title-group">
-            <h1 className="detail-patient-name">Patient {caseDetail.patientId}</h1>
-            <span className="detail-patient-sub">
-              Patient Identifier: <strong>{caseDetail.patientId}</strong>
+            <span className="avatar avatar-1 large mm-patient-avatar" aria-hidden="true">
+              {caseDetail.patientId ? caseDetail.patientId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase() || 'PT' : 'PT'}
             </span>
+            <div>
+              <span className="section-kicker" style={{ marginBottom: '0.15rem' }}>Prepared for Consultation</span>
+              <h1 className="detail-patient-name">Patient {caseDetail.patientId}</h1>
+              <span className="detail-patient-sub">
+                Patient Identifier: <strong>{caseDetail.patientId}</strong>
+                {caseDetail.intakeAnswers?.consultation_type && ` · ${caseDetail.intakeAnswers.consultation_type.toUpperCase()}`}
+              </span>
+            </div>
           </div>
 
           <div className="detail-badges-group">
@@ -639,18 +646,19 @@ export function DoctorCaseDetailPage() {
         <div className="detail-content-column">
           {/* AI assists, your doctor decides notice */}
           <div style={{
-            padding: '0.75rem 1rem',
-            backgroundColor: '#f0fdf4',
-            border: '1px solid #bbf7d0',
-            borderRadius: '8px',
+            padding: '0.85rem 1.1rem',
+            backgroundColor: 'var(--mm-teal-pale)',
+            border: '1.5px solid var(--mm-teal)',
+            borderRadius: 'var(--mm-radius-md)',
             marginBottom: '1rem',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.65rem',
+            gap: '0.75rem',
+            boxShadow: '2px 2px 0 rgba(30, 156, 160, 0.15)',
           }}>
-            <span style={{ fontSize: '1.2rem' }}>🛡️</span>
-            <span style={{ fontSize: '0.84rem', color: '#166534', lineHeight: 1.4 }}>
-              <strong>AI assists, your doctor decides:</strong> Unified intake responses and document entities are collected to assist your clinical assessment. AI does not diagnose. Doctor review, verification, and finalization required.
+            <span style={{ fontSize: '1.25rem' }}>🛡️</span>
+            <span style={{ fontSize: '0.84rem', color: 'var(--mm-teal-dark)', lineHeight: 1.45, fontWeight: 500 }}>
+              <strong style={{ color: 'var(--mm-ink)' }}>AI assists, your doctor decides:</strong> Unified intake responses and document entities are collected to assist your clinical assessment. AI does not diagnose. Doctor review, verification, and finalization required.
             </span>
           </div>
 

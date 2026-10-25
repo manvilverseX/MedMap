@@ -1,4 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Kalam:wght@400;700&family=Noto+Sans+Devanagari:wght@400;500;600&family=Noto+Sans+Kannada:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&family=Nunito+Sans:ital,opsz,wght@0,6..12,400..900;1,6..12,400..900&display=swap');
+@import './components/ui/MmUi.css';
+
 
 :root {
   --color-bg: #fdfbf7; /* Warm, paper-like off-white */
@@ -13,6 +15,47 @@
   
   --font-sans: 'Inter', 'Noto Sans Devanagari', 'Noto Sans Kannada', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-hand: 'Kalam', cursive;
+
+  /* MedMap Redesign Tokens (--mm-*) */
+  --mm-paper: #f7f5ed;
+  --mm-paper-deep: #f0ede2;
+  --mm-white: #fffefa;
+  --mm-ink: #082d49;
+  --mm-ink-soft: #536977;
+  --mm-teal: #1e9ca0;
+  --mm-teal-dark: #087b80;
+  --mm-teal-pale: #dff3ef;
+  --mm-coral: #ec7550;
+  --mm-coral-pale: #fce9df;
+  --mm-green: #5c9c75;
+  --mm-blue: #4c82ac;
+  --mm-gold: #d6a83c;
+  --mm-line: #cbd3d1;
+
+  /* Radii */
+  --mm-radius-sm: 6px;
+  --mm-radius-md: 10px;
+  --mm-radius-lg: 14px;
+  --mm-radius-xl: 18px;
+  --mm-radius-pill: 9999px;
+
+  /* Offset Shadows */
+  --mm-shadow-sm: 2px 2px 0 var(--mm-ink);
+  --mm-shadow-md: 3px 3px 0 var(--mm-ink);
+  --mm-shadow-lg: 4px 5px 0 rgba(8, 45, 73, 0.08);
+  --mm-shadow-elevated: 5px 6px 0 var(--mm-teal);
+  --mm-shadow-accent-coral: 4px 5px 0 var(--mm-coral);
+  --mm-shadow-accent-teal: 4px 5px 0 var(--mm-teal);
+  --mm-shadow-soft: 0 12px 36px rgba(8, 45, 73, 0.08);
+
+  /* Typography Stacks */
+  --mm-font-body: "Nunito Sans", "Noto Sans Devanagari", "Noto Sans Kannada", system-ui, sans-serif;
+  --mm-font-accent: "Kalam", cursive;
+
+  /* 28px Paper-Grid Background */
+  --mm-grid-pattern: linear-gradient(rgba(8, 45, 73, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(8, 45, 73, 0.025) 1px, transparent 1px);
+  --mm-grid-size: 28px 28px;
 }
 
 * {
@@ -22,6 +65,11 @@
   overflow-wrap: anywhere;
 }
 
+:focus-visible {
+  outline: 2px solid var(--mm-teal);
+  outline-offset: 2px;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -29,14 +77,14 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color-scheme: light;
-  color: var(--color-navy);
-  background-color: var(--color-bg);
-  /* Subtle dot grid pattern */
-  background-image: radial-gradient(var(--color-navy) 0.5px, transparent 0.5px);
-  background-size: 20px 20px;
+  color: var(--mm-ink);
+  background-color: var(--mm-paper);
+  /* 28px paper-grid background */
+  background-image: var(--mm-grid-pattern);
+  background-size: var(--mm-grid-size);
   background-position: 0 0;
   background-attachment: fixed;
-  font-family: var(--font-sans);
+  font-family: var(--mm-font-body);
   line-height: 1.6;
 }
 
@@ -230,17 +278,17 @@ header {
 }
 
 .doc-upload-card {
-  background-color: var(--color-surface);
-  border: 2px solid var(--color-navy);
-  border-radius: 20px 255px 20px 225px / 225px 20px 255px 20px;
+  background-color: var(--mm-paper, var(--color-surface));
+  border: 2px solid var(--mm-ink, var(--color-navy));
+  border-radius: var(--mm-radius-lg, 16px);
   padding: 2.25rem;
-  box-shadow: 6px 6px 0px rgba(15, 23, 42, 0.2);
+  box-shadow: 4px 4px 0px var(--mm-ink, rgba(15, 23, 42, 0.2));
   margin-bottom: 2rem;
 }
 
 .doc-dropzone {
-  border: 2px dashed var(--color-navy);
-  border-radius: 16px;
+  border: 2px dashed var(--mm-ink, var(--color-navy));
+  border-radius: var(--mm-radius-md, 14px);
   background-color: var(--color-bg);
   padding: 2.5rem 1.5rem;
   text-align: center;
@@ -257,40 +305,40 @@ header {
 
 .doc-dropzone:hover,
 .doc-dropzone.drag-active {
-  background-color: #f0fdfa;
-  border-color: var(--color-accent);
+  background-color: var(--mm-teal-pale, #f0fdfa);
+  border-color: var(--mm-teal, var(--color-accent));
   border-style: solid;
   transform: translateY(-2px);
-  box-shadow: 4px 4px 0px rgba(6, 182, 212, 0.25);
+  box-shadow: 4px 4px 0px var(--mm-ink, rgba(6, 182, 212, 0.25));
 }
 
 .doc-dropzone:focus-visible {
-  outline: 3px solid var(--color-accent);
+  outline: 3px solid var(--mm-teal, var(--color-accent));
   outline-offset: 4px;
 }
 
 .doc-dropzone-icon {
   width: 56px;
   height: 56px;
-  color: var(--color-navy);
-  background-color: #e0f2fe;
-  border: 2px solid var(--color-navy);
+  color: var(--mm-ink, var(--color-navy));
+  background-color: var(--mm-teal-pale, #e0f2fe);
+  border: 2px solid var(--mm-ink, var(--color-navy));
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 3px 3px 0px var(--color-navy);
+  box-shadow: 3px 3px 0px var(--mm-ink, var(--color-navy));
 }
 
 .doc-dropzone-title {
-  font-family: var(--font-hand);
-  font-size: 1.6rem;
+  font-family: var(--mm-font-display, 'Fraunces', Georgia, serif);
+  font-size: 1.5rem;
   font-weight: 700;
-  color: var(--color-navy);
+  color: var(--mm-ink, var(--color-navy));
 }
 
 .doc-dropzone-desc {
-  color: var(--color-text-secondary);
+  color: var(--mm-ink-soft, var(--color-text-secondary));
   font-size: 0.95rem;
   max-width: 480px;
   line-height: 1.5;
@@ -300,21 +348,22 @@ header {
   display: inline-block;
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--color-navy);
-  background-color: var(--color-surface);
-  border: 1.5px solid var(--color-navy);
+  color: var(--mm-ink, var(--color-navy));
+  background-color: var(--mm-paper, var(--color-surface));
+  border: 1.5px solid var(--mm-ink, var(--color-navy));
   border-radius: 20px;
   padding: 0.35rem 1rem;
-  box-shadow: 2px 2px 0px var(--color-navy);
+  box-shadow: 2px 2px 0px var(--mm-ink, var(--color-navy));
 }
 
 .doc-btn {
-  font-family: var(--font-sans);
-  font-weight: 600;
+  font-family: var(--mm-font-body, var(--font-sans));
+  font-weight: 700;
   font-size: 0.95rem;
+  min-height: 44px;
   padding: 0.75rem 1.4rem;
-  border: 2px solid var(--color-navy);
-  border-radius: 8px;
+  border: 2px solid var(--mm-ink, var(--color-navy));
+  border-radius: var(--mm-radius-sm, 8px);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
