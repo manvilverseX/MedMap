@@ -34,7 +34,11 @@ def generate_ai_question_plan(
         return None
 
     model_name = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
-    client = Groq(api_key=api_key, timeout=3.0)
+    try:
+        planner_timeout = float(os.getenv("GROQ_PLANNER_TIMEOUT_SECONDS", "3.0"))
+    except ValueError:
+        planner_timeout = 3.0
+    client = Groq(api_key=api_key, timeout=planner_timeout)
 
     # Format answers for context
     clean_history = {}

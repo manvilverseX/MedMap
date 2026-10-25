@@ -11,3 +11,4 @@ if str(BACKEND_DIR) not in sys.path:
 # This must happen before any application modules are imported
 os.environ["SECRET_KEY"] = "test-secret-key-for-pytest-do-not-use-in-prod"
 os.environ["GROQ_API_KEY"] = "test-groq-key-for-unit-tests"
+os.environ.setdefault("GROQ_DOCUMENT_TIMEOUT_SECONDS", "2.0")
