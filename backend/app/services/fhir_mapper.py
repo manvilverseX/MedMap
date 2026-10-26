@@ -1,5 +1,7 @@
 from typing import Dict, Any, List
 from datetime import datetime, timezone
+import html
+from app.services.interview_engine.ayush_questions import is_ayush_consultation
 
 def validate_fhir_bundle(bundle: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -51,6 +53,14 @@ def validate_fhir_bundle(bundle: Dict[str, Any]) -> Dict[str, Any]:
             refs_to_check.append(("patient", resource["patient"].get("reference")))
         if "encounter" in resource and isinstance(resource["encounter"], dict):
             refs_to_check.append(("encounter", resource["encounter"].get("reference")))
+        if res_type == "Composition":
+            for a_idx, auth in enumerate(resource.get("author", [])):
+                if isinstance(auth, dict) and auth.get("reference"):
+                    refs_to_check.append((f"author[{a_idx}]", auth.get("reference")))
+            for s_idx, sec in enumerate(resource.get("section", [])):
+                for e_idx, ent in enumerate(sec.get("entry", [])):
+                    if isinstance(ent, dict) and ent.get("reference"):
+                        refs_to_check.append((f"section[{s_idx}].entry[{e_idx}]", ent.get("reference")))
 
         for field_name, ref in refs_to_check:
             if ref and ref not in declared_urls and ref not in declared_ids:
@@ -528,10 +538,441 @@ def generate_fhir_bundle(case: Any) -> Dict[str, Any]:
 
             entries.append(obs_resource)
 
+    # Build Composition resource as the document header (FHIR R4 Document rule)
+    is_completed = getattr(case, "status", None) == "completed"
+    is_finalized = is_completed or bool(getattr(case, "clinicalAssessment", None))
+
+    # Gather available resource URLs for section entries
+    entry_urls = {e.get("fullUrl") for e in entries if isinstance(e, dict) and e.get("fullUrl")}
+
+    sections = []
+
+    # 1. Chief Complaint
+    cc_text = ""
+    if getattr(case, "aiSummary", None):
+        cc_text = getattr(case.aiSummary, "chiefComplaint", None) or (
+            case.aiSummary.get("chiefComplaint") if isinstance(case.aiSummary, dict) else ""
+        )
+    if not cc_text and getattr(case, "intakeAnswers", None) and isinstance(case.intakeAnswers, dict):
+        raw_cc = case.intakeAnswers.get("chief_complaint")
+        if isinstance(raw_cc, dict):
+            cc_text = raw_cc.get("value") or raw_cc.get("original") or ""
+        elif raw_cc:
+            cc_text = str(raw_cc)
+    if not cc_text:
+        cc_text = "Chief complaint not recorded."
+
+    cc_entries = []
+    cc_ref = f"urn:uuid:cond-{case.caseId}-cc"
+    if cc_ref in entry_urls:
+        cc_entries.append({"reference": cc_ref})
+
+    sections.append({
+        "title": "Chief Complaint",
+        "code": {
+            "coding": [{
+                "system": "http://loinc.org",
+                "code": "10154-3",
+                "display": "Chief complaint Narrative - Reported"
+            }],
+            "text": "Chief Complaint"
+        },
+        "text": {
+            "status": "generated",
+            "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>{html.escape(str(cc_text))}</p></div>"
+        },
+        "entry": cc_entries
+    })
+
+    # 2. History of Present Illness
+    hpi_text = ""
+    if getattr(case, "aiSummary", None):
+        hpi_text = getattr(case.aiSummary, "historyOfPresentIllness", None) or (
+            case.aiSummary.get("historyOfPresentIllness") if isinstance(case.aiSummary, dict) else ""
+        )
+    if not hpi_text and getattr(case, "intakeAnswers", None) and isinstance(case.intakeAnswers, dict):
+        raw_hpi = case.intakeAnswers.get("history_present_illness") or case.intakeAnswers.get("hpi")
+        if isinstance(raw_hpi, dict):
+            hpi_text = raw_hpi.get("value") or raw_hpi.get("original") or ""
+        elif raw_hpi:
+            hpi_text = str(raw_hpi)
+    if not hpi_text:
+        hpi_text = "History of present illness not recorded."
+
+    sections.append({
+        "title": "History of Present Illness",
+        "code": {
+            "coding": [{
+                "system": "http://loinc.org",
+                "code": "10164-2",
+                "display": "History of Present illness Narrative"
+            }],
+            "text": "History of Present Illness"
+        },
+        "text": {
+            "status": "generated",
+            "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>{html.escape(str(hpi_text))}</p></div>"
+        },
+        "entry": []
+    })
+
+    # 3. Past Medical History
+    pmh_text = ""
+    if getattr(case, "aiSummary", None):
+        pmh_text = getattr(case.aiSummary, "pastMedicalHistory", None) or (
+            case.aiSummary.get("pastMedicalHistory") if isinstance(case.aiSummary, dict) else ""
+        )
+    if not pmh_text and getattr(case, "intakeAnswers", None) and isinstance(case.intakeAnswers, dict):
+        raw_pmh = case.intakeAnswers.get("past_medical")
+        if isinstance(raw_pmh, dict):
+            pmh_text = raw_pmh.get("value") or raw_pmh.get("original") or ""
+        elif raw_pmh:
+            pmh_text = str(raw_pmh)
+    if not pmh_text:
+        pmh_text = "No past medical history recorded."
+
+    pmh_entries = []
+    if case.derivedClinicalData and isinstance(case.derivedClinicalData, dict) and "medicalEntities" in case.derivedClinicalData:
+        diagnoses = case.derivedClinicalData["medicalEntities"].get("diagnoses", [])
+        for i in range(len(diagnoses)):
+            dx_ref = f"urn:uuid:cond-{case.caseId}-dx{i}"
+            if dx_ref in entry_urls:
+                pmh_entries.append({"reference": dx_ref})
+
+    sections.append({
+        "title": "Past Medical History",
+        "code": {
+            "coding": [{
+                "system": "http://loinc.org",
+                "code": "11348-0",
+                "display": "History of Past illness Narrative"
+            }],
+            "text": "Past Medical History"
+        },
+        "text": {
+            "status": "generated",
+            "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>{html.escape(str(pmh_text))}</p></div>"
+        },
+        "entry": pmh_entries
+    })
+
+    # 4. Medications
+    med_text = ""
+    if getattr(case, "aiSummary", None):
+        med_text = getattr(case.aiSummary, "medications", None) or (
+            case.aiSummary.get("medications") if isinstance(case.aiSummary, dict) else ""
+        )
+    if not med_text and getattr(case, "intakeAnswers", None) and isinstance(case.intakeAnswers, dict):
+        raw_med = case.intakeAnswers.get("medications") or case.intakeAnswers.get("current_medications")
+        if isinstance(raw_med, dict):
+            med_text = raw_med.get("value") or raw_med.get("original") or ""
+        elif raw_med:
+            med_text = str(raw_med)
+    if not med_text:
+        med_text = "No current medications reported."
+
+    med_entries = []
+    for e in entries:
+        r = e.get("resource", {})
+        if r.get("resourceType") == "MedicationRequest":
+            full_u = e.get("fullUrl")
+            if full_u:
+                med_entries.append({"reference": full_u})
+
+    sections.append({
+        "title": "Medications",
+        "code": {
+            "coding": [{
+                "system": "http://loinc.org",
+                "code": "10160-0",
+                "display": "History of Medication use Narrative"
+            }],
+            "text": "Medications"
+        },
+        "text": {
+            "status": "generated",
+            "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>{html.escape(str(med_text))}</p></div>"
+        },
+        "entry": med_entries
+    })
+
+    # 5. Allergies
+    allergy_text = ""
+    if getattr(case, "aiSummary", None):
+        allergy_text = getattr(case.aiSummary, "allergies", None) or (
+            case.aiSummary.get("allergies") if isinstance(case.aiSummary, dict) else ""
+        )
+    if not allergy_text and getattr(case, "intakeAnswers", None) and isinstance(case.intakeAnswers, dict):
+        raw_al = case.intakeAnswers.get("allergies")
+        if isinstance(raw_al, dict):
+            allergy_text = raw_al.get("value") or raw_al.get("original") or ""
+        elif raw_al:
+            allergy_text = str(raw_al)
+    if not allergy_text:
+        allergy_text = "No known allergies reported."
+
+    allergy_entries = []
+    al_ref = f"urn:uuid:allergy-{case.caseId}"
+    if al_ref in entry_urls:
+        allergy_entries.append({"reference": al_ref})
+
+    sections.append({
+        "title": "Allergies and Adverse Reactions",
+        "code": {
+            "coding": [{
+                "system": "http://loinc.org",
+                "code": "48765-2",
+                "display": "Allergies and adverse reactions Document"
+            }],
+            "text": "Allergies and Adverse Reactions"
+        },
+        "text": {
+            "status": "generated",
+            "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>{html.escape(str(allergy_text))}</p></div>"
+        },
+        "entry": allergy_entries
+    })
+
+    # 6. Family History
+    fh_text = ""
+    if getattr(case, "aiSummary", None):
+        fh_text = getattr(case.aiSummary, "familyHistory", None) or (
+            case.aiSummary.get("familyHistory") if isinstance(case.aiSummary, dict) else ""
+        )
+    if not fh_text and getattr(case, "intakeAnswers", None) and isinstance(case.intakeAnswers, dict):
+        raw_fh = case.intakeAnswers.get("family_history")
+        if isinstance(raw_fh, dict):
+            fh_text = raw_fh.get("value") or raw_fh.get("original") or ""
+        elif raw_fh:
+            fh_text = str(raw_fh)
+    if not fh_text:
+        fh_text = "No significant family history reported."
+
+    sections.append({
+        "title": "Family History",
+        "code": {
+            "coding": [{
+                "system": "http://loinc.org",
+                "code": "10157-6",
+                "display": "History of Family member diseases Narrative"
+            }],
+            "text": "Family History"
+        },
+        "text": {
+            "status": "generated",
+            "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>{html.escape(str(fh_text))}</p></div>"
+        },
+        "entry": []
+    })
+
+    # 7. Review of Systems
+    ros_text = ""
+    if getattr(case, "aiSummary", None):
+        ros_text = getattr(case.aiSummary, "reviewOfSystems", None) or (
+            case.aiSummary.get("reviewOfSystems") if isinstance(case.aiSummary, dict) else ""
+        )
+    if not ros_text and getattr(case, "intakeAnswers", None) and isinstance(case.intakeAnswers, dict):
+        raw_ros = case.intakeAnswers.get("review_of_systems")
+        if isinstance(raw_ros, dict):
+            ros_text = raw_ros.get("value") or raw_ros.get("original") or ""
+        elif raw_ros:
+            ros_text = str(raw_ros)
+    if not ros_text:
+        ros_text = "Review of systems unrevealed."
+
+    ros_entries = []
+    for e in entries:
+        r = e.get("resource", {})
+        if r.get("resourceType") == "Observation":
+            full_u = e.get("fullUrl")
+            if full_u:
+                ros_entries.append({"reference": full_u})
+
+    sections.append({
+        "title": "Review of Systems",
+        "code": {
+            "coding": [{
+                "system": "http://loinc.org",
+                "code": "10187-3",
+                "display": "Review of systems Narrative - Reported"
+            }],
+            "text": "Review of Systems"
+        },
+        "text": {
+            "status": "generated",
+            "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>{html.escape(str(ros_text))}</p></div>"
+        },
+        "entry": ros_entries
+    })
+
+    # 8. AYUSH Assessment (only if the case has one)
+    has_ayush = False
+    ayush_summary_items = []
+    if getattr(case, "intakeAnswers", None) and isinstance(case.intakeAnswers, dict):
+        has_ayush = (
+            is_ayush_consultation(case.intakeAnswers)
+            or any(k.startswith("ayush") for k in case.intakeAnswers.keys() if case.intakeAnswers[k])
+            or bool(case.intakeAnswers.get("ayush"))
+        )
+        if has_ayush:
+            for k, v in case.intakeAnswers.items():
+                if k.startswith("ayush_") or k == "ayush":
+                    val_str = v.get("value") or v.get("original") if isinstance(v, dict) else str(v)
+                    clean_k = k.replace("ayush_", "").replace("_", " ").capitalize()
+                    ayush_summary_items.append(f"{clean_k}: {val_str}")
+
+    if has_ayush:
+        ayush_div = "<p>" + "<br/>".join(
+            html.escape(item) for item in (ayush_summary_items if ayush_summary_items else ["AYUSH consultation pathway designated."])
+        ) + "</p>"
+        sections.append({
+            "title": "AYUSH / Ayurveda Assessment",
+            "code": {
+                "coding": [{
+                    "system": "http://medmap.in/fhir/cs/ayush",
+                    "code": "ayush-assessment",
+                    "display": "AYUSH Assessment"
+                }],
+                "text": "AYUSH Assessment"
+            },
+            "text": {
+                "status": "generated",
+                "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">{ayush_div}</div>"
+            },
+            "entry": []
+        })
+
+    # 9. Documents Reviewed
+    doc_entries = []
+    for e in entries:
+        r = e.get("resource", {})
+        if r.get("resourceType") == "DocumentReference":
+            full_u = e.get("fullUrl")
+            if full_u:
+                doc_entries.append({"reference": full_u})
+
+    doc_summary_text = (
+        f"{len(doc_entries)} clinical document(s) referenced in case record."
+        if doc_entries
+        else "Clinical records reviewed during pre-consultation intake."
+    )
+    sections.append({
+        "title": "Documents Reviewed",
+        "code": {
+            "coding": [{
+                "system": "http://loinc.org",
+                "code": "55107-7",
+                "display": "Addendum Document"
+            }],
+            "text": "Documents Reviewed"
+        },
+        "text": {
+            "status": "generated",
+            "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>{html.escape(doc_summary_text)}</p></div>"
+        },
+        "entry": doc_entries
+    })
+
+    # 10. Doctor Assessment and Plan (only if finalized)
+    if is_finalized:
+        doc_entries = []
+        for e in entries:
+            r = e.get("resource", {})
+            rid = str(r.get("id", ""))
+            rtype = r.get("resourceType")
+            notes = r.get("note", [])
+            has_doctor_note = any("recorded by doctor" in str(n.get("text", "")) for n in notes if isinstance(n, dict))
+            if (
+                "-doc-" in rid
+                or rtype == "CarePlan"
+                or has_doctor_note
+            ):
+                full_u = e.get("fullUrl")
+                if full_u and {"reference": full_u} not in doc_entries:
+                    doc_entries.append({"reference": full_u})
+
+        plan_parts = []
+        if getattr(case, "clinicalAssessment", None) and isinstance(case.clinicalAssessment, dict):
+            for k in ["diagnosis", "prescription", "investigations", "advice", "followUp"]:
+                v = case.clinicalAssessment.get(k)
+                if v:
+                    plan_parts.append(f"{k.capitalize()}: {v}")
+        plan_summary = (
+            "\n".join(plan_parts)
+            if plan_parts
+            else "Doctor finalized clinical assessment and management plan."
+        )
+
+        sections.append({
+            "title": "Doctor Assessment and Plan",
+            "code": {
+                "coding": [{
+                    "system": "http://loinc.org",
+                    "code": "51847-2",
+                    "display": "Evaluation+Plan note"
+                }],
+                "text": "Assessment and Plan"
+            },
+            "text": {
+                "status": "generated",
+                "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>" + "<br/>".join(html.escape(p) for p in plan_summary.split("\n")) + "</p></div>"
+            },
+            "entry": doc_entries
+        })
+
+    # Author: doctor if finalized; else "MedMap patient-reported intake"
+    if is_finalized:
+        doc_name = (
+            (case.clinicalAssessment.get("doctor") if isinstance(getattr(case, "clinicalAssessment", None), dict) else None)
+            or getattr(case, "reviewerId", None)
+            or "Doctor"
+        )
+        doc_display = f"Dr. {doc_name}" if not str(doc_name).startswith("Dr.") else str(doc_name)
+        author_list = [{"display": doc_display}]
+    else:
+        author_list = [{"display": "MedMap patient-reported intake"}]
+
+    comp_date = (
+        case.updatedAt.isoformat()
+        if hasattr(getattr(case, "updatedAt", None), "isoformat")
+        else (str(getattr(case, "updatedAt", "")) or datetime.now(timezone.utc).isoformat())
+    )
+
+    composition_resource = {
+        "resourceType": "Composition",
+        "id": f"comp-{case.caseId}",
+        "status": "final" if is_completed else "preliminary",
+        "type": {
+            "coding": [{
+                "system": "http://loinc.org",
+                "code": "34117-2",
+                "display": "History and physical note"
+            }],
+            "text": "Clinical history note"
+        },
+        "subject": {
+            "reference": f"urn:uuid:{case.patientId}",
+            "display": f"Patient {case.patientId}"
+        },
+        "encounter": {
+            "reference": f"urn:uuid:{case.caseId}"
+        },
+        "date": comp_date,
+        "author": author_list,
+        "title": f"Clinical Case Summary - {case.caseId}",
+        "section": sections
+    }
+
+    composition_entry = {
+        "fullUrl": f"urn:uuid:comp-{case.caseId}",
+        "resource": composition_resource
+    }
+    entries.insert(0, composition_entry)
+
     bundle = {
         "resourceType": "Bundle",
-        "type": "collection",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "type": "document",
+        "timestamp": comp_date,
         "entry": entries
     }
     

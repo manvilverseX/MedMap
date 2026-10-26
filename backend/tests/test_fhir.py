@@ -89,11 +89,13 @@ def test_fhir_export():
     bundle = res_fhir.json()
     
     assert bundle["resourceType"] == "Bundle"
-    assert bundle["type"] == "collection"
-    
+    assert bundle["type"] == "document"
+    assert bundle["entry"][0]["resource"]["resourceType"] == "Composition"
+
     resources = [entry["resource"] for entry in bundle["entry"]]
     resource_types = [r["resourceType"] for r in resources]
-    
+
+    assert "Composition" in resource_types
     assert "Patient" in resource_types
     assert "Encounter" in resource_types
     assert "Condition" in resource_types
@@ -314,4 +316,201 @@ def test_fhir_positive_allergy_with_doctor_review():
     assert len(allergies) == 1
     assert allergies[0]["code"]["text"] == "Penicillin (causes facial hives)"
     assert allergies[0]["verificationStatus"]["coding"][0]["code"] == "confirmed"
+
+
+def test_fhir_composition_requirements():
+    """
+    Tests that:
+    1. First entry is Composition.
+    2. Every reference resolves within the bundle.
+    3. Every resource has resourceType and id.
+    4. The bundle validates with validate_fhir_bundle.
+    5. AYUSH section is only present when AYUSH answers exist.
+    6. Doctor assessment & plan section is only present when finalized.
+    """
+    from app.services.fhir_mapper import generate_fhir_bundle, validate_fhir_bundle
+
+    # Case A: Unfinalized without AYUSH
+    case_a = ClinicalCase(
+        caseId=str(uuid.uuid4()),
+        patientId="pat-unfinalized",
+        createdAt=datetime.now(timezone.utc),
+        updatedAt=datetime.now(timezone.utc),
+        status="intake",
+        consentGranted=True,
+        intakeAnswers={"chief_complaint": "Persistent cough"},
+        clinicalAssessment=None,
+    )
+    bundle_a = generate_fhir_bundle(case_a)
+    val_a = validate_fhir_bundle(bundle_a)
+    assert val_a["valid"] is True, f"Validation errors: {val_a['errors']}"
+    assert bundle_a["type"] == "document"
+    assert bundle_a["entry"][0]["resource"]["resourceType"] == "Composition"
+
+    comp_a = bundle_a["entry"][0]["resource"]
+    assert comp_a["status"] == "preliminary"
+    assert comp_a["author"] == [{"display": "MedMap patient-reported intake"}]
+    sec_titles_a = [s["title"] for s in comp_a["section"]]
+    assert "Chief Complaint" in sec_titles_a
+    assert "History of Present Illness" in sec_titles_a
+    assert "Past Medical History" in sec_titles_a
+    assert "Medications" in sec_titles_a
+    assert "Allergies and Adverse Reactions" in sec_titles_a
+    assert "Family History" in sec_titles_a
+    assert "Review of Systems" in sec_titles_a
+    assert "Documents Reviewed" in sec_titles_a
+    assert "AYUSH / Ayurveda Assessment" not in sec_titles_a
+    assert "Doctor Assessment and Plan" not in sec_titles_a
+
+    # Every resource has resourceType and id
+    for idx, entry in enumerate(bundle_a["entry"]):
+        res = entry["resource"]
+        assert res.get("resourceType"), f"Entry {idx} missing resourceType"
+        assert res.get("id"), f"Entry {idx} missing id"
+
+    # Case B: Finalized with AYUSH
+    case_b = ClinicalCase(
+        caseId=str(uuid.uuid4()),
+        patientId="pat-ayush-final",
+        createdAt=datetime.now(timezone.utc),
+        updatedAt=datetime.now(timezone.utc),
+        status="completed",
+        consentGranted=True,
+        intakeAnswers={
+            "consultation_type": "ayush",
+            "ayush_prakriti": "Vata-dominant",
+            "ayush_vikriti": "Dryness and bloating",
+            "allergies": "No known allergies"
+        },
+        clinicalAssessment={
+            "diagnosis": "Vata Imbalance",
+            "prescription": "Ashwagandha 500mg BD",
+            "advice": "Warm diet",
+            "doctor": "Dr. Sharma"
+        },
+        derivedClinicalData={
+            "medicalEntities": {
+                "diagnoses": ["Dyspepsia"],
+                "medications": [],
+                "investigations": []
+            }
+        }
+    )
+    bundle_b = generate_fhir_bundle(case_b)
+    val_b = validate_fhir_bundle(bundle_b)
+    assert val_b["valid"] is True, f"Validation errors: {val_b['errors']}"
+    assert bundle_b["type"] == "document"
+    assert bundle_b["entry"][0]["resource"]["resourceType"] == "Composition"
+
+    comp_b = bundle_b["entry"][0]["resource"]
+    assert comp_b["status"] == "final"
+    assert comp_b["author"] == [{"display": "Dr. Sharma"}]
+    sec_titles_b = [s["title"] for s in comp_b["section"]]
+    assert "AYUSH / Ayurveda Assessment" in sec_titles_b
+    assert "Doctor Assessment and Plan" in sec_titles_b
+
+    # Check every reference in sections resolves
+    declared_urls = {e["fullUrl"] for e in bundle_b["entry"]}
+    for s in comp_b["section"]:
+        for ent in s.get("entry", []):
+            assert ent["reference"] in declared_urls
+
+
+def test_simulated_his_handoff_outcomes():
+    """
+    Tests all 4 outcomes for POST /api/v1/cases/{case_id}/his-handoff:
+    1. 200 - Successful simulated handoff for completed case with doctor auth.
+    2. 409 - Conflict when case is not completed.
+    3. 403 - Forbidden when caller is not a doctor (e.g. patient).
+    4. 404 - Not found for unknown case.
+    """
+    from app.core.security import create_access_token
+
+    db_session = TestingSessionLocal()
+    completed_case_id = str(uuid.uuid4())
+    in_progress_case_id = str(uuid.uuid4())
+
+    case_completed = ClinicalCase(
+        caseId=completed_case_id,
+        patientId="pat-his-comp",
+        createdAt=datetime.now(timezone.utc),
+        updatedAt=datetime.now(timezone.utc),
+        status="completed",
+        consentGranted=True,
+        aiSummary={
+            "chiefComplaint": "Fever and sore throat",
+            "historyOfPresentIllness": "Started 3 days ago",
+            "pastMedicalHistory": "None"
+        },
+        clinicalAssessment={
+            "diagnosis": "Viral pharyngitis",
+            "prescription": "Paracetamol 500mg TDS",
+            "advice": "Warm fluids and rest"
+        }
+    )
+
+    case_in_progress = ClinicalCase(
+        caseId=in_progress_case_id,
+        patientId="pat-his-prog",
+        createdAt=datetime.now(timezone.utc),
+        updatedAt=datetime.now(timezone.utc),
+        status="intake",
+        consentGranted=True,
+        intakeAnswers={"chief_complaint": "Headache"}
+    )
+
+    db_session.add(case_completed)
+    db_session.add(case_in_progress)
+    db_session.commit()
+
+    # Doctor auth token
+    res_login = client.post("/api/v1/auth/doctor/login", data={"username": "testdoc", "password": "pass123"})
+    assert res_login.status_code == 200
+    doc_token = res_login.json()["access_token"]
+    doc_headers = {"Authorization": f"Bearer {doc_token}"}
+
+    # Patient auth token
+    pat_token = create_access_token({"sub": "pat-his-comp", "role": "patient", "case_id": completed_case_id})
+    pat_headers = {"Authorization": f"Bearer {pat_token}"}
+
+    # 1. Outcome 200: Doctor handoff on completed case
+    res_200 = client.post(f"/api/v1/cases/{completed_case_id}/his-handoff", headers=doc_headers)
+    assert res_200.status_code == 200
+    receipt = res_200.json()
+    assert receipt["status"] == "SIMULATED_ACCEPTED"
+    assert receipt["simulation"] is True
+    assert receipt["note"] == "Simulation: not connected to a real hospital information system"
+    assert receipt["referenceId"].startswith("HIS-SIM-")
+    assert receipt["bundleSizeBytes"] > 0
+    assert "resourceCounts" in receipt
+    assert receipt["resourceCounts"]["Composition"] == 1
+    assert receipt["resourceCounts"]["Patient"] == 1
+    assert receipt["resourceCounts"]["total"] >= 2
+    assert receipt["validation"]["valid"] is True
+
+    # Check that reference ID is deterministic
+    res_200_repeat = client.post(f"/api/v1/cases/{completed_case_id}/his-handoff", headers=doc_headers)
+    assert res_200_repeat.status_code == 200
+    assert res_200_repeat.json()["referenceId"] == receipt["referenceId"]
+
+    # Check audit trail
+    res_audit = client.get(f"/api/v1/cases/{completed_case_id}/audit", headers=doc_headers)
+    assert res_audit.status_code == 200
+    audit_events = [e["eventType"] for e in res_audit.json()]
+    assert "his_handoff_simulated" in audit_events
+
+    # 2. Outcome 409: Case not completed
+    res_409 = client.post(f"/api/v1/cases/{in_progress_case_id}/his-handoff", headers=doc_headers)
+    assert res_409.status_code == 409
+    assert "completed" in res_409.json()["detail"].lower()
+
+    # 3. Outcome 403: Caller is non-doctor (patient)
+    res_403 = client.post(f"/api/v1/cases/{completed_case_id}/his-handoff", headers=pat_headers)
+    assert res_403.status_code == 403
+
+    # 4. Outcome 404: Unknown case
+    unknown_id = str(uuid.uuid4())
+    res_404 = client.post(f"/api/v1/cases/{unknown_id}/his-handoff", headers=doc_headers)
+    assert res_404.status_code == 404
+
 

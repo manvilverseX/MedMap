@@ -426,6 +426,20 @@ export const EN_STRINGS = {
   walkthroughBack: "Back",
   walkthroughSkip: "Skip",
   walkthroughFinish: "Get Started",
+
+  // HIS Handoff Simulation
+  sendToHis: "Send to HIS (simulation)",
+  hisSimulationNotice: "Simulation: not connected to a real HIS",
+  hisSimulationFullNotice: "Simulation: not connected to a real hospital information system",
+  hisReceiptTitle: "HIS Handoff Receipt",
+  hisReferenceId: "Reference ID",
+  hisStatus: "Status",
+  hisTimestamp: "Timestamp",
+  hisResourceCounts: "Resource Counts",
+  hisBundleSize: "Bundle Size",
+  hisSending: "Sending to HIS...",
+  hisSuccessMsg: "Case successfully transmitted to simulated Hospital Information System.",
+  hisError: "Failed to handoff to HIS",
 };
 
 export type StringKey = keyof typeof EN_STRINGS;
@@ -892,6 +906,20 @@ export const HI_STRINGS: Record<StringKey, string> = {
   walkthroughBack: "पीछे",
   walkthroughSkip: "छोड़ें",
   walkthroughFinish: "शुरू करें",
+
+  // HIS Handoff Simulation
+  sendToHis: "HIS को भेजें (सिमुलेशन)",
+  hisSimulationNotice: "सिमुलेशन: वास्तविक HIS से कनेक्ट नहीं है",
+  hisSimulationFullNotice: "सिमुलेशन: वास्तविक अस्पताल सूचना प्रणाली से जुड़ा नहीं है",
+  hisReceiptTitle: "HIS हैंडऑफ रसीद",
+  hisReferenceId: "संदर्भ आईडी",
+  hisStatus: "स्थिति",
+  hisTimestamp: "समय",
+  hisResourceCounts: "संसाधन गणना",
+  hisBundleSize: "बंडल आकार",
+  hisSending: "HIS को भेजा जा रहा है...",
+  hisSuccessMsg: "केस सफलतापूर्वक सिम्युलेटेड अस्पताल सूचना प्रणाली को भेजा गया।",
+  hisError: "HIS को भेजने में विफल",
 };
 
 // ── Complete Kannada Translations ─────────────────────────────────────────────
@@ -1288,6 +1316,20 @@ export const KN_STRINGS: Record<StringKey, string> = {
   walkthroughBack: "ಹಿಂದೆ",
   walkthroughSkip: "ಬಿಟ್ಟುಬಿಡಿ",
   walkthroughFinish: "ಪ್ರಾರಂಭಿಸಿ",
+
+  // HIS Handoff Simulation
+  sendToHis: "HIS ಗೆ ಕಳುಹಿಸಿ (ಅಣಕು)",
+  hisSimulationNotice: "ಅಣಕು: ನೈಜ HIS ಗೆ ಸಂಪರ್ಕಗೊಂಡಿಲ್ಲ",
+  hisSimulationFullNotice: "ಅಣಕು: ನೈಜ ಆಸ್ಪತ್ರೆ ಮಾಹಿತಿ ವ್ಯವಸ್ಥೆಗೆ ಸಂಪರ್ಕಗೊಂಡಿಲ್ಲ",
+  hisReceiptTitle: "HIS ವರ್ಗಾವಣೆ ರಶೀದಿ",
+  hisReferenceId: "ಉಲ್ಲೇಖ ಐಡಿ",
+  hisStatus: "ಸ್ಥಿತಿ",
+  hisTimestamp: "ಸಮಯ",
+  hisResourceCounts: "ಸಂಪನ್ಮೂಲ ಎಣಿಕೆ",
+  hisBundleSize: "ಬಂಡಲ್ ಗಾತ್ರ",
+  hisSending: "HIS ಗೆ ಕಳುಹಿಸಲಾಗುತ್ತಿದೆ...",
+  hisSuccessMsg: "ಪ್ರಕರಣವನ್ನು ಅಣಕು ಆಸ್ಪತ್ರೆ ಮಾಹಿತಿ ವ್ಯವಸ್ಥೆಗೆ ಯಶಸ್ವಿಯಾಗಿ ಕಳುಹಿಸಲಾಗಿದೆ.",
+  hisError: "HIS ಗೆ ಕಳುಹಿಸಲು ವಿಫಲವಾಗಿದೆ",
 };
 
 // ── Static lookup ─────────────────────────────────────────────────────────────

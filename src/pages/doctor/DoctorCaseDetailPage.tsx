@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { DoctorCaseStatusBadge } from '../../components/doctor/DoctorCaseStatusBadge';
 import { DoctorSectionCard } from '../../components/doctor/DoctorSectionCard';
-import { getCase, getCaseDocuments, updateCase, generateAISummary, getClinicalIntelligence, getUnifiedCase, openDocumentFile, getFhirBundle, reviewClinicalItem, getCaseAuditTrail, linkCareContext, API_BASE_URL } from '../../utils/api';
+import { getCase, getCaseDocuments, updateCase, generateAISummary, getClinicalIntelligence, getUnifiedCase, openDocumentFile, getFhirBundle, handoffToHis, type HisReceipt, reviewClinicalItem, getCaseAuditTrail, linkCareContext, API_BASE_URL } from '../../utils/api';
 import type { ClinicalCase } from '../../types/case';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { Button } from '../../components/Button';
 import { useNavigate } from 'react-router-dom';
 import { normalizeLanguage } from '../../utils/language';
+import { t } from '../../i18n/strings';
+import { MmCard, MmBadge } from '../../components/ui';
 import '../../components/doctor/doctorDashboard.css';
 import '../../components/doctor/doctorDetail.css';
 import { PdfEvidenceViewer } from '../../components/doctor/PdfEvidenceViewer';
@@ -84,6 +86,25 @@ export function DoctorCaseDetailPage() {
   const [fhirError, setFhirError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [isJsonExpanded, setIsJsonExpanded] = useState(true);
+
+  // HIS Handoff simulation state
+  const [hisReceipt, setHisReceipt] = useState<HisReceipt | null>(null);
+  const [isHisSending, setIsHisSending] = useState(false);
+  const [hisError, setHisError] = useState<string | null>(null);
+
+  const handleSendToHis = async () => {
+    if (!caseId) return;
+    setIsHisSending(true);
+    setHisError(null);
+    try {
+      const receipt = await handoffToHis(caseId);
+      setHisReceipt(receipt);
+    } catch (err: any) {
+      setHisError(err.message || t('hisError'));
+    } finally {
+      setIsHisSending(false);
+    }
+  };
 
   // Phase 6: Doctor Controls, Evidence & Audit Trail state
   const [activeTab, setActiveTab] = useState<'case' | 'audit'>('case');
@@ -593,6 +614,17 @@ export function DoctorCaseDetailPage() {
             title={caseDetail.status === 'completed' ? 'View and export FHIR R4 Bundle' : 'FHIR Bundle is only available after case is finalized'}
           >
             📦 FHIR Bundle
+          </button>
+          <button
+            type="button"
+            id="btn-his-handoff"
+            data-testid="btn-his-handoff"
+            className={`btn-fhir-bundle mm-btn-his-handoff ${caseDetail.status === 'completed' ? 'active' : 'disabled'}`}
+            onClick={handleSendToHis}
+            disabled={caseDetail.status !== 'completed' || isHisSending}
+            title={caseDetail.status === 'completed' ? t('sendToHis') : 'HIS handoff is only available after case is finalized'}
+          >
+            {isHisSending ? `⏳ ${t('hisSending')}` : `🏥 ${t('sendToHis')}`}
           </button>
           {caseDetail.status !== 'completed' && (
             <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>
@@ -1602,13 +1634,70 @@ export function DoctorCaseDetailPage() {
               <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.85rem', lineHeight: 1.4 }}>
                 This clinical case has been completed. The standard HL7 FHIR R4 Bundle is ready for review and export.
               </p>
-              <Button
-                variant="outline"
-                style={{ width: '100%', borderColor: 'var(--color-navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontWeight: 600, marginBottom: '0.6rem' }}
-                onClick={handleOpenFhirModal}
-              >
-                📦 View FHIR Bundle
-              </Button>
+              <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
+                <Button
+                  variant="outline"
+                  style={{ flex: '1 1 160px', borderColor: 'var(--color-navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontWeight: 600 }}
+                  onClick={handleOpenFhirModal}
+                >
+                  📦 View FHIR Bundle
+                </Button>
+                <Button
+                  variant="primary"
+                  id="btn-his-handoff-action"
+                  data-testid="btn-his-handoff-action"
+                  style={{
+                    flex: '1 1 160px',
+                    backgroundColor: 'var(--mm-primary, #0f766e)',
+                    borderColor: 'var(--mm-primary, #0f766e)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    fontWeight: 600,
+                  }}
+                  onClick={handleSendToHis}
+                  disabled={isHisSending}
+                >
+                  {isHisSending ? `⏳ ${t('hisSending')}` : `🏥 ${t('sendToHis')}`}
+                </Button>
+              </div>
+              {hisError && (
+                <div style={{ color: 'var(--color-danger, #ef4444)', fontSize: '0.8rem', marginBottom: '0.5rem', textAlign: 'center' }}>
+                  {hisError}
+                </div>
+              )}
+              {hisReceipt && (
+                <MmCard className="mm-his-receipt-card" style={{ marginTop: '0.75rem', marginBottom: '0.75rem', padding: '1rem', border: '1px solid #cbd5e1', background: '#f8fafc' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.25rem' }}>
+                    <strong style={{ fontSize: '0.95rem', color: 'var(--color-navy, #0f172a)' }}>{t('hisReceiptTitle')}</strong>
+                    <MmBadge tone="review" style={{ fontSize: '0.72rem', backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+                      {t('hisSimulationNotice')}
+                    </MmBadge>
+                  </div>
+                  <div style={{ fontSize: '0.8rem', lineHeight: 1.5, color: '#334155' }}>
+                    <div><strong>{t('hisReferenceId')}:</strong> <span data-testid="his-receipt-reference-id" style={{ fontFamily: 'monospace' }}>{hisReceipt.referenceId}</span></div>
+                    <div><strong>{t('hisStatus')}:</strong> <span data-testid="his-receipt-status" style={{ color: '#16a34a', fontWeight: 600 }}>{hisReceipt.status}</span></div>
+                    <div><strong>{t('hisTimestamp')}:</strong> <span data-testid="his-receipt-timestamp">{new Date(hisReceipt.timestamp).toLocaleString()}</span></div>
+                    <div><strong>{t('hisBundleSize')}:</strong> <span data-testid="his-receipt-bundle-size">{hisReceipt.bundleSizeBytes} bytes</span></div>
+                    {hisReceipt.resourceCounts && (
+                      <div style={{ marginTop: '0.35rem' }}>
+                        <strong>{t('hisResourceCounts')} ({hisReceipt.resourceCounts.total} total):</strong>
+                        <div data-testid="his-receipt-resource-counts" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.25rem' }}>
+                          {Object.entries(hisReceipt.resourceCounts).filter(([k]) => k !== 'total').map(([k, v]) => (
+                            <span key={k} style={{ fontSize: '0.72rem', background: '#e0f2fe', color: '#0369a1', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                              {k}: {v}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ marginTop: '0.5rem', fontSize: '0.72rem', color: '#92400e', background: '#fffbeb', padding: '0.3rem 0.5rem', borderRadius: '4px', border: '1px solid #fef3c7' }} data-testid="his-receipt-note">
+                    {hisReceipt.note || t('hisSimulationFullNotice')}
+                  </div>
+                </MmCard>
+              )}
               <Button
                 variant="primary"
                 style={{

@@ -542,6 +542,42 @@ export const getFhirBundle = async (caseId: string): Promise<any> => {
   return response.json();
 };
 
+export interface HisReceipt {
+  referenceId: string;
+  status: string;
+  timestamp: string;
+  resourceCounts: Record<string, number>;
+  bundleSizeBytes: number;
+  simulation: boolean;
+  note: string;
+  validation?: {
+    valid: boolean;
+    errors: string[];
+  };
+}
+
+export const handoffToHis = async (caseId: string): Promise<HisReceipt> => {
+  const response = await fetch(`${API_BASE_URL}/cases/${caseId}/his-handoff`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+  });
+  if (response.status === 401 || response.status === 403) {
+    throw new Error('Unauthorized');
+  }
+  if (!response.ok) {
+    let msg = 'Failed to handoff to HIS';
+    try {
+      const err = await response.json();
+      if (err.detail) msg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+    } catch {}
+    throw new Error(msg);
+  }
+  return response.json();
+};
+
 export interface ItemReviewPayload {
   itemType: string;
   itemId: string;

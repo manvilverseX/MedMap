@@ -2,6 +2,9 @@ from typing import List, Optional, Dict, Any
 import os
 import time
 import logging
+import hashlib
+import json
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 from fastapi import APIRouter, HTTPException, Depends, Query, Header, UploadFile, File, Form
@@ -1015,6 +1018,70 @@ def export_fhir_prototype(
     log_clinical_event(db, case_id, "fhir_exported", {"role": current_user.get("role"), "actor": current_user.get("username", current_user.get("role", "unknown"))})
 
     return bundle
+
+@router.post("/{case_id}/his-handoff")
+def simulate_his_handoff(
+    case_id: str,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(require_doctor)
+):
+    case = case_service.get_case(db, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    if case.status != CaseStatus.COMPLETED.value and case.status != "completed":
+        raise HTTPException(
+            status_code=409,
+            detail="Case must be completed before simulated handoff to Hospital Information System (HIS)."
+        )
+
+    from app.services.fhir_mapper import generate_fhir_bundle, validate_fhir_bundle
+    bundle = generate_fhir_bundle(case)
+    validation = validate_fhir_bundle(bundle)
+
+    # Deterministic reference ID based on caseId and bundle contents
+    bundle_json = json.dumps(bundle, sort_keys=True, separators=(',', ':'))
+    bundle_size_bytes = len(bundle_json.encode('utf-8'))
+
+    hasher = hashlib.sha256()
+    hasher.update(case_id.encode('utf-8'))
+    hasher.update(bundle_json.encode('utf-8'))
+    simulated_ref_id = f"HIS-SIM-{hasher.hexdigest()[:16].upper()}"
+
+    # Resource counts breakdown
+    resource_counts: Dict[str, int] = {}
+    for entry in bundle.get("entry", []):
+        res = entry.get("resource", {})
+        rtype = res.get("resourceType", "Unknown")
+        resource_counts[rtype] = resource_counts.get(rtype, 0) + 1
+    resource_counts["total"] = len(bundle.get("entry", []))
+
+    timestamp_str = datetime.now(timezone.utc).isoformat()
+
+    # Record audit event for simulated HIS handoff
+    log_clinical_event(
+        db,
+        case_id,
+        "his_handoff_simulated",
+        {
+            "referenceId": simulated_ref_id,
+            "status": "SIMULATED_ACCEPTED",
+            "bundleSizeBytes": bundle_size_bytes,
+            "doctor": current_user.get("username", "doctor"),
+            "actor": "doctor"
+        }
+    )
+
+    return {
+        "referenceId": simulated_ref_id,
+        "status": "SIMULATED_ACCEPTED",
+        "timestamp": timestamp_str,
+        "resourceCounts": resource_counts,
+        "bundleSizeBytes": bundle_size_bytes,
+        "simulation": True,
+        "note": "Simulation: not connected to a real hospital information system",
+        "validation": validation
+    }
 
 @router.get("/{case_id}/unified")
 def get_unified_case(
