@@ -3,8 +3,10 @@ import { useNavigate, Link } from 'react-router-dom';
 import { API_BASE_URL } from '../../utils/api';
 import { MmCard, MmButton, MmIcon } from '../../components/ui';
 import { DoctorDemoCredentials, getDemoDoctorCredentials } from '../../components/doctor/DoctorDemoCredentials';
+import { useT } from '../../i18n/useT';
 
 export function DoctorLoginPage() {
+  const { t } = useT();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +142,7 @@ export function DoctorLoginPage() {
               lineHeight: 1.4,
             }}
           >
-            Demo environment: use only synthetic data, never real patient information
+            {t('demoSyntheticDataBanner')}
           </div>
         )}
 

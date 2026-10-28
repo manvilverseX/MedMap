@@ -1,36 +1,34 @@
 import React, { useState } from 'react';
+import { useT } from '../../i18n/useT';
+import { MmCard, MmButton, MmIcon } from '../ui';
+
+export const DEFAULT_DEMO_DOCTOR_USERNAME = 'doctor';
+export const DEFAULT_DEMO_DOCTOR_PASSWORD = 'doctor';
+
+export const LOCAL_DEMO_DOCTOR_USERNAME = DEFAULT_DEMO_DOCTOR_USERNAME;
+export const LOCAL_DEMO_DOCTOR_PASSWORD = DEFAULT_DEMO_DOCTOR_PASSWORD;
+
+export function getDemoDoctorCredentials(): { username: string; password: string } {
+  const envUser = import.meta.env.VITE_DEMO_DOCTOR_USERNAME;
+  const envPass = import.meta.env.VITE_DEMO_DOCTOR_PASSWORD;
+
+  return {
+    username: envUser || DEFAULT_DEMO_DOCTOR_USERNAME,
+    password: envPass || DEFAULT_DEMO_DOCTOR_PASSWORD,
+  };
+}
 
 interface DoctorDemoCredentialsProps {
   onQuickFill?: (credentials: { username: string; password: string }) => void;
 }
 
-export const LOCAL_DEMO_DOCTOR_USERNAME = 'demo_doctor';
-export const LOCAL_DEMO_DOCTOR_PASSWORD = 'demo_doctor_password123';
-
-export function getDemoDoctorCredentials(): { username: string; password: string } | null {
-  const envUser = import.meta.env.VITE_DEMO_DOCTOR_USERNAME;
-  const envPass = import.meta.env.VITE_DEMO_DOCTOR_PASSWORD;
-
-  if (envUser && envPass) {
-    return { username: envUser, password: envPass };
-  }
-  if (import.meta.env.DEV) {
-    return { username: LOCAL_DEMO_DOCTOR_USERNAME, password: LOCAL_DEMO_DOCTOR_PASSWORD };
-  }
-  return null;
-}
-
 export const DoctorDemoCredentials: React.FC<DoctorDemoCredentialsProps> = ({ onQuickFill }) => {
+  const { t } = useT();
   const [copiedField, setCopiedField] = useState<'username' | 'password' | null>(null);
 
   const creds = getDemoDoctorCredentials();
-  if (!creds) {
-    return null;
-  }
-
   const demoUsername = creds.username;
   const demoPassword = creds.password;
-
 
   const handleCopy = async (text: string, field: 'username' | 'password') => {
     try {
@@ -56,127 +54,191 @@ export const DoctorDemoCredentials: React.FC<DoctorDemoCredentialsProps> = ({ on
   };
 
   return (
-    <section className="demo-credentials-box" aria-labelledby="demo-credentials-title">
-      <div className="demo-credentials-header">
-        <div className="demo-credentials-title-group">
-          <svg
-            className="demo-credentials-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
+    <MmCard
+      variant="default"
+      data-testid="doctor-demo-credentials-card"
+      className="card mm-card mm-doctor-demo-credentials-card"
+      style={{
+        backgroundColor: 'var(--mm-paper-deep)',
+        border: '1.5px solid var(--mm-ink)',
+        borderRadius: 'var(--mm-radius-md)',
+        boxShadow: '2.5px 2.5px 0 var(--mm-ink)',
+        padding: '1.1rem 1.25rem',
+        marginBottom: '1.25rem',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '0.85rem',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <MmIcon name="shield" size={18} style={{ color: 'var(--mm-teal-dark)' }} />
+          <h2
+            id="doctor-demo-credentials-title"
+            style={{
+              margin: 0,
+              fontSize: '0.95rem',
+              fontWeight: 800,
+              color: 'var(--mm-ink)',
+              letterSpacing: '0.2px',
+            }}
           >
-            <circle cx="7.5" cy="15.5" r="5.5" />
-            <path d="m21 2-9.6 9.6" />
-            <path d="m15.5 7.5 3 3" />
-          </svg>
-          <h2 id="demo-credentials-title" className="demo-credentials-title">
-            Demo Login Credentials
+            {t('doctorDemoTitle')}
           </h2>
         </div>
-        <span className="demo-credentials-badge">Demo</span>
+        <span
+          style={{
+            fontSize: '0.68rem',
+            fontWeight: 800,
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+            backgroundColor: 'var(--mm-teal-pale)',
+            color: 'var(--mm-teal-dark)',
+            padding: '0.2rem 0.55rem',
+            borderRadius: '999px',
+            border: '1px solid var(--mm-teal-dark)',
+          }}
+        >
+          {t('doctorDemoBadge')}
+        </span>
       </div>
 
-      <p className="demo-credentials-desc">
-        For testing purposes, use the credentials below to access the Doctor Dashboard.
-      </p>
-
-      <div className="demo-credentials-grid">
-        {/* Username Row */}
-        <div className="demo-credential-item">
-          <div className="demo-credential-meta">
-            <span className="demo-credential-label">Username:</span>
-            <button
-              type="button"
-              className="demo-credential-code"
-              onClick={() => handleCopy(demoUsername, 'username')}
-              title="Click to copy username"
-              aria-label={`Copy username ${demoUsername}`}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '0.75rem',
+          backgroundColor: 'var(--mm-white)',
+          border: '1px solid var(--mm-line, rgba(8, 45, 73, 0.2))',
+          borderRadius: 'var(--mm-radius-sm)',
+          padding: '0.75rem 0.85rem',
+          marginBottom: '0.85rem',
+        }}
+      >
+        {/* Username */}
+        <div>
+          <span
+            style={{
+              display: 'block',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              color: 'var(--mm-ink-soft)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+            }}
+          >
+            {t('doctorDemoUsernameLabel')}
+          </span>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.35rem',
+              marginTop: '0.2rem',
+            }}
+          >
+            <code
+              style={{
+                fontFamily: 'var(--mm-font-mono, monospace)',
+                fontWeight: 700,
+                fontSize: '0.95rem',
+                color: 'var(--mm-ink)',
+              }}
             >
               {demoUsername}
-            </button>
-          </div>
-          <button
-            type="button"
-            className={`demo-copy-btn ${copiedField === 'username' ? 'copied' : ''}`}
-            onClick={() => handleCopy(demoUsername, 'username')}
-            aria-label={`Copy username ${demoUsername}`}
-          >
-            {copiedField === 'username' ? (
-              <>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                Copied!
-              </>
-            ) : (
-              <>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-                Copy
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Password Row */}
-        <div className="demo-credential-item">
-          <div className="demo-credential-meta">
-            <span className="demo-credential-label">Password:</span>
+            </code>
             <button
               type="button"
-              className="demo-credential-code"
-              onClick={() => handleCopy(demoPassword, 'password')}
-              title="Click to copy password"
-              aria-label={`Copy password ${demoPassword}`}
+              onClick={() => handleCopy(demoUsername, 'username')}
+              title={copiedField === 'username' ? t('doctorDemoCopied') : t('doctorDemoCopy')}
+              aria-label={`${t('doctorDemoCopy')} ${t('doctorDemoUsernameLabel')}`}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '2px',
+                color: copiedField === 'username' ? 'var(--mm-teal-dark)' : 'var(--mm-ink-soft)',
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
             >
-              {demoPassword}
+              <MmIcon name={copiedField === 'username' ? 'check' : 'file'} size={14} />
             </button>
           </div>
-          <button
-            type="button"
-            className={`demo-copy-btn ${copiedField === 'password' ? 'copied' : ''}`}
-            onClick={() => handleCopy(demoPassword, 'password')}
-            aria-label={`Copy password ${demoPassword}`}
+        </div>
+
+        {/* Password */}
+        <div>
+          <span
+            style={{
+              display: 'block',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              color: 'var(--mm-ink-soft)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+            }}
           >
-            {copiedField === 'password' ? (
-              <>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                Copied!
-              </>
-            ) : (
-              <>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-                Copy
-              </>
-            )}
-          </button>
+            {t('doctorDemoPasswordLabel')}
+          </span>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.35rem',
+              marginTop: '0.2rem',
+            }}
+          >
+            <code
+              style={{
+                fontFamily: 'var(--mm-font-mono, monospace)',
+                fontWeight: 700,
+                fontSize: '0.95rem',
+                color: 'var(--mm-ink)',
+              }}
+            >
+              {demoPassword}
+            </code>
+            <button
+              type="button"
+              onClick={() => handleCopy(demoPassword, 'password')}
+              title={copiedField === 'password' ? t('doctorDemoCopied') : t('doctorDemoCopy')}
+              aria-label={`${t('doctorDemoCopy')} ${t('doctorDemoPasswordLabel')}`}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '2px',
+                color: copiedField === 'password' ? 'var(--mm-teal-dark)' : 'var(--mm-ink-soft)',
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+            >
+              <MmIcon name={copiedField === 'password' ? 'check' : 'file'} size={14} />
+            </button>
+          </div>
         </div>
       </div>
 
       {onQuickFill && (
-        <button
+        <MmButton
           type="button"
-          className="demo-fill-btn"
+          variant="secondary"
+          size="sm"
+          data-testid="doctor-autofill-btn"
+          icon="check"
           onClick={() => onQuickFill({ username: demoUsername, password: demoPassword })}
-          title="Fill form with demo credentials"
+          style={{ width: '100%', fontWeight: 700 }}
         >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="m13 2-2 7h5l-6 13 2-9H7z" />
-          </svg>
-          Fill Demo Credentials
-        </button>
+          {t('doctorDemoAutofill')}
+        </MmButton>
       )}
-    </section>
+    </MmCard>
   );
 };
