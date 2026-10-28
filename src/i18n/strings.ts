@@ -21,7 +21,17 @@ export const EN_STRINGS = {
   landingDoctorLogin: "Doctor Login",
   landingAdminCard: "Hospital Admin Triage",
   landingAdminLogin: "🏥 Hospital Admin / Triage Login →",
-  landingUnderDevelopment: "The project is under development",
+  // SIH Problem Statement Badge
+  sihBadgeLabel: "Smart India Hackathon 2026",
+
+  // Doctor Demo Credentials
+  doctorDemoTitle: "Test doctor account",
+  doctorDemoUsernameLabel: "Username",
+  doctorDemoPasswordLabel: "Password",
+  doctorDemoAutofill: "Autofill credentials",
+  doctorDemoBadge: "Test Account",
+  doctorDemoCopy: "Copy",
+  doctorDemoCopied: "Copied!",
   doctorWorkspaceKicker: "Today's Clinical Workspace",
   doctorWelcomeHeadline: "Better-prepared consultations start before the first question.",
   doctorWelcomeDesc: "MedMap has prepared cases for your clinical review before today's consultations.",
@@ -510,7 +520,17 @@ export const HI_STRINGS: Record<StringKey, string> = {
   landingDoctorLogin: "डॉक्टर लॉगिन",
   landingAdminCard: "अस्पताल व्यवस्थापक ट्राइएज",
   landingAdminLogin: "🏥 अस्पताल व्यवस्थापक लॉगिन →",
-  landingUnderDevelopment: "यह परियोजना अभी विकास के अधीन है",
+  // SIH Problem Statement Badge
+  sihBadgeLabel: "स्मार्ट इंडिया हैकथॉन 2026",
+
+  // Doctor Demo Credentials
+  doctorDemoTitle: "परीक्षण डॉक्टर खाता",
+  doctorDemoUsernameLabel: "उपयोगकर्ता नाम",
+  doctorDemoPasswordLabel: "पासवर्ड",
+  doctorDemoAutofill: "लॉगिन विवरण स्वतः भरें",
+  doctorDemoBadge: "परीक्षण खाता",
+  doctorDemoCopy: "कॉपी करें",
+  doctorDemoCopied: "कॉपी किया गया!",
   doctorWorkspaceKicker: "आज का नैदानिक कार्यक्षेत्र",
   doctorWelcomeHeadline: "बेहतर परामर्श की शुरुआत पहले सवाल से भी पहले होती है।",
   doctorWelcomeDesc: "MedMap ने आज के परामर्श से पहले आपकी नैदानिक समीक्षा के लिए केस तैयार किए हैं।",
@@ -904,7 +924,17 @@ export const KN_STRINGS: Record<StringKey, string> = {
   landingDoctorLogin: "ವೈದ್ಯರ ಲಾಗಿನ್",
   landingAdminCard: "ಆಸ್ಪತ್ರೆ ಆಡಳಿತ ಟ್ರಯೇಜ್",
   landingAdminLogin: "🏥 ಆಸ್ಪತ್ರೆ ನಿರ್ವಾಹಕರ ಲಾಗಿನ್ →",
-  landingUnderDevelopment: "ಈ ಯೋಜನೆಯು ಅಭಿವೃದ್ಧಿಯ ಹಂತದಲ್ಲಿದೆ",
+  // SIH Problem Statement Badge
+  sihBadgeLabel: "ಸ್ಮಾರ್ಟ್ ಇಂಡಿಯಾ ಹ್ಯಾಕಥಾನ್ 2026",
+
+  // Doctor Demo Credentials
+  doctorDemoTitle: "ಪರೀಕ್ಷಾರ್ಥ ವೈದ್ಯರ ಖಾತೆ",
+  doctorDemoUsernameLabel: "ಬಳಕೆದಾರ ಹೆಸರು",
+  doctorDemoPasswordLabel: "ಪಾಸ್‌ವರ್ಡ್",
+  doctorDemoAutofill: "ರುಜುವಾತುಗಳನ್ನು ಸ್ವಯಂ ಭರ್ತಿ ಮಾಡಿ",
+  doctorDemoBadge: "ಪರೀಕ್ಷಾ ಖಾತೆ",
+  doctorDemoCopy: "ಕಾಪಿ ಮಾಡಿ",
+  doctorDemoCopied: "ಕಾಪಿ ಮಾಡಲಾಗಿದೆ!",
   doctorWorkspaceKicker: "ಇಂದಿನ ಕ್ಲಿನಿಕಲ್ ಕಾರ್ಯಕ್ಷೇತ್ರ",
   doctorWelcomeHeadline: "ಉತ್ತಮ ಸಮಾಲೋಚನೆ ಮೊದಲ ಪ್ರಶ್ನೆಗಿಂತ ಮುಂಚೆಯೇ ಪ್ರಾರಂಭವಾಗುತ್ತದೆ.",
   doctorWelcomeDesc: "ಇಂದಿನ ಸಮಾಲೋಚನೆಗೆ ಮುನ್ನ MedMap ನಿಮ್ಮ ಪರಿಶೀಲನೆಗಾಗಿ ಕೇಸುಗಳನ್ನು ಸಿದ್ಧಪಡಿಸಿದೆ.",

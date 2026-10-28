@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Badge } from '../components/Badge';
+import { ProblemStatementBadge } from '../components/ProblemStatementBadge';
 import { useT } from '../i18n/useT';
 import { MmCard, MmIcon } from '../components/ui';
 
@@ -7,8 +7,8 @@ export function LandingPage() {
   const { t } = useT();
 
   return (
-    <>
-      <Badge text={t('landingUnderDevelopment')} />
+    <div className="mm-landing-wrapper">
+      <ProblemStatementBadge />
 
       <div
         className="container mm-landing-container"
@@ -220,7 +220,7 @@ export function LandingPage() {
           </div>
         </main>
       </div>
-    </>
+    </div>
   );
 }
 

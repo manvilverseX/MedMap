@@ -48,6 +48,22 @@ const ALLOWLIST_TOKENS = [
   'Satva',
   'Vaya',
   'Koshtha',
+  'SIH26047',
+  'SIH',
+  'Patient Case-Taking Software',
+  'Patient',
+  'Case',
+  'Taking',
+  'Software',
+  'Ministry of Ayush',
+  'Ministry',
+  'Ayush',
+  'Smart India Hackathon 2026',
+  'Smart',
+  'India',
+  'Hackathon',
+  'Problem',
+  'Statement',
 ];
 
 /**

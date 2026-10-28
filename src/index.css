@@ -811,3 +811,135 @@ header {
     gap: 0.4rem;
   }
 }
+
+/* ==========================================================================
+   Smart India Hackathon 2026 Problem Statement Badge (Top-Left)
+   ========================================================================== */
+
+.mm-landing-wrapper {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+}
+
+.mm-sih-badge {
+  position: absolute;
+  top: 1.25rem;
+  left: 1.25rem;
+  z-index: 20;
+  display: flex;
+  background-color: var(--mm-white, #ffffff);
+  border: 1.5px solid var(--mm-ink, #082d49);
+  border-radius: var(--mm-radius-sm, 6px);
+  box-shadow: 2.5px 2.5px 0 var(--mm-ink, #082d49);
+  overflow: hidden;
+  max-width: 280px;
+  text-align: left;
+  animation: sihBadgeSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes sihBadgeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mm-sih-badge {
+    animation: none;
+  }
+}
+
+.mm-sih-badge-accent-strip {
+  width: 4px;
+  background-color: var(--mm-teal, #0f766e);
+  flex-shrink: 0;
+}
+
+.mm-sih-badge-body {
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.mm-sih-badge-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.mm-sih-badge-icon {
+  color: var(--mm-teal-dark, #0d5f66);
+  flex-shrink: 0;
+}
+
+.mm-sih-badge-label {
+  font-family: var(--mm-font-body, system-ui, sans-serif);
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--mm-teal-dark, #0d5f66);
+  line-height: 1.2;
+}
+
+.mm-sih-badge-id {
+  font-family: var(--mm-font-body, system-ui, sans-serif);
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--mm-ink, #082d49);
+  line-height: 1.2;
+  margin: 0.15rem 0 0.1rem;
+  letter-spacing: 0.5px;
+}
+
+.mm-sih-badge-detail {
+  margin-top: 0.1rem;
+}
+
+.mm-sih-badge-title {
+  font-family: var(--mm-font-body, system-ui, sans-serif);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--mm-ink, #082d49);
+  line-height: 1.2;
+}
+
+.mm-sih-badge-ministry {
+  font-family: var(--mm-font-body, system-ui, sans-serif);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--mm-ink-soft, #42526e);
+  line-height: 1.2;
+}
+
+@media (max-width: 640px) {
+  .mm-sih-badge {
+    top: 0.65rem;
+    left: 0.65rem;
+    box-shadow: 2px 2px 0 var(--mm-ink, #082d49);
+  }
+
+  .mm-sih-badge-body {
+    padding: 0.35rem 0.55rem;
+  }
+
+  .mm-sih-badge-id {
+    font-size: 0.92rem;
+    margin: 0.05rem 0 0;
+  }
+
+  .mm-sih-badge-detail {
+    display: none !important;
+  }
+
+  .mm-landing-container {
+    padding-top: 4.8rem !important;
+  }
+}
+
